@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Required: Vulkan 1.1 is the primary backend. required="false" lets the
+         app install on GLES-only devices; capability is re-checked at runtime
+         and the engine falls back to OpenGLDevice (see GraphicsDevice.h). -->
+    <uses-feature
+        android:name="android.hardware.vulkan.version"
+        android:version="0x00401000"
+        android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:label="VFX Engine"
+        android:theme="@style/Theme.Material3.DayNight.NoActionBar"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
