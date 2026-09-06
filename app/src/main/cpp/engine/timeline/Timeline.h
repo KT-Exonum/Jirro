@@ -168,6 +168,7 @@ public:
     }
 
     [[nodiscard]] const std::vector<Clip>& AllClips() const { return clips_; }
+    [[nodiscard]] const std::vector<Transition>& AllTransitions() const { return transitions_; }
 
 private:
     double frameRate_;

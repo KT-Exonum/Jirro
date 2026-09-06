@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
 #include <iomanip>
 #include <sstream>
 
@@ -316,7 +317,7 @@ ProjectData ProjectSerializer::Serialize(const NodeGraph& graph, const Timeline&
     }
     
     // Clips
-    for (const auto& clip : timeline.clips_) {
+    for (const auto& clip : timeline.AllClips()) {
         SerializedClip sc;
         sc.id = clip.clipId;
         sc.sourceNodeId = clip.sourceNodeId;
@@ -329,7 +330,7 @@ ProjectData ProjectSerializer::Serialize(const NodeGraph& graph, const Timeline&
     }
     
     // Transitions
-    for (const auto& trans : timeline.transitions_) {
+    for (const auto& trans : timeline.AllTransitions()) {
         SerializedTransition st;
         st.fromClipId = trans.fromClipId;
         st.toClipId = trans.toClipId;

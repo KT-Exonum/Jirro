@@ -394,6 +394,46 @@ struct ChromaKeyConfig {
     KeyMethod keyMethod = KeyMethod::ColorDifference;
 };
 
+// Minimal vector type used by MeshConfig (no GLM dependency)
+struct vec3 {
+    float x = 0.0f, y = 0.0f, z = 0.0f;
+    vec3() = default;
+    vec3(float vx, float vy, float vz) : x(vx), y(vy), z(vz) {}
+};
+
+// 3D Mesh configuration
+struct MeshConfig {
+    std::string filePath;           // Path to GLTF/OBJ file
+    std::string meshName;           // Specific mesh name (if multiple in file)
+    
+    // Material override
+    struct MaterialOverride {
+        vec3 baseColor = {1.0f, 1.0f, 1.0f};
+        float metallic = 0.0f;
+        float roughness = 0.5f;
+        float emissive = 0.0f;
+        float alpha = 1.0f;
+        bool useVertexColors = false;
+    };
+    std::unordered_map<std::string, MaterialOverride> materialOverrides; // by material name
+    
+    // Animation
+    bool playAnimation = true;
+    float animationSpeed = 1.0f;
+    int currentAnimation = 0;       // Animation index
+    float animationTime = 0.0f;     // Manual time override
+    
+    // Render settings
+    bool castShadows = true;
+    bool receiveShadows = true;
+    bool doubleSided = false;
+    int renderLayer = 0;
+    
+    // LOD
+    bool useLOD = false;
+    float lodDistance = 100.0f;
+};
+
 struct Node {
     std::string nodeId;
     NodeKind kind;
@@ -613,39 +653,7 @@ public:
         std::string oldValue; // serialized
         std::string newValue; // serialized
 };
-// 3D Mesh configuration
-struct MeshConfig {
-    std::string filePath;           // Path to GLTF/OBJ file
-    std::string meshName;           // Specific mesh name (if multiple in file)
-    
-    // Material override
-    struct MaterialOverride {
-        vec3 baseColor = {1.0f, 1.0f, 1.0f};
-        float metallic = 0.0f;
-        float roughness = 0.5f;
-        float emissive = 0.0f;
-        float alpha = 1.0f;
-        bool useVertexColors = false;
-    };
-    std::unordered_map<std::string, MaterialOverride> materialOverrides; // by material name
-    
-    // Animation
-    bool playAnimation = true;
-    float animationSpeed = 1.0f;
-    int currentAnimation = 0;       // Animation index
-    float animationTime = 0.0f;     // Manual time override
-    
-    // Render settings
-    bool castShadows = true;
-    bool receiveShadows = true;
-    bool doubleSided = false;
-    int renderLayer = 0;
-    
-    // LOD
-    bool useLOD = false;
-    float lodDistance = 100.0f;
-};
-    
+
     std::vector<HistoryEntry> history_;
     size_t historyIndex_ = 0;
     const size_t maxHistorySize_ = 100;

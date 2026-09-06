@@ -21,8 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.px
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.px
 
 /**
  * A resizable panel that can be dragged to adjust its size.

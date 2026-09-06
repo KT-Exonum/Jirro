@@ -339,53 +339,7 @@ private:
     std::unordered_map<std::string, std::vector<Entry>> cache_;
 };
 
-// Request describing one clip the engine thread currently wants decoded
-// frames for, refreshed every engine tick from Timeline::ActiveClipsAt().
-struct ActiveClipRequest {
-    std::string clipId;       // matches Node::nodeId for the VideoSource node
-    std::string sourceFilePath;
-    double sourceTimeSeconds = 0.0;
-    bool useProxy = false;    // If true, use proxy instead of full-res
-};
 
-// Audio request for mixing
-struct ActiveAudioRequest {
-    std::string clipId;
-    std::string sourceFilePath;
-    double sourceTimeSeconds = 0.0;
-    double volume = 1.0;
-    double pan = 0.0;
-    bool mute = false;
-};
-
-// Proxy request for proxy generation
-struct ActiveProxyRequest {
-    std::string clipId;
-    std::string sourceFilePath;
-    std::string proxyFilePath;
-    uint32_t proxyWidth = 960;   // 1080p -> 540p, 4K -> 1080p
-    uint32_t proxyHeight = 540;
-    int bitrateMbps = 5;         // Low bitrate for proxy
-};
-
-struct ProxyConfig {
-    uint32_t targetWidth = 960;     // Proxy resolution
-    uint32_t targetHeight = 540;
-    int bitrateMbps = 5;            // Low bitrate
-    std::string codec = "video/avc"; // Proxy codec
-    std::string proxyDir;           // Directory to store proxies
-    bool autoGenerate = false;      // Auto-generate on import
-};
-
-// Proxy frame for playback
-struct ProxyFrame {
-    TextureHandle texture;
-    int64_t presentationTimeUs = 0;
-    uint32_t width = 0, height = 0;
-    std::shared_ptr<AImage> ownedImage;
-};
-
-// Facade tying DecoderPool + FrameCache + AudioCache together behind a dedicated media
 // thread (Section 14's "Media Thread" box). RenderGraph's VideoSource pass
 // execution (Phase 3 wiring, see RenderGraph::ExecutePass) calls
 // TryGetFrame() from the engine thread; everything else here runs on
