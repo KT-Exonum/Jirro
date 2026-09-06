@@ -269,8 +269,22 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
     }
     PipelineHandle pipelineHandle = pipelineResult.value;
 
-    // Draw the pass
-    device_.DrawFullscreenPass(pipelineHandle, inputTextures, outputTexture);
+    // Evaluate animated uniforms at the current timeline time
+    std::unordered_map<std::string, float> animatedUniforms;
+    for (const auto& [name, track] : node->animatedUniforms) {
+        if (!track.Empty()) {
+            animatedUniforms[name] = track.Evaluate(timelineSeconds);
+        }
+    }
+    // Also include static uniforms as fallback
+    for (const auto& [name, value] : node->uniformFloats) {
+        if (animatedUniforms.find(name) == animatedUniforms.end()) {
+            animatedUniforms[name] = value;
+        }
+    }
+
+    // Draw the pass with animated uniforms
+    device_.DrawFullscreenPass(pipelineHandle, inputTextures, outputTexture, animatedUniforms);
 
     // Store output texture for downstream passes
     lastVideoFrameByNode_[pass.nodeId] = outputTexture;

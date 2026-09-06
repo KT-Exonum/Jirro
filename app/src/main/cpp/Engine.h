@@ -79,6 +79,26 @@ public:
         });
     }
 
+    // Phase 4: Timeline control for variable speed, reverse, scrubbing
+    void QueueSetPlaybackSpeed(double speed) {
+        QueueCommand([speed](Engine& engine) {
+            engine.masterSpeed_ = speed;
+        });
+    }
+
+    void QueueSetScrubbing(bool scrubbing) {
+        QueueCommand([scrubbing](Engine& engine) {
+            engine.timeline_->SetPlaybackState(scrubbing ? PlaybackState::Scrubbing
+                                                         : PlaybackState::Stopped);
+        });
+    }
+
+    void QueueSetMasterSpeed(double speed) {
+        QueueCommand([speed](Engine& engine) {
+            engine.masterSpeed_ = speed;
+        });
+    }
+
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
 
@@ -103,6 +123,7 @@ private:
     std::atomic<bool> surfaceDirty_{false};
 
     std::chrono::steady_clock::time_point lastTickTime_{};
+    double masterSpeed_ = 1.0; // Phase 4: master timeline speed (negative = reverse)
 };
 
 } // namespace vfx

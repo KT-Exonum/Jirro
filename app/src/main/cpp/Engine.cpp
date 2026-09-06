@@ -127,7 +127,7 @@ void Engine::Tick() {
     const auto now = std::chrono::steady_clock::now();
     const double dt = std::chrono::duration<double>(now - lastTickTime_).count();
     lastTickTime_ = now;
-    timeline_->Advance(dt, /*masterSpeed=*/1.0);
+    timeline_->Advance(dt, masterSpeed_);
 
     // 3b. Phase 2: tell MediaEngine which clips are near the playhead right
     // now so its media thread can keep the right decoders warm and the

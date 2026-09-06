@@ -48,6 +48,19 @@ class NativeEngine {
         if (handle != 0L) nativeSetPlaying(handle, playing)
     }
 
+    // Phase 4: Timeline control
+    fun setPlaybackSpeed(speed: Double) {
+        if (handle != 0L) nativeSetPlaybackSpeed(handle, speed)
+    }
+
+    fun setScrubbing(scrubbing: Boolean) {
+        if (handle != 0L) nativeSetScrubbing(handle, scrubbing)
+    }
+
+    fun setMasterSpeed(speed: Double) {
+        if (handle != 0L) nativeSetMasterSpeed(handle, speed)
+    }
+
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAttachSurface(handle: Long, surface: Surface)
@@ -55,6 +68,9 @@ class NativeEngine {
     private external fun nativeUpdateUniform(handle: Long, nodeId: String, uniformName: String, value: Float)
     private external fun nativeSeek(handle: Long, seconds: Double)
     private external fun nativeSetPlaying(handle: Long, playing: Boolean)
+    private external fun nativeSetPlaybackSpeed(handle: Long, speed: Double)
+    private external fun nativeSetScrubbing(handle: Long, scrubbing: Boolean)
+    private external fun nativeSetMasterSpeed(handle: Long, speed: Double)
 
     companion object {
         init {

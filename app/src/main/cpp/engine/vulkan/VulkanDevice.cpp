@@ -1150,7 +1150,8 @@ Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, 
 }
 
 void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
-                                       TextureHandle output) {
+                                       TextureHandle output,
+                                       const std::unordered_map<std::string, float>& uniformValues) {
     // Record into current command buffer
     VkCommandBuffer cmd = commandBuffers_[currentFrame_];
 
@@ -1197,8 +1198,22 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
     uniformWrite.pBufferInfo = &uniformBufferInfo;
     vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
 
-    // For now, use a default empty param buffer (Set 1)
+    // Update param buffer (Set 1) with animated uniform values
     VkBufferResource* paramBufRes = buffers_.Get(frameBuffers.paramBuffer);
+    if (paramBufRes && paramBufRes->mapped) {
+        // Write uniform values to param buffer
+        // We'll pack them as a simple array of floats, with a name-to-offset mapping
+        // For simplicity, use a fixed layout: up to 32 floats (128 bytes)
+        float paramData[32] = {0};
+        int idx = 0;
+        for (const auto& [name, value] : uniformValues) {
+            if (idx < 32) {
+                paramData[idx++] = value;
+            }
+        }
+        std::memcpy(paramBufRes->mapped, paramData, sizeof(paramData));
+    }
+
     VkDescriptorBufferInfo paramBufferInfo{};
     paramBufferInfo.buffer = paramBufRes ? paramBufRes->buffer : VK_NULL_HANDLE;
     paramBufferInfo.offset = 0;
@@ -1303,6 +1318,7 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
+
 
 VkSamplerYcbcrConversion VulkanDevice::GetOrCreateYcbcrConversion(
     const VkExternalFormatANDROID& externalFormat,

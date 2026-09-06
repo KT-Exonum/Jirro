@@ -42,7 +42,8 @@ public:
     bool BeginFrame() override;
     void EndFrame() override;
     void DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
-                             TextureHandle output) override;
+                             TextureHandle output,
+                             const std::unordered_map<std::string, float>& uniformValues = {}) override;
     void Submit() override;
 
     Result<TextureHandle> ImportHardwareBuffer(HardwareBufferHandle buffer, uint32_t width,

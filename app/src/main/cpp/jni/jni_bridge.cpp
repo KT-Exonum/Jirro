@@ -82,4 +82,26 @@ Java_com_vfxengine_app_NativeEngine_nativeSetPlaying(JNIEnv*, jobject, jlong han
     if (engine) engine->QueueSetPlaying(playing == JNI_TRUE);
 }
 
+// Phase 4: Timeline control
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetPlaybackSpeed(JNIEnv*, jobject, jlong handle,
+                                                            jdouble speed) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueSetPlaybackSpeed(speed);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetScrubbing(JNIEnv*, jobject, jlong handle,
+                                                        jboolean scrubbing) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueSetScrubbing(scrubbing == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetMasterSpeed(JNIEnv*, jobject, jlong handle,
+                                                          jdouble speed) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueSetMasterSpeed(speed);
+}
+
 } // extern "C"
