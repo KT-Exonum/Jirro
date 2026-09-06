@@ -415,6 +415,51 @@ void Engine::AddNode(AddNodeCommand&& cmd) {
         case NodeKind::Group:
             // Group ports are dynamic
             break;
+        // Motion Effects - all single input, single output
+        case NodeKind::Oscillate:
+        case NodeKind::Shake:
+        case NodeKind::RandomDisplacement:
+        case NodeKind::Pulse:
+        case NodeKind::Swing:
+        case NodeKind::Bounce:
+        case NodeKind::Elastic:
+        case NodeKind::CameraShake:
+        case NodeKind::ZoomBlur:
+        case NodeKind::RadialBlur:
+        case NodeKind::MotionBlur:
+        case NodeKind::DirectionalBlur:
+        case NodeKind::Ripple:
+        case NodeKind::Wave:
+        case NodeKind::Twist:
+        case NodeKind::Bulge:
+        case NodeKind::Vortex:
+        case NodeKind::Glitch:
+        case NodeKind::VHS:
+        case NodeKind::Scanlines:
+        case NodeKind::CRT:
+        case NodeKind::ChromaticAberration:
+        case NodeKind::RGBShift:
+        case NodeKind::TimeStretch:
+        case NodeKind::FrameBlend:
+        case NodeKind::StopMotion:
+        case NodeKind::PosterizeTime:
+        case NodeKind::Wiggle:
+        case NodeKind::Jitter:
+        case NodeKind::Drift:
+        case NodeKind::Orbit:
+        case NodeKind::CameraShakePro:
+        case NodeKind::DynamicZoom:
+        case NodeKind::FilmDamage:
+        case NodeKind::FilmGrain:
+        case NodeKind::Vignette:
+        case NodeKind::Letterbox:
+        case NodeKind::BezierWarp:
+        case NodeKind::MeshWarp:
+        case NodeKind::PolarCoordinates:
+        case NodeKind::DisplacementMap:
+            node.inputs.push_back(NodeSocket{"input"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
     }
     
     graph_.AddNode(std::move(node));

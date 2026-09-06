@@ -226,7 +226,56 @@ std::string ProjectSerializer::NodeKindToString(NodeKind kind) {
         case NodeKind::Camera3D: return "Camera3D";
         case NodeKind::DepthOfField: return "DepthOfField";
         case NodeKind::ChromaKey: return "ChromaKey";
-        case NodeKind::MeshSource: return "MeshSource";
+case NodeKind::MeshSource: return "MeshSource";
+        // Motion Effects - Transform Motion
+        case NodeKind::Oscillate: return "Oscillate";
+        case NodeKind::Shake: return "Shake";
+        case NodeKind::RandomDisplacement: return "RandomDisplacement";
+        case NodeKind::Pulse: return "Pulse";
+        case NodeKind::Swing: return "Swing";
+        case NodeKind::Bounce: return "Bounce";
+        case NodeKind::Elastic: return "Elastic";
+        // Motion Effects - Camera Motion
+        case NodeKind::CameraShake: return "CameraShake";
+        case NodeKind::ZoomBlur: return "ZoomBlur";
+        case NodeKind::RadialBlur: return "RadialBlur";
+        case NodeKind::MotionBlur: return "MotionBlur";
+        case NodeKind::DirectionalBlur: return "DirectionalBlur";
+        // Motion Effects - Distortion Motion
+        case NodeKind::Ripple: return "Ripple";
+        case NodeKind::Wave: return "Wave";
+        case NodeKind::Twist: return "Twist";
+        case NodeKind::Bulge: return "Bulge";
+        case NodeKind::Vortex: return "Vortex";
+        // Motion Effects - Stylize Motion
+        case NodeKind::Glitch: return "Glitch";
+        case NodeKind::VHS: return "VHS";
+        case NodeKind::Scanlines: return "Scanlines";
+        case NodeKind::CRT: return "CRT";
+        case NodeKind::ChromaticAberration: return "ChromaticAberration";
+        case NodeKind::RGBShift: return "RGBShift";
+        // Motion Effects - Time Motion
+        case NodeKind::TimeStretch: return "TimeStretch";
+        case NodeKind::FrameBlend: return "FrameBlend";
+        case NodeKind::StopMotion: return "StopMotion";
+        case NodeKind::PosterizeTime: return "PosterizeTime";
+        // Motion Effects - Utility Motion
+        case NodeKind::Wiggle: return "Wiggle";
+        case NodeKind::Jitter: return "Jitter";
+        case NodeKind::Drift: return "Drift";
+        case NodeKind::Orbit: return "Orbit";
+        // Resolve FX inspired
+        case NodeKind::CameraShakePro: return "CameraShakePro";
+        case NodeKind::DynamicZoom: return "DynamicZoom";
+        case NodeKind::FilmDamage: return "FilmDamage";
+        case NodeKind::FilmGrain: return "FilmGrain";
+        case NodeKind::Vignette: return "Vignette";
+        case NodeKind::Letterbox: return "Letterbox";
+        // Advanced
+        case NodeKind::BezierWarp: return "BezierWarp";
+        case NodeKind::MeshWarp: return "MeshWarp";
+        case NodeKind::PolarCoordinates: return "PolarCoordinates";
+        case NodeKind::DisplacementMap: return "DisplacementMap";
         default: return "Unknown";
     }
 }
@@ -269,7 +318,7 @@ NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "ShapeRender") return NodeKind::ShapeRender;
     if (str == "ShapeMerge") return NodeKind::ShapeMerge;
     if (str == "ShapeTransform") return NodeKind::ShapeTransform;
-    if (str == "ShapeStroke") return NodeKind::ShapeStroke;
+    if (str == "ShapeStroke") return NodeKind::ShapeTransform;
     if (str == "ShapeFill") return NodeKind::ShapeFill;
     if (str == "ShapeRepeater") return NodeKind::ShapeRepeater;
     if (str == "ShapeBoolean") return NodeKind::ShapeBoolean;
@@ -278,6 +327,55 @@ NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "DepthOfField") return NodeKind::DepthOfField;
     if (str == "ChromaKey") return NodeKind::ChromaKey;
     if (str == "MeshSource") return NodeKind::MeshSource;
+    // Motion Effects - Transform Motion
+    if (str == "Oscillate") return NodeKind::Oscillate;
+    if (str == "Shake") return NodeKind::Shake;
+    if (str == "RandomDisplacement") return NodeKind::RandomDisplacement;
+    if (str == "Pulse") return NodeKind::Pulse;
+    if (str == "Swing") return NodeKind::Swing;
+    if (str == "Bounce") return NodeKind::Bounce;
+    if (str == "Elastic") return NodeKind::Elastic;
+    // Motion Effects - Camera Motion
+    if (str == "CameraShake") return NodeKind::CameraShake;
+    if (str == "ZoomBlur") return NodeKind::ZoomBlur;
+    if (str == "RadialBlur") return NodeKind::RadialBlur;
+    if (str == "MotionBlur") return NodeKind::MotionBlur;
+    if (str == "DirectionalBlur") return NodeKind::DirectionalBlur;
+    // Motion Effects - Distortion Motion
+    if (str == "Ripple") return NodeKind::Ripple;
+    if (str == "Wave") return NodeKind::Wave;
+    if (str == "Twist") return NodeKind::Twist;
+    if (str == "Bulge") return NodeKind::Bulge;
+    if (str == "Vortex") return NodeKind::Vortex;
+    // Motion Effects - Stylize Motion
+    if (str == "Glitch") return NodeKind::Glitch;
+    if (str == "VHS") return NodeKind::VHS;
+    if (str == "Scanlines") return NodeKind::Scanlines;
+    if (str == "CRT") return NodeKind::CRT;
+    if (str == "ChromaticAberration") return NodeKind::ChromaticAberration;
+    if (str == "RGBShift") return NodeKind::RGBShift;
+    // Motion Effects - Time Motion
+    if (str == "TimeStretch") return NodeKind::TimeStretch;
+    if (str == "FrameBlend") return NodeKind::FrameBlend;
+    if (str == "StopMotion") return NodeKind::StopMotion;
+    if (str == "PosterizeTime") return NodeKind::PosterizeTime;
+    // Motion Effects - Utility Motion
+    if (str == "Wiggle") return NodeKind::Wiggle;
+    if (str == "Jitter") return NodeKind::Jitter;
+    if (str == "Drift") return NodeKind::Drift;
+    if (str == "Orbit") return NodeKind::Orbit;
+    // Resolve FX inspired
+    if (str == "CameraShakePro") return NodeKind::CameraShakePro;
+    if (str == "DynamicZoom") return NodeKind::DynamicZoom;
+    if (str == "FilmDamage") return NodeKind::FilmDamage;
+    if (str == "FilmGrain") return NodeKind::FilmGrain;
+    if (str == "Vignette") return NodeKind::Vignette;
+    if (str == "Letterbox") return NodeKind::Letterbox;
+    // Advanced
+    if (str == "BezierWarp") return NodeKind::BezierWarp;
+    if (str == "MeshWarp") return NodeKind::MeshWarp;
+    if (str == "PolarCoordinates") return NodeKind::PolarCoordinates;
+    if (str == "DisplacementMap") return NodeKind::DisplacementMap;
     return NodeKind::Shader;
 }
 

@@ -69,6 +69,63 @@ enum class NodeKind {
     ChromaKey,        // Green/blue screen keying
     // 3D Models
     MeshSource,       // GLTF/OBJ mesh with PBR materials
+
+    // Motion Effects - Transform Motion (Alight Motion inspired)
+    Oscillate,        // Sine/triangle wave oscillation
+    Shake,            // Camera shake with decay
+    RandomDisplacement, // Smooth random position offset
+    Pulse,            // Scale pulse (heartbeat)
+    Swing,            // Pendulum rotation
+    Bounce,           // Bouncing motion with decay
+    Elastic,          // Elastic/spring motion
+
+    // Motion Effects - Camera Motion (Resolve FX inspired)
+    CameraShake,      // Full camera shake (pos+rot+scale)
+    ZoomBlur,         // Radial zoom blur
+    RadialBlur,       // Center-weighted radial blur
+    MotionBlur,       // Vector motion blur
+    DirectionalBlur,  // Directional streak blur
+
+    // Motion Effects - Distortion Motion
+    Ripple,           // Radial ripple displacement
+    Wave,             // Sine wave displacement
+    Twist,            // Twirl/vortex distortion
+    Bulge,            // Bulge/pinch lens
+    Vortex,           // Swirling vortex
+
+    // Motion Effects - Stylize Motion
+    Glitch,           // Digital glitch artifacts
+    VHS,              // VHS tape damage
+    Scanlines,        // CRT scanlines
+    CRT,              // Full CRT simulation
+    ChromaticAberration, // RGB channel separation
+    RGBShift,         // RGB channel offset
+
+    // Motion Effects - Time Motion
+    TimeStretch,      // Time remap with frame blending
+    FrameBlend,       // Optical flow frame blend
+    StopMotion,       // Posterized frame rate
+    PosterizeTime,    // Temporal posterization
+
+    // Motion Effects - Utility Motion
+    Wiggle,           // AE-style wiggle expression
+    Jitter,           // High-freq random jitter
+    Drift,            // Slow random drift
+    Orbit,            // Circular orbit motion
+
+    // Resolve FX inspired
+    CameraShakePro,   // Advanced camera shake with presets
+    DynamicZoom,      // Ken Burns style zoom
+    FilmDamage,       // Film scratches/dirt
+    FilmGrain,        // Photographic film grain
+    Vignette,         // Lens vignette
+    Letterbox,        // Cinematic letterbox
+
+    // Advanced
+    BezierWarp,       // Bezier-based warp
+    MeshWarp,         // Grid-based mesh warp
+    PolarCoordinates, // Polar coordinate transform
+    DisplacementMap,  // Texture-based displacement
 };
 
 enum class BlendMode { Normal, Multiply, Screen, Overlay, Add, Subtract };
