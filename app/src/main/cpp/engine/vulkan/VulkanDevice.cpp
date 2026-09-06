@@ -1,0 +1,990 @@
+#include "VulkanDevice.h"
+
+#include <android/log.h>
+#include <android/native_window.h>
+#include <vulkan/vulkan_android.h>
+
+#include <cstring>
+
+#define LOG_TAG "VulkanDevice"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+
+namespace vfx {
+
+// Definitions for the bring-up SPIR-V declared in the anonymous namespace
+// below. Replace this file's contents with the real
+// `xxd -i triangle.vert.spv` / `triangle.frag.spv` output — see
+// shaders/README.md. Left at zero length deliberately: CreateBringUpPipeline
+// checks the word count and fails loudly instead of silently drawing
+// nothing, so a missing build step is caught at init rather than showing up
+// as "why is the screen just clear-colored".
+namespace generated_shader_bytecode {
+const uint32_t kTriangleVert[] = {0};
+const size_t kTriangleVertWords = 0;
+const uint32_t kTriangleFrag[] = {0};
+const size_t kTriangleFragWords = 0;
+} // namespace generated_shader_bytecode
+
+namespace {
+
+// Minimal bring-up shaders, pre-compiled to SPIR-V offline (see
+// shaders/README.md — `glslangValidator -V triangle.vert -o triangle.vert.spv`).
+// Embedded here as byte arrays so Phase 1 has zero asset-loading dependency;
+// Phase 3 shader nodes load SPIR-V from the asset pack instead (see
+// Engine::LoadShaderAsset, not shown here — asset I/O is UI/AssetManager
+// plumbing, not engine-architecture-relevant).
+//
+// NOTE: these are placeholders — replace with the real compiled bytes from
+// shaders/triangle.vert / triangle.frag before first run. Left as an
+// explicit TODO rather than silently shipping something that isn't real
+// SPIR-V bytecode.
+// TODO(phase1): populate from `xxd -i triangle.vert.spv`.
+using generated_shader_bytecode::kTriangleVert;
+using generated_shader_bytecode::kTriangleVertWords;
+using generated_shader_bytecode::kTriangleFrag;
+using generated_shader_bytecode::kTriangleFragWords;
+constexpr const uint32_t* kTriangleVertSpirv = kTriangleVert;
+constexpr size_t kTriangleVertSpirvWords = kTriangleVertWords;
+constexpr const uint32_t* kTriangleFragSpirv = kTriangleFrag;
+constexpr size_t kTriangleFragSpirvWords = kTriangleFragWords;
+
+bool HasExtension(const std::vector<VkExtensionProperties>& available, const char* name) {
+    for (const auto& ext : available) {
+        if (std::strcmp(ext.extensionName, name) == 0) return true;
+    }
+    return false;
+}
+
+} // namespace
+
+VulkanDevice::~VulkanDevice() { Shutdown(); }
+
+bool VulkanDevice::Initialize(ANativeWindow* window) {
+    window_ = window;
+    if (!CreateInstance()) return false;
+
+    VkAndroidSurfaceCreateInfoKHR surfaceInfo{};
+    surfaceInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+    surfaceInfo.window = window_;
+    if (vkCreateAndroidSurfaceKHR(instance_, &surfaceInfo, nullptr, &surface_) != VK_SUCCESS) {
+        LOGE("vkCreateAndroidSurfaceKHR failed");
+        return false;
+    }
+
+    if (!PickPhysicalDevice()) return false;
+    QueryCapabilities();
+    if (!CreateLogicalDevice()) return false;
+
+    const uint32_t width = static_cast<uint32_t>(ANativeWindow_getWidth(window_));
+    const uint32_t height = static_cast<uint32_t>(ANativeWindow_getHeight(window_));
+    if (!CreateSwapchain(width, height)) return false;
+    if (!CreateRenderPass()) return false;
+    if (!CreateFramebuffers()) return false;
+    if (!CreateCommandPoolAndBuffers()) return false;
+    if (!CreateSyncObjects()) return false;
+    if (!CreateBringUpPipeline()) return false;
+
+    VkPipelineCacheCreateInfo cacheInfo{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
+    vkCreatePipelineCache(device_, &cacheInfo, nullptr, &pipelineCache_);
+
+    LOGI("VulkanDevice initialized: %ux%u, format=%d", swapchainExtent_.width,
+         swapchainExtent_.height, swapchainFormat_);
+    return true;
+}
+
+bool VulkanDevice::CreateInstance() {
+    VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    appInfo.pApplicationName = "VFXEngine";
+    appInfo.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
+    appInfo.pEngineName = "VFXEngineCore";
+    appInfo.apiVersion = VK_API_VERSION_1_1;
+
+    const std::vector<const char*> extensions = {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
+    };
+
+    VkInstanceCreateInfo createInfo{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    createInfo.pApplicationInfo = &appInfo;
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+    createInfo.ppEnabledExtensionNames = extensions.data();
+
+    if (vkCreateInstance(&createInfo, nullptr, &instance_) != VK_SUCCESS) {
+        LOGE("vkCreateInstance failed");
+        return false;
+    }
+    return true;
+}
+
+bool VulkanDevice::PickPhysicalDevice() {
+    uint32_t count = 0;
+    vkEnumeratePhysicalDevices(instance_, &count, nullptr);
+    if (count == 0) {
+        LOGE("No Vulkan physical devices found");
+        return false;
+    }
+    std::vector<VkPhysicalDevice> devices(count);
+    vkEnumeratePhysicalDevices(instance_, &count, devices.data());
+
+    // Prefer a discrete/integrated GPU with a graphics+present queue and
+    // swapchain support; on mobile there's usually exactly one adapter, but
+    // some devices (rare dual-GPU tablets) expose more than one.
+    for (VkPhysicalDevice dev : devices) {
+        uint32_t queueCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &queueCount, nullptr);
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(dev, &queueCount, queueFamilies.data());
+
+        for (uint32_t i = 0; i < queueCount; ++i) {
+            if (!(queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) continue;
+            VkBool32 presentSupport = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surface_, &presentSupport);
+            if (!presentSupport) continue;
+
+            uint32_t extCount = 0;
+            vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, nullptr);
+            std::vector<VkExtensionProperties> exts(extCount);
+            vkEnumerateDeviceExtensionProperties(dev, nullptr, &extCount, exts.data());
+            if (!HasExtension(exts, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) continue;
+
+            physicalDevice_ = dev;
+            graphicsQueueFamily_ = i;
+            return true;
+        }
+    }
+
+    LOGE("No suitable Vulkan device/queue found");
+    return false;
+}
+
+void VulkanDevice::QueryCapabilities() {
+    caps_.supportsVulkan = true;
+
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(physicalDevice_, &props);
+    caps_.vulkanApiVersion = props.apiVersion;
+    caps_.maxTextureDimension = props.limits.maxImageDimension2D;
+
+    uint32_t extCount = 0;
+    vkEnumerateDeviceExtensionProperties(physicalDevice_, nullptr, &extCount, nullptr);
+    std::vector<VkExtensionProperties> exts(extCount);
+    vkEnumerateDeviceExtensionProperties(physicalDevice_, nullptr, &extCount, exts.data());
+
+    caps_.supportsYcbcrConversion =
+        HasExtension(exts, VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+    caps_.supportsHardwareBufferImport =
+        HasExtension(exts, VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME);
+
+    // Heuristic placeholder for Section 16 "graceful degradation": treat
+    // devices below a rough tile-memory bar as non-4K-sustained. A real
+    // implementation should incorporate thermal API + a measured warm-up
+    // frame time (see Engine::AdaptiveQualityController, Phase 6).
+    caps_.sustainedPerformanceMode = props.limits.maxImageDimension2D >= 8192;
+}
+
+bool VulkanDevice::CreateLogicalDevice() {
+    const float priority = 1.0f;
+    VkDeviceQueueCreateInfo queueInfo{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+    queueInfo.queueFamilyIndex = graphicsQueueFamily_;
+    queueInfo.queueCount = 1;
+    queueInfo.pQueuePriorities = &priority;
+
+    std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    if (caps_.supportsYcbcrConversion) {
+        deviceExtensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+    }
+    if (caps_.supportsHardwareBufferImport) {
+        deviceExtensions.push_back(VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+        // Required alongside VK_ANDROID_external_memory_android_hardware_buffer
+        // (spec §"Device Extensions" cross-dependency list) — without these
+        // two, vkGetAndroidHardwareBufferPropertiesANDROID / the import chain
+        // silently misbehaves on some drivers rather than failing loudly.
+        deviceExtensions.push_back(VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+        deviceExtensions.push_back(VK_KHR_BIND_MEMORY_2_EXTENSION_NAME);
+    }
+
+    VkPhysicalDeviceSamplerYcbcrConversionFeatures ycbcrFeatures{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES};
+    ycbcrFeatures.samplerYcbcrConversion = caps_.supportsYcbcrConversion ? VK_TRUE : VK_FALSE;
+
+    VkDeviceCreateInfo createInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+    createInfo.pNext = &ycbcrFeatures;
+    createInfo.queueCreateInfoCount = 1;
+    createInfo.pQueueCreateInfos = &queueInfo;
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+
+    if (vkCreateDevice(physicalDevice_, &createInfo, nullptr, &device_) != VK_SUCCESS) {
+        LOGE("vkCreateDevice failed");
+        return false;
+    }
+    vkGetDeviceQueue(device_, graphicsQueueFamily_, 0, &graphicsQueue_);
+    return true;
+}
+
+bool VulkanDevice::CreateSwapchain(uint32_t width, uint32_t height) {
+    VkSurfaceCapabilitiesKHR surfaceCaps{};
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice_, surface_, &surfaceCaps);
+
+    uint32_t formatCount = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface_, &formatCount, nullptr);
+    std::vector<VkSurfaceFormatKHR> formats(formatCount);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice_, surface_, &formatCount, formats.data());
+
+    VkSurfaceFormatKHR chosen = formats[0];
+    for (const auto& f : formats) {
+        if (f.format == VK_FORMAT_B8G8R8A8_UNORM && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            chosen = f;
+            break;
+        }
+    }
+    swapchainFormat_ = chosen.format;
+
+    swapchainExtent_.width = std::clamp(width, surfaceCaps.minImageExtent.width,
+                                         surfaceCaps.maxImageExtent.width);
+    swapchainExtent_.height = std::clamp(height, surfaceCaps.minImageExtent.height,
+                                          surfaceCaps.maxImageExtent.height);
+
+    uint32_t imageCount = surfaceCaps.minImageCount + 1;
+    if (surfaceCaps.maxImageCount > 0) imageCount = std::min(imageCount, surfaceCaps.maxImageCount);
+
+    VkSwapchainCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+    createInfo.surface = surface_;
+    createInfo.minImageCount = imageCount;
+    createInfo.imageFormat = chosen.format;
+    createInfo.imageColorSpace = chosen.colorSpace;
+    createInfo.imageExtent = swapchainExtent_;
+    createInfo.imageArrayLayers = 1;
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.preTransform = surfaceCaps.currentTransform;
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR; // vsync-locked; avoids
+                                                        // tearing/thermal spikes from MAILBOX
+    createInfo.clipped = VK_TRUE;
+
+    if (vkCreateSwapchainKHR(device_, &createInfo, nullptr, &swapchain_) != VK_SUCCESS) {
+        LOGE("vkCreateSwapchainKHR failed");
+        return false;
+    }
+
+    uint32_t actualCount = 0;
+    vkGetSwapchainImagesKHR(device_, swapchain_, &actualCount, nullptr);
+    swapchainImages_.resize(actualCount);
+    vkGetSwapchainImagesKHR(device_, swapchain_, &actualCount, swapchainImages_.data());
+
+    swapchainImageViews_.resize(actualCount);
+    for (uint32_t i = 0; i < actualCount; ++i) {
+        VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        viewInfo.image = swapchainImages_[i];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = swapchainFormat_;
+        viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        if (vkCreateImageView(device_, &viewInfo, nullptr, &swapchainImageViews_[i]) != VK_SUCCESS) {
+            LOGE("vkCreateImageView (swapchain) failed at index %u", i);
+            return false;
+        }
+    }
+    return true;
+}
+
+void VulkanDevice::DestroySwapchain() {
+    for (auto fb : framebuffers_) vkDestroyFramebuffer(device_, fb, nullptr);
+    framebuffers_.clear();
+    for (auto view : swapchainImageViews_) vkDestroyImageView(device_, view, nullptr);
+    swapchainImageViews_.clear();
+    if (swapchain_ != VK_NULL_HANDLE) vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+    swapchain_ = VK_NULL_HANDLE;
+}
+
+bool VulkanDevice::CreateRenderPass() {
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = swapchainFormat_;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorRef{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorRef;
+
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo rpInfo{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+    rpInfo.attachmentCount = 1;
+    rpInfo.pAttachments = &colorAttachment;
+    rpInfo.subpassCount = 1;
+    rpInfo.pSubpasses = &subpass;
+    rpInfo.dependencyCount = 1;
+    rpInfo.pDependencies = &dependency;
+
+    return vkCreateRenderPass(device_, &rpInfo, nullptr, &renderPass_) == VK_SUCCESS;
+}
+
+bool VulkanDevice::CreateFramebuffers() {
+    framebuffers_.resize(swapchainImageViews_.size());
+    for (size_t i = 0; i < swapchainImageViews_.size(); ++i) {
+        VkFramebufferCreateInfo fbInfo{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+        fbInfo.renderPass = renderPass_;
+        fbInfo.attachmentCount = 1;
+        fbInfo.pAttachments = &swapchainImageViews_[i];
+        fbInfo.width = swapchainExtent_.width;
+        fbInfo.height = swapchainExtent_.height;
+        fbInfo.layers = 1;
+        if (vkCreateFramebuffer(device_, &fbInfo, nullptr, &framebuffers_[i]) != VK_SUCCESS) {
+            LOGE("vkCreateFramebuffer failed at index %zu", i);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool VulkanDevice::CreateCommandPoolAndBuffers() {
+    VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+    poolInfo.queueFamilyIndex = graphicsQueueFamily_;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    if (vkCreateCommandPool(device_, &poolInfo, nullptr, &commandPool_) != VK_SUCCESS) return false;
+
+    commandBuffers_.resize(kMaxFramesInFlight);
+    VkCommandBufferAllocateInfo allocInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    allocInfo.commandPool = commandPool_;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = kMaxFramesInFlight;
+    return vkAllocateCommandBuffers(device_, &allocInfo, commandBuffers_.data()) == VK_SUCCESS;
+}
+
+bool VulkanDevice::CreateSyncObjects() {
+    VkSemaphoreCreateInfo semInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // first Wait doesn't stall forever
+
+    for (int i = 0; i < kMaxFramesInFlight; ++i) {
+        if (vkCreateSemaphore(device_, &semInfo, nullptr, &imageAvailable_[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device_, &semInfo, nullptr, &renderFinished_[i]) != VK_SUCCESS ||
+            vkCreateFence(device_, &fenceInfo, nullptr, &inFlightFences_[i]) != VK_SUCCESS) {
+            LOGE("Failed to create sync objects for frame %d", i);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool VulkanDevice::CreateBringUpPipeline() {
+    if (kTriangleVertSpirvWords == 0 || kTriangleFragSpirvWords == 0) {
+        LOGE("Bring-up SPIR-V not populated — see TODO(phase1) in VulkanDevice.cpp");
+        return false;
+    }
+
+    VkShaderModuleCreateInfo vsInfo{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+    vsInfo.codeSize = kTriangleVertSpirvWords * sizeof(uint32_t);
+    vsInfo.pCode = kTriangleVertSpirv;
+    if (vkCreateShaderModule(device_, &vsInfo, nullptr, &bringUpVert_) != VK_SUCCESS) return false;
+
+    VkShaderModuleCreateInfo fsInfo{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+    fsInfo.codeSize = kTriangleFragSpirvWords * sizeof(uint32_t);
+    fsInfo.pCode = kTriangleFragSpirv;
+    if (vkCreateShaderModule(device_, &fsInfo, nullptr, &bringUpFrag_) != VK_SUCCESS) return false;
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = bringUpVert_;
+    stages[0].pName = "main";
+    stages[1] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = bringUpFrag_;
+    stages[1].pName = "main";
+
+    // No vertex buffers: positions are generated in the vertex shader via
+    // gl_VertexIndex (classic fullscreen-triangle trick), matching how the
+    // eventual DrawFullscreenPass() graph nodes will work too.
+    VkPipelineVertexInputStateCreateInfo vertexInput{
+        VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{
+        VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkViewport viewport{0, 0, static_cast<float>(swapchainExtent_.width),
+                         static_cast<float>(swapchainExtent_.height), 0.0f, 1.0f};
+    VkRect2D scissor{{0, 0}, swapchainExtent_};
+    VkPipelineViewportStateCreateInfo viewportState{
+        VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{
+        VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.lineWidth = 1.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisample{
+        VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState blendAttachment{};
+    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendAttachment.blendEnable = VK_FALSE; // real blend-mode nodes (Section 10) configure this per mode
+
+    VkPipelineColorBlendStateCreateInfo colorBlend{
+        VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    colorBlend.attachmentCount = 1;
+    colorBlend.pAttachments = &blendAttachment;
+
+    VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &bringUpLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = stages;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisample;
+    pipelineInfo.pColorBlendState = &colorBlend;
+    pipelineInfo.layout = bringUpLayout_;
+    pipelineInfo.renderPass = renderPass_;
+    pipelineInfo.subpass = 0;
+
+    return vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineInfo, nullptr,
+                                      &bringUpPipeline_) == VK_SUCCESS;
+}
+
+bool VulkanDevice::BeginFrame() {
+    vkWaitForFences(device_, 1, &inFlightFences_[currentFrame_], VK_TRUE, UINT64_MAX);
+
+    VkResult acquireResult = vkAcquireNextImageKHR(
+        device_, swapchain_, UINT64_MAX, imageAvailable_[currentFrame_], VK_NULL_HANDLE,
+        &currentImageIndex_);
+
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        OnSurfaceResized(swapchainExtent_.width, swapchainExtent_.height);
+        return false; // skip this frame; caller retries next tick
+    }
+    if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+        LOGE("vkAcquireNextImageKHR failed: %d", acquireResult);
+        return false;
+    }
+
+    vkResetFences(device_, 1, &inFlightFences_[currentFrame_]);
+    vkResetCommandBuffer(commandBuffers_[currentFrame_], 0);
+
+    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    vkBeginCommandBuffer(commandBuffers_[currentFrame_], &beginInfo);
+
+    VkClearValue clearColor{{{0.02f, 0.02f, 0.03f, 1.0f}}};
+    VkRenderPassBeginInfo rpBegin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+    rpBegin.renderPass = renderPass_;
+    rpBegin.framebuffer = framebuffers_[currentImageIndex_];
+    rpBegin.renderArea = {{0, 0}, swapchainExtent_};
+    rpBegin.clearValueCount = 1;
+    rpBegin.pClearValues = &clearColor;
+    vkCmdBeginRenderPass(commandBuffers_[currentFrame_], &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
+    return true;
+}
+
+void VulkanDevice::RenderBringUpTriangle() {
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bringUpPipeline_);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+    lastFrameStats_.drawCalls++;
+}
+
+void VulkanDevice::EndFrame() {
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+    vkCmdEndRenderPass(cmd);
+    vkEndCommandBuffer(cmd);
+
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &imageAvailable_[currentFrame_];
+    submitInfo.pWaitDstStageMask = &waitStage;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &renderFinished_[currentFrame_];
+
+    vkQueueSubmit(graphicsQueue_, 1, &submitInfo, inFlightFences_[currentFrame_]);
+
+    VkPresentInfoKHR presentInfo{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &renderFinished_[currentFrame_];
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &swapchain_;
+    presentInfo.pImageIndices = &currentImageIndex_;
+
+    VkResult presentResult = vkQueuePresentKHR(graphicsQueue_, &presentInfo);
+    if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR) {
+        OnSurfaceResized(swapchainExtent_.width, swapchainExtent_.height);
+    }
+
+    currentFrame_ = (currentFrame_ + 1) % kMaxFramesInFlight;
+}
+
+void VulkanDevice::Submit() {
+    // Bring-up path submits inline in EndFrame(). Once RenderGraph (Phase 3)
+    // drives multiple off-screen passes per frame, this becomes the place
+    // intermediate command buffers are submitted with appropriate
+    // semaphore chaining between passes — see RenderGraph::Execute.
+}
+
+void VulkanDevice::OnSurfaceResized(uint32_t width, uint32_t height) {
+    vkDeviceWaitIdle(device_);
+    DestroySwapchain();
+    CreateSwapchain(width, height);
+    CreateFramebuffers();
+}
+
+uint32_t VulkanDevice::FindMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const {
+    VkPhysicalDeviceMemoryProperties memProps{};
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memProps);
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; ++i) {
+        if ((typeBits & (1u << i)) && (memProps.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    return UINT32_MAX;
+}
+
+namespace {
+VkFormat ToVkFormat(PixelFormat fmt) {
+    switch (fmt) {
+        case PixelFormat::RGBA8Unorm: return VK_FORMAT_R8G8B8A8_UNORM;
+        case PixelFormat::RGBA16Float: return VK_FORMAT_R16G16B16A16_SFLOAT;
+        case PixelFormat::BGRA8Unorm: return VK_FORMAT_B8G8R8A8_UNORM;
+        case PixelFormat::R8Unorm: return VK_FORMAT_R8_UNORM;
+        default: return VK_FORMAT_R8G8B8A8_UNORM; // YCbCr420_SP/ExternalOES never reach here —
+                                                   // those are only produced by ImportHardwareBuffer
+    }
+}
+} // namespace
+
+Result<TextureHandle> VulkanDevice::CreateTexture(const TextureDesc& desc) {
+    // Note: this always allocates a fresh VkImage. Reuse of idle transient
+    // resources across frames is TransientTexturePool's job (RenderGraph.h,
+    // Section 5/6) — it calls this only on a genuine pool miss, so pooling
+    // policy stays out of the backend as the header's design notes require.
+    const VkFormat vkFormat = ToVkFormat(desc.format);
+
+    VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (desc.usage == TextureUsage::ColorAttachment ||
+        desc.usage == TextureUsage::ColorAttachmentAndSampled) {
+        usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    }
+    if (desc.usage == TextureUsage::Storage) usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+
+    VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = vkFormat;
+    imageInfo.extent = {desc.width, desc.height, 1};
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = usage;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VkImage image = VK_NULL_HANDLE;
+    if (vkCreateImage(device_, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+        return Result<TextureHandle>::Fail("vkCreateImage failed for texture '" + desc.debugName + "'");
+    }
+
+    VkMemoryRequirements memReq{};
+    vkGetImageMemoryRequirements(device_, image, &memReq);
+
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    if (allocInfo.memoryTypeIndex == UINT32_MAX ||
+        vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        vkDestroyImage(device_, image, nullptr);
+        return Result<TextureHandle>::Fail("vkAllocateMemory failed for texture '" + desc.debugName + "'");
+    }
+    vkBindImageMemory(device_, image, memory, 0);
+
+    VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = vkFormat;
+    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    VkImageView view = VK_NULL_HANDLE;
+    if (vkCreateImageView(device_, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+        vkDestroyImage(device_, image, nullptr);
+        vkFreeMemory(device_, memory, nullptr);
+        return Result<TextureHandle>::Fail("vkCreateImageView failed for texture '" + desc.debugName + "'");
+    }
+
+    VkTextureResource resource{};
+    resource.image = image;
+    resource.view = view;
+    resource.memory = memory;
+    resource.width = desc.width;
+    resource.height = desc.height;
+    resource.format = desc.format;
+    resource.externallyOwned = false;
+
+    return Result<TextureHandle>::Ok(textures_.Insert(resource));
+}
+
+void VulkanDevice::ReleaseTexture(TextureHandle handle) {
+    // NOTE: this frees immediately. A correct implementation must not do
+    // this while the GPU may still be reading the resource — Phase 3's
+    // TransientTexturePool handles the "still referenced by a pending pass"
+    // case by keeping resources in its own idle/in-use pool rather than
+    // calling this until end-of-frame; imported hardware-buffer textures
+    // (Phase 2) are additionally never recycled here at all — see the
+    // early-return below.
+    VkTextureResource* resource = textures_.Get(handle);
+    if (!resource) return;
+
+    if (resource->externallyOwned) {
+        // We never called vkAllocateMemory / own the AHardwareBuffer for
+        // these — MediaEngine's FrameCache (via the DecodedFrame's
+        // ownedImage shared_ptr) is the sole owner and decides when the
+        // underlying AImage is released back to the decoder's AImageReader.
+        // We only tear down the *view* Vulkan created on top of it.
+        if (resource->view) vkDestroyImageView(device_, resource->view, nullptr);
+        textures_.Release(handle);
+        return;
+    }
+
+    if (resource->view) vkDestroyImageView(device_, resource->view, nullptr);
+    if (resource->image) vkDestroyImage(device_, resource->image, nullptr);
+    if (resource->memory) vkFreeMemory(device_, resource->memory, nullptr);
+    textures_.Release(handle);
+}
+
+Result<BufferHandle> VulkanDevice::CreateBuffer(size_t sizeBytes, bool hostVisible) {
+    VkBufferCreateInfo bufInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bufInfo.size = sizeBytes;
+    bufInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkBuffer buffer;
+    if (vkCreateBuffer(device_, &bufInfo, nullptr, &buffer) != VK_SUCCESS) {
+        return Result<BufferHandle>::Fail("vkCreateBuffer failed");
+    }
+
+    VkMemoryRequirements memReq{};
+    vkGetBufferMemoryRequirements(device_, buffer, &memReq);
+    VkMemoryPropertyFlags props = hostVisible
+        ? (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits, props);
+
+    VkDeviceMemory memory;
+    if (vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        vkDestroyBuffer(device_, buffer, nullptr);
+        return Result<BufferHandle>::Fail("vkAllocateMemory failed");
+    }
+    vkBindBufferMemory(device_, buffer, memory, 0);
+
+    VkBufferResource resource{buffer, memory, sizeBytes, nullptr};
+    if (hostVisible) vkMapMemory(device_, memory, 0, sizeBytes, 0, &resource.mapped);
+
+    return Result<BufferHandle>::Ok(buffers_.Insert(resource));
+}
+
+void VulkanDevice::ReleaseBuffer(BufferHandle handle) { buffers_.Release(handle); }
+
+Result<ShaderModuleHandle> VulkanDevice::CreateShaderModule(std::span<const uint32_t> spirv) {
+    VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+    info.codeSize = spirv.size_bytes();
+    info.pCode = spirv.data();
+    VkShaderModule module;
+    if (vkCreateShaderModule(device_, &info, nullptr, &module) != VK_SUCCESS) {
+        return Result<ShaderModuleHandle>::Fail("vkCreateShaderModule failed");
+    }
+    return Result<ShaderModuleHandle>::Ok(shaderModules_.Insert(module));
+}
+
+Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle, ShaderModuleHandle,
+                                                          TextureUsage) {
+    // Phase 3: build a full graphics pipeline from the two shader modules,
+    // cache-key on (vs, fs, blend-mode, target format) using pipelineCache_
+    // so repeated node-graph rebuilds are near-free once warm. Note for
+    // when this lands: a pipeline sampling a Phase 2 video texture needs
+    // VkPipelineShaderStageCreateInfo's fragment stage descriptor set layout
+    // built with the matching VkSamplerYcbcrConversion baked into an
+    // immutable sampler (see GetOrCreateYcbcrSampler below) — a ycbcr-image
+    // cannot be sampled through an ordinary dynamically-bound sampler.
+    return Result<PipelineHandle>::Fail("GetOrCreatePipeline: implement with Phase 3 blend-mode nodes");
+}
+
+void VulkanDevice::DrawFullscreenPass(PipelineHandle, std::span<const TextureHandle>, TextureHandle) {
+    // Phase 3: bind pipeline, bind input textures as descriptor set, draw
+    // fullscreen triangle into `output`'s framebuffer. Ping-pong management
+    // (Section 6) happens one layer up in RenderGraph::Execute, which
+    // decides *which* pooled texture is `output` for each pass.
+}
+
+VkSamplerYcbcrConversion VulkanDevice::GetOrCreateYcbcrConversion(
+    const VkExternalFormatANDROID& externalFormat,
+    const VkAndroidHardwareBufferFormatPropertiesANDROID& formatProps) {
+    const YcbcrConversionKey key{externalFormat.externalFormat};
+    if (auto it = ycbcrConversions_.find(key); it != ycbcrConversions_.end()) return it->second;
+
+    VkSamplerYcbcrConversionCreateInfo convInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO};
+    convInfo.pNext = &externalFormat;
+    // VK_FORMAT_UNDEFINED + the VkExternalFormatANDROID pNext chain above is
+    // the documented way to describe an externally-defined
+    // (AHardwareBuffer-only) format per VK_ANDROID_external_memory_android_hardware_buffer.
+    convInfo.format = VK_FORMAT_UNDEFINED;
+    convInfo.ycbcrModel = formatProps.suggestedYcbcrModel;
+    convInfo.ycbcrRange = formatProps.suggestedYcbcrRange;
+    convInfo.components = formatProps.samplerYcbcrConversionComponents;
+    convInfo.xChromaOffset = formatProps.suggestedXChromaOffset;
+    convInfo.yChromaOffset = formatProps.suggestedYChromaOffset;
+    convInfo.chromaFilter = VK_FILTER_LINEAR;
+    convInfo.forceExplicitReconstruction = VK_FALSE;
+
+    VkSamplerYcbcrConversion conversion = VK_NULL_HANDLE;
+    if (vkCreateSamplerYcbcrConversion(device_, &convInfo, nullptr, &conversion) != VK_SUCCESS) {
+        LOGE("vkCreateSamplerYcbcrConversion failed");
+        return VK_NULL_HANDLE;
+    }
+    ycbcrConversions_[key] = conversion;
+    return conversion;
+}
+
+VkSampler VulkanDevice::GetOrCreateYcbcrSampler(VkSamplerYcbcrConversion conversion) {
+    if (auto it = ycbcrSamplers_.find(conversion); it != ycbcrSamplers_.end()) return it->second;
+
+    VkSamplerYcbcrConversionInfo convInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
+    convInfo.conversion = conversion;
+
+    VkSamplerCreateInfo samplerInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    samplerInfo.pNext = &convInfo;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    // A ycbcr-conversion sampler MUST be created with unnormalizedCoordinates
+    // = VK_FALSE and (per spec) is only legal to bind through an immutable
+    // sampler in the descriptor set layout — Phase 3's video-sampling
+    // pipeline must declare the combined-image-sampler binding with this
+    // exact VkSampler baked in as pImmutableSamplers, not bound dynamically.
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+    VkSampler sampler = VK_NULL_HANDLE;
+    if (vkCreateSampler(device_, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
+        LOGE("vkCreateSampler (ycbcr) failed");
+        return VK_NULL_HANDLE;
+    }
+    ycbcrSamplers_[conversion] = sampler;
+    return sampler;
+}
+
+Result<TextureHandle> VulkanDevice::ImportHardwareBuffer(HardwareBufferHandle buffer, uint32_t width,
+                                                          uint32_t height) {
+    if (!caps_.supportsHardwareBufferImport || !caps_.supportsYcbcrConversion) {
+        return Result<TextureHandle>::Fail(
+            "ImportHardwareBuffer: device lacks VK_ANDROID_external_memory_android_hardware_buffer "
+            "or VK_KHR_sampler_ycbcr_conversion");
+    }
+    auto* hardwareBuffer = static_cast<AHardwareBuffer*>(buffer.nativeHandle);
+    if (!hardwareBuffer) return Result<TextureHandle>::Fail("ImportHardwareBuffer: null buffer");
+
+    // Step 1: ask the driver what Vulkan-visible format/properties this
+    // specific AHardwareBuffer maps to. Decoder output formats vary by
+    // vendor (NV12, P010, proprietary tiled formats, ...), so this call —
+    // not a hardcoded PixelFormat — is the source of truth (Section 4:
+    // "select mechanism based on device capabilities and decoder format").
+    VkAndroidHardwareBufferFormatPropertiesANDROID formatProps{
+        VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+    VkAndroidHardwareBufferPropertiesANDROID bufferProps{
+        VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
+    bufferProps.pNext = &formatProps;
+
+    if (vkGetAndroidHardwareBufferPropertiesANDROID(device_, hardwareBuffer, &bufferProps) != VK_SUCCESS) {
+        return Result<TextureHandle>::Fail("vkGetAndroidHardwareBufferPropertiesANDROID failed");
+    }
+
+    // formatProps.format == VK_FORMAT_UNDEFINED means this is an
+    // externally-defined format (the common case for decoder output: no
+    // standard VkFormat covers it) and must be described to Vulkan purely
+    // via VkExternalFormatANDROID.externalFormat, threaded through both the
+    // image creation chain and the ycbcr conversion below.
+    VkExternalFormatANDROID externalFormat{VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID};
+    externalFormat.externalFormat = formatProps.externalFormat;
+
+    VkExternalMemoryImageCreateInfo extImageInfo{VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+    extImageInfo.pNext = (formatProps.format == VK_FORMAT_UNDEFINED)
+                              ? static_cast<const void*>(&externalFormat)
+                              : nullptr;
+    extImageInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+
+    VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    imageInfo.pNext = &extImageInfo;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = formatProps.format; // VK_FORMAT_UNDEFINED for externally-defined formats
+    imageInfo.extent = {width, height, 1};
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VkImage image = VK_NULL_HANDLE;
+    if (vkCreateImage(device_, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+        return Result<TextureHandle>::Fail("vkCreateImage (external) failed");
+    }
+
+    // Step 2: import the AHardwareBuffer's already-allocated memory rather
+    // than allocating new device memory (this is the whole point — zero
+    // copy from decoder output to sampled Vulkan image).
+    VkImportAndroidHardwareBufferInfoANDROID importInfo{
+        VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID};
+    importInfo.buffer = hardwareBuffer;
+
+    VkMemoryDedicatedAllocateInfo dedicatedInfo{VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+    dedicatedInfo.pNext = &importInfo;
+    dedicatedInfo.image = image;
+    // Hardware-buffer imports require a dedicated allocation (spec
+    // requirement of VK_ANDROID_external_memory_android_hardware_buffer) —
+    // this can never be sub-allocated from a shared VkDeviceMemory block.
+
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.pNext = &dedicatedInfo;
+    allocInfo.allocationSize = bufferProps.allocationSize;
+    allocInfo.memoryTypeIndex =
+        FindMemoryType(bufferProps.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (allocInfo.memoryTypeIndex == UINT32_MAX) {
+        // Fall back to any memory type the buffer reports, host-visibility
+        // requirement dropped, since imported memory's actual properties are
+        // dictated by the buffer, not requested normally.
+        allocInfo.memoryTypeIndex = FindMemoryType(bufferProps.memoryTypeBits, 0);
+    }
+
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    if (allocInfo.memoryTypeIndex == UINT32_MAX ||
+        vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        vkDestroyImage(device_, image, nullptr);
+        return Result<TextureHandle>::Fail("vkAllocateMemory (imported hardware buffer) failed");
+    }
+    if (vkBindImageMemory(device_, image, memory, 0) != VK_SUCCESS) {
+        vkDestroyImage(device_, image, nullptr);
+        vkFreeMemory(device_, memory, nullptr);
+        return Result<TextureHandle>::Fail("vkBindImageMemory (imported hardware buffer) failed");
+    }
+
+    // Step 3: attach the YCbCr conversion so sampling this image in a
+    // fragment shader yields already-converted RGB — this is the "YUV->RGB
+    // conversion" box in Section 4's pipeline diagram, done for free by
+    // fixed-function texture-sampling hardware instead of a compute/fragment
+    // shader pass.
+    VkSamplerYcbcrConversion conversion = GetOrCreateYcbcrConversion(externalFormat, formatProps);
+    if (conversion == VK_NULL_HANDLE) {
+        vkDestroyImage(device_, image, nullptr);
+        vkFreeMemory(device_, memory, nullptr);
+        return Result<TextureHandle>::Fail("failed to create/reuse VkSamplerYcbcrConversion");
+    }
+    VkSampler sampler = GetOrCreateYcbcrSampler(conversion);
+
+    VkSamplerYcbcrConversionInfo viewConvInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
+    viewConvInfo.conversion = conversion;
+
+    VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    viewInfo.pNext = &viewConvInfo;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = formatProps.format;
+    viewInfo.components = formatProps.samplerYcbcrConversionComponents;
+    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+
+    VkImageView view = VK_NULL_HANDLE;
+    if (vkCreateImageView(device_, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+        vkDestroyImage(device_, image, nullptr);
+        vkFreeMemory(device_, memory, nullptr);
+        return Result<TextureHandle>::Fail("vkCreateImageView (ycbcr) failed");
+    }
+
+    VkTextureResource resource{};
+    resource.image = image;
+    resource.view = view;
+    resource.memory = memory;
+    resource.ycbcrConversion = conversion;
+    resource.ycbcrSampler = sampler;
+    resource.width = width;
+    resource.height = height;
+    resource.format = PixelFormat::YCbCr420_SP;
+    resource.externallyOwned = true; // memory belongs to the AHardwareBuffer/AImage, not us
+    resource.sourceHardwareBuffer = hardwareBuffer;
+
+    return Result<TextureHandle>::Ok(textures_.Insert(resource));
+}
+
+void VulkanDevice::Shutdown() {
+    if (device_ == VK_NULL_HANDLE) return;
+    vkDeviceWaitIdle(device_);
+
+    for (auto& [conversion, sampler] : ycbcrSamplers_) vkDestroySampler(device_, sampler, nullptr);
+    ycbcrSamplers_.clear();
+    for (auto& [key, conversion] : ycbcrConversions_) vkDestroySamplerYcbcrConversion(device_, conversion, nullptr);
+    ycbcrConversions_.clear();
+
+    if (bringUpPipeline_) vkDestroyPipeline(device_, bringUpPipeline_, nullptr);
+    if (bringUpLayout_) vkDestroyPipelineLayout(device_, bringUpLayout_, nullptr);
+    if (bringUpVert_) vkDestroyShaderModule(device_, bringUpVert_, nullptr);
+    if (bringUpFrag_) vkDestroyShaderModule(device_, bringUpFrag_, nullptr);
+    if (pipelineCache_) vkDestroyPipelineCache(device_, pipelineCache_, nullptr);
+
+    for (int i = 0; i < kMaxFramesInFlight; ++i) {
+        if (imageAvailable_[i]) vkDestroySemaphore(device_, imageAvailable_[i], nullptr);
+        if (renderFinished_[i]) vkDestroySemaphore(device_, renderFinished_[i], nullptr);
+        if (inFlightFences_[i]) vkDestroyFence(device_, inFlightFences_[i], nullptr);
+    }
+
+    if (commandPool_) vkDestroyCommandPool(device_, commandPool_, nullptr);
+    if (renderPass_) vkDestroyRenderPass(device_, renderPass_, nullptr);
+    DestroySwapchain();
+
+    vkDestroyDevice(device_, nullptr);
+    device_ = VK_NULL_HANDLE;
+
+    if (surface_) vkDestroySurfaceKHR(instance_, surface_, nullptr);
+    if (instance_) vkDestroyInstance(instance_, nullptr);
+    instance_ = VK_NULL_HANDLE;
+}
+
+} // namespace vfx

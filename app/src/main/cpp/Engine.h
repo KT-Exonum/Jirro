@@ -1,0 +1,108 @@
+#pragma once
+// Section 12/14: the single owner of the engine thread and all engine-side
+// state. The JNI bridge only ever calls QueueCommand (or, for surface
+// lifecycle, the explicit Attach/DetachSurface below, which are inherently
+// synchronous handshakes with the Android lifecycle and are the one
+// deliberate exception to "commands only").
+//
+// Phase 2: also owns the MediaEngine (Section 14's "Media Thread" box).
+// Engine::Tick refreshes MediaEngine's active-clip set from Timeline every
+// frame and hands MediaEngine to RenderGraph::Execute so VideoSource passes
+// can pull decoded frames — but MediaEngine's actual decode work happens on
+// its own thread, never here.
+
+#include <android/native_window.h>
+
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <thread>
+
+#include "engine/core/CommandQueue.h"
+#include "engine/core/GraphicsDevice.h"
+#include "engine/graph/Node.h"
+#include "engine/graph/RenderGraph.h"
+#include "engine/media/MediaEngine.h"
+#include "engine/timeline/Timeline.h"
+
+namespace vfx {
+
+// Example command types referenced in Section 12. Kept as simple structs
+// converted to EngineCommand closures at the call site (see jni_bridge.cpp)
+// rather than a polymorphic Command class hierarchy — less indirection, and
+// std::function already gives us the type erasure we need.
+struct UpdateUniformCommand {
+    std::string nodeId;
+    std::string uniformName;
+    float value;
+};
+
+class Engine {
+public:
+    Engine();
+    ~Engine();
+
+    // Called from the JNI bridge on Activity/SurfaceView lifecycle events.
+    // Synchronous by necessity (ANativeWindow ownership is tied to the
+    // Android lifecycle), but cheap — no GPU work happens on this call path
+    // beyond what GraphicsDevice::Initialize itself needs.
+    void AttachSurface(ANativeWindow* window);
+    void DetachSurface();
+
+    void Start(); // spawns the engine thread (and the media thread)
+    void Stop();  // joins the engine thread (and the media thread)
+
+    // The only cross-thread entry point besides Attach/DetachSurface. Safe
+    // to call from the UI thread at any time; never blocks (see
+    // CommandQueue::Push).
+    void QueueCommand(EngineCommand cmd) { commandQueue_.Push(std::move(cmd)); }
+
+    // Convenience wrapper matching Section 12's example call shape:
+    //   engine->QueueCommand(UpdateUniform{node_id, uniform_name, value});
+    void QueueUniformUpdate(UpdateUniformCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            if (Node* node = engine.graph_.FindNodeMutable(cmd.nodeId)) {
+                node->uniformFloats[cmd.uniformName] = cmd.value;
+            }
+        });
+    }
+
+    void QueueSeek(double seconds) {
+        QueueCommand([seconds](Engine& engine) { engine.timeline_->Seek(seconds); });
+    }
+
+    void QueueSetPlaying(bool playing) {
+        QueueCommand([playing](Engine& engine) {
+            engine.timeline_->SetPlaybackState(playing ? PlaybackState::Playing
+                                                        : PlaybackState::Stopped);
+        });
+    }
+
+    NodeGraph& Graph() { return graph_; }
+    Timeline* GetTimeline() { return timeline_.get(); }
+
+private:
+    void ThreadMain(); // engine thread entry point
+    void Tick();       // one frame: drain commands, advance timeline, refresh media requests, render
+    void RefreshActiveClips(double timelineSeconds); // Phase 2: Timeline -> MediaEngine::SetActiveClips
+
+    std::atomic<bool> running_{false};
+    std::thread engineThread_;
+
+    CommandQueue commandQueue_;
+
+    std::unique_ptr<GraphicsDevice> device_;
+    std::unique_ptr<RenderGraph> renderGraph_;
+    std::unique_ptr<Timeline> timeline_;
+    std::unique_ptr<MediaEngine> mediaEngine_; // constructed once `device_` exists (needs it for imports)
+    NodeGraph graph_;
+
+    std::mutex windowMutex_;
+    ANativeWindow* pendingWindow_ = nullptr;
+    std::atomic<bool> surfaceDirty_{false};
+
+    std::chrono::steady_clock::time_point lastTickTime_{};
+};
+
+} // namespace vfx

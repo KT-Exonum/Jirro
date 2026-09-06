@@ -1,0 +1,139 @@
+#pragma once
+// Section 15: Vulkan is the primary backend and gets the majority of
+// development effort, but the engine (RenderGraph, Node, MediaEngine) never
+// talks to Vulkan directly — everything goes through this interface, so
+// OpenGLDevice can exist as a real compatibility path rather than an
+// afterthought bolted on later.
+//
+// Design notes for implementers:
+//  - All methods are expected to be called from the engine thread only
+//    (see Engine.h) except where noted. No internal locking.
+//  - Texture/Buffer creation should go through GraphicsDevice so pooling
+//    (Section 5) has a single choke point to instrument and reuse from.
+//  - BeginFrame/EndFrame bracket exactly one presented frame; Submit() may
+//    be called multiple times within that bracket for off-screen graph
+//    passes before the final composite is presented.
+//  - Phase 3 fullscreen-pass convention: every texture used as a
+//    GetOrCreatePipeline/DrawFullscreenPass render target is expected to be
+//    created with PixelFormat::RGBA16Float. This lets a backend cache one
+//    render pass / pipeline pair per (shader, blend mode) instead of one per
+//    format actually in use — see VulkanDevice.cpp's GetOrCreatePipeline for
+//    the concrete reasoning. A texture created with any other format simply
+//    isn't a valid fullscreen-pass target.
+
+#include <memory>
+#include <span>
+#include <vector>
+
+#include "Types.h"
+
+struct ANativeWindow; // from android/native_window.h, fwd-declared to avoid
+                       // pulling platform headers into engine-agnostic code
+
+namespace vfx {
+
+struct DeviceCapabilities {
+    bool supportsVulkan = false;
+    uint32_t vulkanApiVersion = 0;
+    bool supportsYcbcrConversion = false;   // VK_KHR_sampler_ycbcr_conversion
+    bool supportsHardwareBufferImport = false; // VK_ANDROID_external_memory_android_hardware_buffer
+    uint32_t maxTextureDimension = 4096;
+    // Used by Section 16 "graceful degradation": if false, the render graph
+    // should clamp working resolution below native 4K.
+    bool sustainedPerformanceMode = false;
+};
+
+struct FrameStats { // Section 16/6: profiling hooks, populated per frame
+    double gpuTimeMs = 0.0;
+    double cpuSubmitTimeMs = 0.0;
+    uint32_t drawCalls = 0;
+    uint32_t pipelineSwitches = 0;
+    size_t pooledTextureBytes = 0;
+};
+
+class GraphicsDevice {
+public:
+    virtual ~GraphicsDevice() = default;
+
+    virtual bool Initialize(ANativeWindow* window) = 0;
+    virtual void Shutdown() = 0;
+    virtual void OnSurfaceResized(uint32_t width, uint32_t height) = 0;
+
+    [[nodiscard]] virtual const DeviceCapabilities& GetCapabilities() const = 0;
+
+    // Resource creation. Implementations should satisfy these from an
+    // internal pool when `desc.transient` is true and a compatible resource
+    // is idle (Section 5) rather than allocating device memory each call.
+    virtual Result<TextureHandle> CreateTexture(const TextureDesc& desc) = 0;
+    virtual void ReleaseTexture(TextureHandle handle) = 0; // returns to pool, does not necessarily free
+    virtual Result<BufferHandle> CreateBuffer(size_t sizeBytes, bool hostVisible) = 0;
+    virtual void ReleaseBuffer(BufferHandle handle) = 0;
+
+    // Compiled shader upload. `spirv` for VulkanDevice, ignored (or cross
+    // compiled) by OpenGLDevice — see OpenGLDevice.h for that seam.
+    virtual Result<ShaderModuleHandle> CreateShaderModule(std::span<const uint32_t> spirv) = 0;
+
+    // Pipeline objects are cached internally keyed by (shaders, blend mode)
+    // — there is no vertex layout key component because every fullscreen
+    // pass uses the same vertex-buffer-free, gl_VertexIndex-driven vertex
+    // shader (see shaders/triangle.vert's technique) — so RenderGraph can
+    // call this every frame cheaply once warm (Section 16 "pipeline
+    // caching"). `targetUsage` must be ColorAttachment or
+    // ColorAttachmentAndSampled: a fullscreen pass fundamentally renders
+    // into a color attachment, so any other usage is a caller error.
+    // `blendMode` selects the fixed-function blend-state variant for
+    // Blend/Composite nodes; it's ignored (Normal-equivalent, i.e.
+    // blending disabled) for single-input effect nodes but still
+    // participates in the cache key since callers pass it uniformly.
+    virtual Result<PipelineHandle> GetOrCreatePipeline(
+        ShaderModuleHandle vertexShader,
+        ShaderModuleHandle fragmentShader,
+        TextureUsage targetUsage,
+        BlendMode blendMode = BlendMode::Normal) = 0;
+
+    // Frame bracket. BeginFrame acquires the swapchain image (or, for an
+    // off-screen export pass — Section 6 export pipeline — a headless
+    // target); EndFrame presents (or, headless, is a no-op besides sync).
+    virtual bool BeginFrame() = 0;
+    virtual void EndFrame() = 0;
+
+    // Command recording is intentionally not exposed as raw VkCommandBuffer
+    // here — RenderGraph issues higher-level draw/blit/dispatch calls and
+    // the backend decides how to batch them into command buffers
+    // (Section 5 "command-buffer pools", Section 16 "command-buffer reuse").
+    //
+    // `uniformFloats` is pushed to the fragment shader as a small,
+    // fixed-budget push-constant block (see VulkanDevice.cpp's
+    // kMaxFullscreenUniformFloats) rather than a uniform buffer — Node
+    // uniforms (Node::EvaluateUniform) are cheap per-frame scalars, and
+    // push constants avoid a buffer-pool round trip for them (Section 16
+    // "avoid unnecessary allocations"). Values beyond the backend's budget
+    // are truncated with a logged warning, not silently dropped.
+    virtual void DrawFullscreenPass(
+        PipelineHandle pipeline,
+        std::span<const TextureHandle> inputs,
+        TextureHandle output,
+        std::span<const float> uniformFloats = {}) = 0;
+
+    virtual void Submit() = 0;
+
+    // Import a decoded video frame without a CPU copy. Concrete meaning is
+    // backend-specific: VulkanDevice imports an AHardwareBuffer via
+    // VK_ANDROID_external_memory_android_hardware_buffer + ycbcr conversion;
+    // OpenGLDevice binds it as a GL_TEXTURE_EXTERNAL_OES via EGLImage. See
+    // engine/media/MediaEngine.h for the producer side of this handle.
+    struct HardwareBufferHandle { void* nativeHandle = nullptr; };
+    virtual Result<TextureHandle> ImportHardwareBuffer(HardwareBufferHandle buffer,
+                                                        uint32_t width, uint32_t height) = 0;
+
+    [[nodiscard]] virtual FrameStats GetLastFrameStats() const = 0;
+};
+
+enum class BackendKind { Vulkan, OpenGLES };
+
+// Chooses Vulkan when DeviceCapabilities allow it, otherwise GLES 3.2.
+// Implemented in Engine.cpp (needs both concrete headers), not here, to
+// keep this file backend-header-free.
+std::unique_ptr<GraphicsDevice> CreateGraphicsDevice(BackendKind preferred);
+
+} // namespace vfx
