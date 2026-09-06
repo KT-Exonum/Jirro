@@ -4,6 +4,7 @@
 // owning an ANativeWindow. Nothing here does GPU or file I/O work on the
 // calling (UI) thread.
 
+#include <android/asset_manager.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
 
@@ -50,6 +51,27 @@ JNIEXPORT void JNICALL
 Java_com_vfxengine_app_NativeEngine_nativeDetachSurface(JNIEnv*, jobject, jlong handle) {
     auto* engine = GetEngine(handle);
     if (engine) engine->DetachSurface();
+}
+
+// Dev hot-reload: store the APK's AAssetManager so VulkanDevice can read
+// pre-compiled .spv shaders from assets/ at runtime.
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetAssetManager(JNIEnv*, jobject, jlong handle,
+                                                           jobject javaAssetManager) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    AAssetManager* mgr = AAssetManager_fromJava(env, javaAssetManager);
+    engine->SetAssetManager(mgr);
+}
+
+// Dev hot-reload: trigger re-compilation/reload of all shaders from assets.
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeReloadShaders(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->QueueCommand([](vfx::Engine& eng) {
+        eng.ReloadShadersFromAssets();
+    });
 }
 
 // Fire-and-forget command, per Section 12's UpdateUniform example.

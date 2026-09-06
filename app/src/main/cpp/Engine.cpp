@@ -8,6 +8,7 @@
 #define LOG_TAG "Engine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 namespace vfx {
 
@@ -213,6 +214,83 @@ void Engine::UpdateThermalAdaptation() {
         }
     } else {
         // Reset when thermal status improves
+    }
+}
+
+void Engine::ReloadShadersFromAssets() {
+    if (!assetManager_ || !device_) {
+        LOGW("ReloadShadersFromAssets: skipped (no asset manager or device)");
+        return;
+    }
+
+    auto* vulkan = dynamic_cast<VulkanDevice*>(device_.get());
+    if (!vulkan) {
+        LOGW("ReloadShadersFromAssets: skipped (not Vulkan backend)");
+        return;
+    }
+
+    struct ShaderEntry {
+        const char* name;
+        const char* assetPath;
+    };
+    static constexpr ShaderEntry kShaders[] = {
+        {"fullscreen_vert", "shaders/fullscreen.vert.spv"},
+        {"blend_normal_frag", "shaders/blend_normal.frag.spv"},
+        {"blend_multiply_frag", "shaders/blend_multiply.frag.spv"},
+        {"blend_screen_frag", "shaders/blend_screen.frag.spv"},
+        {"blend_overlay_frag", "shaders/blend_overlay.frag.spv"},
+        {"blend_add_frag", "shaders/blend_add.frag.spv"},
+        {"blend_subtract_frag", "shaders/blend_subtract.frag.spv"},
+        {"color_correction_frag", "shaders/color_correction.frag.spv"},
+        {"blur_frag", "shaders/blur.frag.spv"},
+        {"mask_frag", "shaders/mask.frag.spv"},
+        {"composite_frag", "shaders/composite.frag.spv"},
+        {"vector_source_vert", "shaders/vector_source.vert.spv"},
+        {"vector_source_frag", "shaders/vector_source.frag.spv"},
+        {"text_source_vert", "shaders/text_source.vert.spv"},
+        {"text_source_frag", "shaders/text_source.frag.spv"},
+        {"stroke_source_vert", "shaders/stroke_source.vert.spv"},
+        {"stroke_source_frag", "shaders/stroke_source.frag.spv"},
+        {"adjustment_vert", "shaders/adjustment.vert.spv"},
+        {"adjustment_frag", "shaders/adjustment.frag.spv"},
+        {"null_layer_vert", "shaders/null_layer.vert.spv"},
+        {"null_layer_frag", "shaders/null_layer.frag.spv"},
+        {"output_vert", "shaders/output.vert.spv"},
+        {"output_frag", "shaders/output.frag.spv"},
+        {"motion_blur_vert", "shaders/motion_blur.vert.spv"},
+        {"motion_blur_frag", "shaders/motion_blur.frag.spv"},
+        {"directional_blur_vert", "shaders/directional_blur.vert.spv"},
+        {"directional_blur_frag", "shaders/directional_blur.frag.spv"},
+        {"time_remap_vert", "shaders/time_remap.vert.spv"},
+        {"time_remap_frag", "shaders/time_remap.frag.spv"},
+        {"bezier_mask_vert", "shaders/bezier_mask.vert.spv"},
+        {"bezier_mask_frag", "shaders/bezier_mask.frag.spv"},
+        {"particle_vert", "shaders/particle.vert.spv"},
+        {"particle_frag", "shaders/particle.frag.spv"},
+        {"shape2d_vert", "shaders/shape2d.vert.spv"},
+        {"shape2d_frag", "shaders/shape2d.frag.spv"},
+        {"shape_merge_frag", "shaders/shape_merge.frag.spv"},
+        {"shape_transform_vert", "shaders/shape_transform.vert.spv"},
+        {"transform3d_vert", "shaders/transform3d.vert.spv"},
+        {"transform3d_frag", "shaders/transform3d.frag.spv"},
+        {"camera3d_vert", "shaders/camera3d.vert.spv"},
+        {"camera3d_frag", "shaders/camera3d.frag.spv"},
+        {"depth_of_field_vert", "shaders/depth_of_field.vert.spv"},
+        {"depth_of_field_frag", "shaders/depth_of_field.frag.spv"},
+        {"chroma_key_vert", "shaders/chroma_key.vert.spv"},
+        {"chroma_key_frag", "shaders/chroma_key.frag.spv"},
+        {"mesh_pbr_vert", "shaders/mesh_pbr.vert.spv"},
+        {"mesh_pbr_frag", "shaders/mesh_pbr.frag.spv"},
+    };
+
+    for (const auto& entry : kShaders) {
+        auto result = vulkan->LoadShaderFromAssets(assetManager_, entry.assetPath);
+        if (result) {
+            LOGI("Reloaded shader: %s -> %s", entry.name, entry.assetPath);
+        } else {
+            LOGW("Failed to reload shader %s from %s: %s",
+                 entry.name, entry.assetPath, result.error.c_str());
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.vfxengine.app
 
+import android.content.res.AssetManager
 import android.view.Surface
 
 /**
@@ -94,6 +95,15 @@ class NativeEngine {
         return "{}"
     }
 
+    // Phase 6: Dev shader hot-reload
+    fun setAssetManager(assetManager: AssetManager) {
+        if (handle != 0L) nativeSetAssetManager(handle, assetManager)
+    }
+
+    fun reloadShaders() {
+        if (handle != 0L) nativeReloadShaders(handle)
+    }
+
     // Phase 7+: Node graph commands
     fun addNode(kind: Int, x: Float, y: Float, name: String, groupId: String = "") {
         if (handle != 0L) nativeAddNode(handle, kind, x, y, name, groupId)
@@ -172,6 +182,10 @@ class NativeEngine {
     private external fun nativeLoadProject(handle: Long, filePath: String)
     private external fun nativeNewProject(handle: Long, name: String)
     private external fun nativeGetProfileStats(handle: Long): String
+
+    // Phase 6: Dev shader hot-reload
+    private external fun nativeSetAssetManager(handle: Long, assetManager: AssetManager)
+    private external fun nativeReloadShaders(handle: Long)
 
     // Phase 7+ externals
     private external fun nativeAddNode(handle: Long, kind: Int, x: Float, y: Float, name: String, groupId: String)

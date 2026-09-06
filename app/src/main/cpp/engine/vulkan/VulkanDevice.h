@@ -10,6 +10,7 @@
 // VK_ANDROID_external_memory_android_hardware_buffer). See MediaEngine.h
 // for the producer side.
 
+#include <android/asset_manager.h>
 #include <android/hardware_buffer.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
@@ -124,6 +125,11 @@ public:
     Result<ShaderModuleHandle> CreateShaderModule(std::span<const uint32_t> spirv) override;
     Result<PipelineHandle> GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
                                                 TextureUsage targetUsage) override;
+
+    // Dev-only: load a pre-compiled .spv from the APK's assets/ folder and
+    // create/replace a shader module. Returns null handle on failure.
+    Result<ShaderModuleHandle> LoadShaderFromAssets(AAssetManager* assetManager,
+                                                     const std::string& assetPath);
 
     bool BeginFrame() override;
     void EndFrame() override;

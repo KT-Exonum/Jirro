@@ -16,6 +16,7 @@
 //
 // Phase 7+: owns AudioMixer, ExpressionEngine, UndoRedoManager for advanced features.
 
+#include <android/asset_manager.h>
 #include <android/native_window.h>
 
 #include <atomic>
@@ -219,6 +220,15 @@ public:
         });
     }
 
+    // Phase 6: Dev hot-reload — set the AAssetManager so VulkanDevice can
+    // load .spv shaders from the APK's assets/ folder at runtime.
+    void SetAssetManager(AAssetManager* mgr) { assetManager_ = mgr; }
+
+    // Reload all shaders from assets (dev builds only, guarded by
+    // ENGINE_DEV_SHADER_HOTLOAD). Falls back to embedded bytecode when
+    // asset loading fails for any individual shader.
+    void ReloadShadersFromAssets();
+
     // Phase 7+: Node graph commands
     void QueueAddNode(AddNodeCommand cmd) {
         QueueCommand([cmd = std::move(cmd)](Engine& engine) {
@@ -334,6 +344,9 @@ private:
     std::unique_ptr<Profiler> profiler_;
     std::unique_ptr<ExportPipeline> exportPipeline_;
     std::unique_ptr<ProjectManager> projectManager_;
+
+    // Dev hot-reload: non-owning pointer to the APK's AAssetManager.
+    AAssetManager* assetManager_ = nullptr;
 
     std::mutex windowMutex_;
     ANativeWindow* pendingWindow_ = nullptr;
