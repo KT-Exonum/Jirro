@@ -14,6 +14,7 @@
 
 #include "Node.h"
 #include "engine/core/GraphicsDevice.h"
+#include "engine/expression/ExpressionEngine.h"
 #include "engine/media/MediaEngine.h"
 
 namespace vfx {
@@ -119,7 +120,7 @@ public:
     // hanging or crashing on a malformed user-authored graph.
     CompileResult Compile(const NodeGraph& graph, const std::string& outputNodeId);
 
-    // Executes a previously-compiled plan at a given timeline timestamp
+// Executes a previously-compiled plan at a given timeline timestamp
     // (uniform evaluation is time-dependent; topology is not, so Compile()
     // and Execute() are split to avoid re-resolving dependencies every
     // frame when only keyframed values changed). `mediaEngine` is optional
@@ -127,11 +128,13 @@ public:
     // need a real media pipeline just to exercise Shader/Blend passes;
     // VideoSource passes simply produce no output when it's null.
     void Execute(const NodeGraph& graph, const CompileResult& plan, double timelineSeconds,
-                 MediaEngine* mediaEngine = nullptr);
+                 MediaEngine* mediaEngine = nullptr,
+                 ExpressionEngine* expressionEngine = nullptr);
 
 private:
     void ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
-                      MediaEngine* mediaEngine);
+                      MediaEngine* mediaEngine,
+                      ExpressionEngine* expressionEngine);
     
     // Particle system
     void InitializeParticleSystem(const ParticleConfig& config);

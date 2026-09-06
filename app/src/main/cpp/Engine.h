@@ -30,6 +30,7 @@
 #include "engine/core/Profiler.h"
 #include "engine/export/ExportPipeline.h"
 #include "engine/export/ProjectSerializer.h"
+#include "engine/expression/ExpressionEngine.h"
 #include "engine/graph/Node.h"
 #include "engine/graph/RenderGraph.h"
 #include "engine/media/MediaEngine.h"
@@ -302,6 +303,10 @@ public:
     [[nodiscard]] ProjectManager* GetProjectManager() { return projectManager_.get(); }
     [[nodiscard]] const ProjectManager* GetProjectManager() const { return projectManager_.get(); }
 
+    // Phase 7+: Expression engine access
+    [[nodiscard]] ExpressionEngine* GetExpressionEngine() { return expressionEngine_.get(); }
+    [[nodiscard]] const ExpressionEngine* GetExpressionEngine() const { return expressionEngine_.get(); }
+
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
 
@@ -344,6 +349,9 @@ private:
     std::unique_ptr<Profiler> profiler_;
     std::unique_ptr<ExportPipeline> exportPipeline_;
     std::unique_ptr<ProjectManager> projectManager_;
+
+    // Phase 7+: Expression engine for procedural animation
+    std::unique_ptr<ExpressionEngine> expressionEngine_;
 
     // Dev hot-reload: non-owning pointer to the APK's AAssetManager.
     AAssetManager* assetManager_ = nullptr;

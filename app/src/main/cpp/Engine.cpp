@@ -137,10 +137,15 @@ void Engine::Tick() {
                 LOGE("Project error: %s", err.c_str());
             });
             projectManager_->EnableAutosave(true, 60);
+
+            // Phase 7+: Initialize expression engine
+            expressionEngine_ = std::make_unique<ExpressionEngine>();
+            ExpressionEngine::RegisterBuiltins(*expressionEngine_);
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
             if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
             if (profiler_) { profiler_->Shutdown(); profiler_.reset(); }
+            expressionEngine_.reset();
             projectManager_.reset();
             device_->Shutdown();
             device_.reset();
@@ -190,7 +195,7 @@ void Engine::Tick() {
         
         auto plan = renderGraph_->Compile(graph_, kOutputNodeId);
         if (plan.Ok()) {
-            renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get());
+            renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get(), expressionEngine_.get());
         }
         device_->EndFrame();
     }

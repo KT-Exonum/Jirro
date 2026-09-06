@@ -91,6 +91,33 @@ Java_com_vfxengine_app_NativeEngine_nativeUpdateUniform(JNIEnv* env, jobject, jl
     engine->QueueUniformUpdate(std::move(cmd));
 }
 
+// Phase 7+: Set expression on a node for procedural animation
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetExpression(JNIEnv* env, jobject, jlong handle,
+                                                         jstring nodeId, jstring uniformName,
+                                                         jstring expression) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+
+    const char* nodeIdChars = env->GetStringUTFChars(nodeId, nullptr);
+    const char* uniformChars = env->GetStringUTFChars(uniformName, nullptr);
+    const char* exprChars = env->GetStringUTFChars(expression, nullptr);
+
+    engine->QueueCommand([nodeId = std::string(nodeIdChars), 
+                          uniformName = std::string(uniformChars),
+                          exprScript = std::string(exprChars)](vfx::Engine& eng) {
+        if (auto* node = eng.Graph().FindNodeMutable(nodeId)) {
+            vfx::Expression expr;
+            expr.script = exprScript;
+            node->expressions[uniformName] = std::move(expr);
+        }
+    });
+
+    env->ReleaseStringUTFChars(nodeId, nodeIdChars);
+    env->ReleaseStringUTFChars(uniformName, uniformChars);
+    env->ReleaseStringUTFChars(expression, exprChars);
+}
+
 JNIEXPORT void JNICALL
 Java_com_vfxengine_app_NativeEngine_nativeSeek(JNIEnv*, jobject, jlong handle, jdouble seconds) {
     auto* engine = GetEngine(handle);

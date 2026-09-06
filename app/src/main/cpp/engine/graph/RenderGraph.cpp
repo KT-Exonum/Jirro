@@ -491,7 +491,8 @@ void RenderGraph::ExpandGroups(const NodeGraph& graph, std::unordered_set<std::s
 }
 
 void RenderGraph::Execute(const NodeGraph& graph, const CompileResult& plan, double timelineSeconds,
-                           MediaEngine* mediaEngine) {
+                           MediaEngine* mediaEngine,
+                           ExpressionEngine* expressionEngine) {
     if (!plan.Ok()) {
         LOGE("Execute called on a plan that failed to compile — aborting frame");
         return;
@@ -514,7 +515,7 @@ void RenderGraph::Execute(const NodeGraph& graph, const CompileResult& plan, dou
     lastTimelineSeconds_ = timelineSeconds;
     
     for (const auto& pass : plan.passes) {
-        ExecutePass(graph, pass, timelineSeconds, mediaEngine);
+        ExecutePass(graph, pass, timelineSeconds, mediaEngine, expressionEngine);
     }
     texturePool_.EndFrame();
 }
@@ -533,7 +534,8 @@ ShaderModuleHandle RenderGraph::GetOrCreateShaderModule(const uint32_t* spirv, s
 }
 
 void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
-                                MediaEngine* mediaEngine) {
+                                 MediaEngine* mediaEngine,
+                                 ExpressionEngine* expressionEngine) {
     const Node* node = graph.FindNode(pass.nodeId);
     if (!node) return;
 
@@ -606,6 +608,24 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             animatedUniforms[name] = track.Evaluate(timelineSeconds);
         }
     }
+    
+    // Evaluate expressions if ExpressionEngine is available
+    if (expressionEngine) {
+        ExpressionEngine::ExpressionContext ctx;
+        ctx.time = timelineSeconds;
+        ctx.frameRate = 30.0; // TODO: get from timeline
+        ctx.frame = static_cast<int>(timelineSeconds * ctx.frameRate);
+        
+        for (const auto& [name, expr] : node->expressions) {
+            if (expr.IsValid()) {
+                auto result = expressionEngine->Evaluate(expr.script, ctx);
+                if (result) {
+                    animatedUniforms[name] = *result;
+                }
+            }
+        }
+    }
+    
     for (const auto& [name, value] : node->uniformFloats) {
         if (animatedUniforms.find(name) == animatedUniforms.end()) {
             animatedUniforms[name] = value;
