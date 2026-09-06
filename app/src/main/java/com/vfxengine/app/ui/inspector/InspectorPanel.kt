@@ -138,6 +138,53 @@ fun InspectorPanel(state: EditorState) {
                     }
                 }
             }
+            
+            Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 16.dp))
+            
+            // Audio-specific properties
+            if (selectedNode.type == EditorState.NodeType.AudioReactive ||
+                selectedNode.type == EditorState.NodeType.AudioSpectrum ||
+                selectedNode.type == EditorState.NodeType.AudioWaveform ||
+                selectedNode.type == EditorState.NodeType.BeatDetect) {
+                Text(text = "Audio", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+                
+                UniformField(
+                    label = "Sensitivity",
+                    value = selectedNode.uniforms["sensitivity"] ?: 1.0f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "sensitivity", it) }
+                )
+                UniformField(
+                    label = "Frequency Min (Hz)",
+                    value = selectedNode.uniforms["frequencyMin"] ?: 20.0f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "frequencyMin", it) }
+                )
+                UniformField(
+                    label = "Frequency Max (Hz)",
+                    value = selectedNode.uniforms["frequencyMax"] ?: 20000.0f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "frequencyMax", it) }
+                )
+                UniformField(
+                    label = "Beat Threshold",
+                    value = selectedNode.uniforms["beatThreshold"] ?: 0.5f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "beatThreshold", it) }
+                )
+                
+                if (selectedNode.type == EditorState.NodeType.AudioSpectrum) {
+                    UniformField(
+                        label = "Spectrum Bars",
+                        value = selectedNode.uniforms["spectrumBars"] ?: 64.0f,
+                        onValueChange = { state.updateNodeUniform(selectedNode.id, "spectrumBars", it) }
+                    )
+                }
+                if (selectedNode.type == EditorState.NodeType.AudioWaveform) {
+                    UniformField(
+                        label = "Waveform Points",
+                        value = selectedNode.uniforms["waveformPoints"] ?: 512.0f,
+                        onValueChange = { state.updateNodeUniform(selectedNode.id, "waveformPoints", it) }
+                    )
+                }
+            }
         }
     }
 }

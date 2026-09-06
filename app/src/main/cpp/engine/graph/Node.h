@@ -70,6 +70,11 @@ enum class NodeKind {
     // 3D Models
     MeshSource,       // GLTF/OBJ mesh with PBR materials
 
+    // Audio
+    AudioReactive,    // Audio-reactive values output (spectrum/beat)
+    AudioWaveform,    // Waveform visualization
+    AudioSpectrum,    // Spectrum visualization (bars)
+
     // Motion Effects - Transform Motion (Alight Motion inspired)
     Oscillate,        // Sine/triangle wave oscillation
     Shake,            // Camera shake with decay
@@ -606,6 +611,25 @@ struct Node {
 
     // Only meaningful for kind == MeshSource.
     MeshConfig mesh;
+
+    // Only meaningful for kind == AudioReactive, AudioWaveform, AudioSpectrum.
+    struct AudioConfig {
+        std::string sourceClipId;       // Audio clip to analyze
+        float sensitivity = 1.0f;       // Multiplier for reactive values
+        float smoothing = 0.8f;         // EMA smoothing factor
+        float frequencyMin = 20.0f;     // Hz
+        float frequencyMax = 20000.0f;  // Hz
+        int fftSize = 1024;
+        bool useBeatDetection = true;
+        float beatThreshold = 0.5f;
+        // Waveform/spectrum display
+        int waveformPoints = 512;
+        int spectrumBars = 64;
+        float barWidth = 2.0f;
+        float barGap = 1.0f;
+        uint32_t barColor = 0xFF00FF00;
+        uint32_t backgroundColor = 0x00000000;
+    } audio;
 
     [[nodiscard]] float EvaluateUniform(const std::string& name, double timelineSeconds) const {
         // Check animated uniforms first

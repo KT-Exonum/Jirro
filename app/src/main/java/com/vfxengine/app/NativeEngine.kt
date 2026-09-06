@@ -158,6 +158,11 @@ class NativeEngine {
         }
     }
 
+    // Expression engine
+    fun setExpression(nodeId: String, uniformName: String, script: String) {
+        if (handle != 0L) nativeSetExpression(handle, nodeId, uniformName, script)
+    }
+
     // Undo/Redo
     fun undo() {
         if (handle != 0L) nativeUndo(handle)
@@ -205,6 +210,7 @@ class NativeEngine {
     )
     private external fun nativeUndo(handle: Long)
     private external fun nativeRedo(handle: Long)
+    private external fun nativeSetExpression(handle: Long, nodeId: String, uniformName: String, script: String)
 
     companion object {
         init {

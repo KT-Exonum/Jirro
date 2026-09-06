@@ -99,6 +99,173 @@ void ProjectSerializer::WriteJsonValue(std::ostream& os, const JsonValue& value,
 }
 
 bool ProjectSerializer::ReadJsonValue(std::istream& is, JsonValue& value) {
+    // Kept for API compatibility; LoadFromFile uses JsonDeserialize instead
+    return false;
+}
+
+bool ProjectSerializer::JsonDeserialize(const std::string& json, ProjectData& data) {
+    // Minimal JSON parser for our specific project format
+    auto getString = [](const std::string& json, size_t& pos, const std::string& key) -> std::string {
+        size_t keyPos = json.find("\"" + key + "\"", pos);
+        if (keyPos == std::string::npos) return "";
+        keyPos = json.find(':', keyPos);
+        if (keyPos == std::string::npos) return "";
+        keyPos++;
+        while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t' || json[keyPos] == '\n')) keyPos++;
+        if (keyPos >= json.size() || json[keyPos] != '"') return "";
+        keyPos++;
+        size_t end = json.find('"', keyPos);
+        if (end == std::string::npos) return "";
+        pos = end + 1;
+        return json.substr(keyPos, end - keyPos);
+    };
+    
+    auto getNumber = [](const std::string& json, size_t& pos, const std::string& key) -> double {
+        size_t keyPos = json.find("\"" + key + "\"", pos);
+        if (keyPos == std::string::npos) return 0.0;
+        keyPos = json.find(':', keyPos);
+        if (keyPos == std::string::npos) return 0.0;
+        keyPos++;
+        while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t' || json[keyPos] == '\n')) keyPos++;
+        size_t end = keyPos;
+        while (end < json.size() && (isdigit(json[end]) || json[end] == '.' || json[end] == '-' || json[end] == 'e' || json[end] == 'E')) end++;
+        std::string numStr = json.substr(keyPos, end - keyPos);
+        pos = end;
+        return std::stod(numStr);
+    };
+    
+    auto getBool = [](const std::string& json, size_t& pos, const std::string& key) -> bool {
+        size_t keyPos = json.find("\"" + key + "\"", pos);
+        if (keyPos == std::string::npos) return false;
+        keyPos = json.find(':', keyPos);
+        if (keyPos == std::string::npos) return false;
+        keyPos++;
+        while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t')) keyPos++;
+        pos = keyPos + (json.substr(keyPos, 4) == "true" ? 5 : 6);
+        return json.substr(keyPos, 4) == "true";
+    };
+    
+    // Parse metadata
+    size_t pos = 0;
+    data.metadata.version = static_cast<int>(getNumber(json, pos, "version"));
+    data.metadata.name = getString(json, pos, "name");
+    data.metadata.duration = getNumber(json, pos, "duration");
+    data.metadata.frameRate = getNumber(json, pos, "frameRate");
+    data.metadata.width = static_cast<uint32_t>(getNumber(json, pos, "width"));
+    data.metadata.height = static_cast<uint32_t>(getNumber(json, pos, "height"));
+    
+    // Parse nodes
+    size_t nodesStart = json.find("\"nodes\"");
+    if (nodesStart != std::string::npos) {
+        size_t arrStart = json.find('[', nodesStart);
+        if (arrStart != std::string::npos) {
+            size_t arrEnd = json.find(']', arrStart);
+            std::string nodesJson = json.substr(arrStart, arrEnd - arrStart + 1);
+            
+            size_t nodePos = 0;
+            while (true) {
+                size_t nodeStart = nodesJson.find("{", nodePos);
+                if (nodeStart == std::string::npos) break;
+                size_t nodeEnd = nodesJson.find("}", nodeStart);
+                if (nodeEnd == std::string::npos) break;
+                
+                std::string nodeJson = nodesJson.substr(nodeStart, nodeEnd - nodeStart + 1);
+                SerializedNode sn;
+                sn.type = getString(nodeJson, pos, "type");
+                sn.id = getString(nodeJson, pos, "id");
+                sn.name = getString(nodeJson, pos, "name");
+                sn.x = static_cast<float>(getNumber(nodeJson, pos, "x"));
+                sn.y = static_cast<float>(getNumber(nodeJson, pos, "y"));
+                sn.sourceFilePath = getString(nodeJson, pos, "sourceFilePath");
+                sn.blendMode = static_cast<int>(getNumber(nodeJson, pos, "blendMode"));
+                
+                // Audio config
+                size_t audioPos = nodeJson.find("\"audio\"");
+                if (audioPos != std::string::npos) {
+                    size_t audioEnd = nodeJson.find('}', audioPos);
+                    std::string audioJson = nodeJson.substr(audioPos, audioEnd - audioPos + 1);
+                    size_t ap = 0;
+                    sn.audioSourceClipId = getString(audioJson, ap, "sourceClipId");
+                    sn.audioSensitivity = static_cast<float>(getNumber(audioJson, ap, "sensitivity"));
+                    sn.audioSmoothing = static_cast<float>(getNumber(audioJson, ap, "smoothing"));
+                    sn.audioFrequencyMin = static_cast<float>(getNumber(audioJson, ap, "frequencyMin"));
+                    sn.audioFrequencyMax = static_cast<float>(getNumber(audioJson, ap, "frequencyMax"));
+                    sn.audioFftSize = static_cast<int>(getNumber(audioJson, ap, "fftSize"));
+                    sn.audioUseBeatDetection = getBool(audioJson, ap, "useBeatDetection");
+                    sn.audioBeatThreshold = static_cast<float>(getNumber(audioJson, ap, "beatThreshold"));
+                    sn.audioWaveformPoints = static_cast<int>(getNumber(audioJson, ap, "waveformPoints"));
+                    sn.audioSpectrumBars = static_cast<int>(getNumber(audioJson, ap, "spectrumBars"));
+                    sn.audioBarWidth = static_cast<float>(getNumber(audioJson, ap, "barWidth"));
+                    sn.audioBarGap = static_cast<float>(getNumber(audioJson, ap, "barGap"));
+                    sn.audioBarColor = static_cast<uint32_t>(getNumber(audioJson, ap, "barColor"));
+                    sn.audioBackgroundColor = static_cast<uint32_t>(getNumber(audioJson, ap, "backgroundColor"));
+                }
+                
+                data.nodes.push_back(std::move(sn));
+                nodePos = nodeEnd + 1;
+            }
+        }
+    }
+    
+    // Parse connections
+    size_t connStart = json.find("\"connections\"");
+    if (connStart != std::string::npos) {
+        size_t arrStart = json.find('[', connStart);
+        if (arrStart != std::string::npos) {
+            size_t arrEnd = json.find(']', arrStart);
+            std::string connJson = json.substr(arrStart, arrEnd - arrStart + 1);
+            
+            size_t connPos = 0;
+            while (true) {
+                size_t connStartPos = connJson.find("{", connPos);
+                if (connStartPos == std::string::npos) break;
+                size_t connEnd = connJson.find("}", connStartPos);
+                if (connEnd == std::string::npos) break;
+                
+                std::string singleConn = connJson.substr(connStartPos, connEnd - connStartPos + 1);
+                SerializedConnection sc;
+                sc.fromNodeId = getString(singleConn, pos, "fromNodeId");
+                sc.fromPort = getString(singleConn, pos, "fromPort");
+                sc.toNodeId = getString(singleConn, pos, "toNodeId");
+                sc.toPort = getString(singleConn, pos, "toPort");
+                data.connections.push_back(std::move(sc));
+                connPos = connEnd + 1;
+            }
+        }
+    }
+    
+    // Parse clips
+    size_t clipsStart = json.find("\"clips\"");
+    if (clipsStart != std::string::npos) {
+        size_t arrStart = json.find('[', clipsStart);
+        if (arrStart != std::string::npos) {
+            size_t arrEnd = json.find(']', arrStart);
+            std::string clipsJson = json.substr(arrStart, arrEnd - arrStart + 1);
+            
+            size_t clipPos = 0;
+            while (true) {
+                size_t clipStart = clipsJson.find("{", clipPos);
+                if (clipStart == std::string::npos) break;
+                size_t clipEnd = clipsJson.find("}", clipStart);
+                if (clipEnd == std::string::npos) break;
+                
+                std::string singleClip = clipsJson.substr(clipStart, clipEnd - clipStart + 1);
+                SerializedClip sc;
+                sc.id = getString(singleClip, pos, "id");
+                sc.sourceNodeId = getString(singleClip, pos, "sourceNodeId");
+                sc.timelineStart = getNumber(singleClip, pos, "timelineStart");
+                sc.sourceInPoint = getNumber(singleClip, pos, "sourceInPoint");
+                sc.sourceOutPoint = getNumber(singleClip, pos, "sourceOutPoint");
+                sc.playbackSpeed = getNumber(singleClip, pos, "playbackSpeed");
+                sc.layer = static_cast<int>(getNumber(singleClip, pos, "layer"));
+                data.clips.push_back(std::move(sc));
+                clipPos = clipEnd + 1;
+            }
+        }
+    }
+    
+    return true;
+}
     // Simplified JSON parser - in production use nlohmann/json or similar
     // This is a minimal implementation for basic types
     char c;
@@ -226,7 +393,10 @@ std::string ProjectSerializer::NodeKindToString(NodeKind kind) {
         case NodeKind::Camera3D: return "Camera3D";
         case NodeKind::DepthOfField: return "DepthOfField";
         case NodeKind::ChromaKey: return "ChromaKey";
-case NodeKind::MeshSource: return "MeshSource";
+        case NodeKind::MeshSource: return "MeshSource";
+        case NodeKind::AudioReactive: return "AudioReactive";
+        case NodeKind::AudioWaveform: return "AudioWaveform";
+        case NodeKind::AudioSpectrum: return "AudioSpectrum";
         // Motion Effects - Transform Motion
         case NodeKind::Oscillate: return "Oscillate";
         case NodeKind::Shake: return "Shake";
@@ -327,6 +497,9 @@ NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "DepthOfField") return NodeKind::DepthOfField;
     if (str == "ChromaKey") return NodeKind::ChromaKey;
     if (str == "MeshSource") return NodeKind::MeshSource;
+    if (str == "AudioReactive") return NodeKind::AudioReactive;
+    if (str == "AudioWaveform") return NodeKind::AudioWaveform;
+    if (str == "AudioSpectrum") return NodeKind::AudioSpectrum;
     // Motion Effects - Transform Motion
     if (str == "Oscillate") return NodeKind::Oscillate;
     if (str == "Shake") return NodeKind::Shake;
@@ -474,6 +647,22 @@ ProjectData ProjectSerializer::Serialize(const NodeGraph& graph, const Timeline&
         sn.sourceFilePath = node.sourceFilePath;
         sn.blendMode = static_cast<int>(node.blendMode);
         sn.spirvFragment = node.spirvFragment;
+        if (node.kind == NodeKind::AudioReactive || node.kind == NodeKind::AudioWaveform || node.kind == NodeKind::AudioSpectrum) {
+            sn.audioSourceClipId = node.audio.sourceClipId;
+            sn.audioSensitivity = node.audio.sensitivity;
+            sn.audioSmoothing = node.audio.smoothing;
+            sn.audioFrequencyMin = node.audio.frequencyMin;
+            sn.audioFrequencyMax = node.audio.frequencyMax;
+            sn.audioFftSize = node.audio.fftSize;
+            sn.audioUseBeatDetection = node.audio.useBeatDetection;
+            sn.audioBeatThreshold = node.audio.beatThreshold;
+            sn.audioWaveformPoints = node.audio.waveformPoints;
+            sn.audioSpectrumBars = node.audio.spectrumBars;
+            sn.audioBarWidth = node.audio.barWidth;
+            sn.audioBarGap = node.audio.barGap;
+            sn.audioBarColor = node.audio.barColor;
+            sn.audioBackgroundColor = node.audio.backgroundColor;
+        }
         
         data.nodes.push_back(std::move(sn));
     }
@@ -559,6 +748,22 @@ bool ProjectSerializer::Deserialize(const ProjectData& data, NodeGraph& graph, T
             node.sourceFilePath = sn.sourceFilePath;
             node.blendMode = static_cast<BlendMode>(sn.blendMode);
             node.spirvFragment = sn.spirvFragment;
+            if (node.kind == NodeKind::AudioReactive || node.kind == NodeKind::AudioWaveform || node.kind == NodeKind::AudioSpectrum) {
+                node.audio.sourceClipId = sn.audioSourceClipId;
+                node.audio.sensitivity = sn.audioSensitivity;
+                node.audio.smoothing = sn.audioSmoothing;
+                node.audio.frequencyMin = sn.audioFrequencyMin;
+                node.audio.frequencyMax = sn.audioFrequencyMax;
+                node.audio.fftSize = sn.audioFftSize;
+                node.audio.useBeatDetection = sn.audioUseBeatDetection;
+                node.audio.beatThreshold = sn.audioBeatThreshold;
+                node.audio.waveformPoints = sn.audioWaveformPoints;
+                node.audio.spectrumBars = sn.audioSpectrumBars;
+                node.audio.barWidth = sn.audioBarWidth;
+                node.audio.barGap = sn.audioBarGap;
+                node.audio.barColor = sn.audioBarColor;
+                node.audio.backgroundColor = sn.audioBackgroundColor;
+            }
             
             graph.AddNode(std::move(node));
         }
@@ -675,6 +880,24 @@ bool ProjectSerializer::SaveToFile(const ProjectData& data, const std::string& f
             if (n.blendMode != 0) {
                 file << ",\n      \"blendMode\": " << n.blendMode;
             }
+            if (n.type == "AudioReactive" || n.type == "AudioWaveform" || n.type == "AudioSpectrum") {
+                file << ",\n      \"audio\": {\n";
+                file << "        \"sourceClipId\": \"" << n.audioSourceClipId << "\",\n";
+                file << "        \"sensitivity\": " << n.audioSensitivity << ",\n";
+                file << "        \"smoothing\": " << n.audioSmoothing << ",\n";
+                file << "        \"frequencyMin\": " << n.audioFrequencyMin << ",\n";
+                file << "        \"frequencyMax\": " << n.audioFrequencyMax << ",\n";
+                file << "        \"fftSize\": " << n.audioFftSize << ",\n";
+                file << "        \"useBeatDetection\": " << (n.audioUseBeatDetection ? "true" : "false") << ",\n";
+                file << "        \"beatThreshold\": " << n.audioBeatThreshold << ",\n";
+                file << "        \"waveformPoints\": " << n.audioWaveformPoints << ",\n";
+                file << "        \"spectrumBars\": " << n.audioSpectrumBars << ",\n";
+                file << "        \"barWidth\": " << n.audioBarWidth << ",\n";
+                file << "        \"barGap\": " << n.audioBarGap << ",\n";
+                file << "        \"barColor\": " << n.audioBarColor << ",\n";
+                file << "        \"backgroundColor\": " << n.audioBackgroundColor << "\n";
+                file << "      }";
+            }
             
             file << "\n    }";
             if (i + 1 < data.nodes.size()) file << ",";
@@ -736,10 +959,10 @@ bool ProjectSerializer::LoadFromFile(ProjectData& data, const std::string& fileP
             return false;
         }
         
-        // In production, use a proper JSON parser
-        // This is a minimal implementation - real code would parse properly
-        LOGI("LoadFromFile: basic implementation - use nlohmann/json for production");
-        return false;
+        std::string json((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        file.close();
+        
+        return JsonDeserialize(json, data);
     } catch (const std::exception& e) {
         LOGE("LoadFromFile failed: %s", e.what());
         return false;

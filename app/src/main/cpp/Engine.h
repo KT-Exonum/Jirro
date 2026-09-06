@@ -35,6 +35,7 @@
 #include "engine/graph/RenderGraph.h"
 #include "engine/media/MediaEngine.h"
 #include "engine/text/TextRenderer.h"
+#include "engine/audio/AudioEngine.h"
 #include "engine/timeline/Timeline.h"
 
 namespace vfx {
@@ -308,6 +309,10 @@ public:
     [[nodiscard]] ExpressionEngine* GetExpressionEngine() { return expressionEngine_.get(); }
     [[nodiscard]] const ExpressionEngine* GetExpressionEngine() const { return expressionEngine_.get(); }
 
+    // Phase 7+: Audio engine access
+    [[nodiscard]] AudioEngine* GetAudioEngine() { return audioEngine_.get(); }
+    [[nodiscard]] const AudioEngine* GetAudioEngine() const { return audioEngine_.get(); }
+
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
 
@@ -353,6 +358,9 @@ private:
 
     // Phase 7+: Expression engine for procedural animation
     std::unique_ptr<ExpressionEngine> expressionEngine_;
+
+    // Audio engine for decoding, mixing, and analysis
+    std::unique_ptr<class AudioEngine> audioEngine_;
 
     // Text rendering
     std::unique_ptr<TextRenderer> textRenderer_;

@@ -66,6 +66,12 @@ add_library(vfxengine SHARED
     engine/text/TextRenderer.cpp
     engine/expression/ExpressionEngine.cpp
     engine/shape2d/Shape2D.cpp
+    engine/audio/AudioEngine.cpp
+    engine/asset/AssetManager.cpp
+    engine/3d/Light.cpp
+    engine/3d/Material.cpp
+    engine/3d/Shadow.cpp
+    engine/3d/glTFLoader.cpp
     ${SHADER_EMBEDDED_HEADER}
 )
 

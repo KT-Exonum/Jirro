@@ -127,7 +127,7 @@ void Engine::Tick() {
             });
             profiler_->Initialize(dynamic_cast<VulkanDevice*>(device_.get()));
 
-            exportPipeline_ = std::make_unique<ExportPipeline>(*device_, *renderGraph_, graph_, *timeline_);
+            exportPipeline_ = std::make_unique<ExportPipeline>(*device_, *renderGraph_, graph_, *timeline_, *mediaEngine_, audioEngine_.get());
 
             projectManager_ = std::make_unique<ProjectManager>();
             projectManager_->SetOnProjectChanged([this](const std::string& path) {
@@ -145,11 +145,16 @@ void Engine::Tick() {
             // Text rendering
             textRenderer_ = std::make_unique<TextRenderer>(*device_);
             textRenderer_->Initialize("/system/fonts/Roboto-Regular.ttf");
+
+            // Phase 7+: Audio engine
+            audioEngine_ = std::make_unique<AudioEngine>();
+            audioEngine_->Initialize(device_.get());
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
             if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
             if (profiler_) { profiler_->Shutdown(); profiler_.reset(); }
             expressionEngine_.reset();
+            if (audioEngine_) { audioEngine_->Shutdown(); audioEngine_.reset(); }
             textRenderer_.reset();
             projectManager_.reset();
             device_->Shutdown();
@@ -200,7 +205,7 @@ void Engine::Tick() {
         
         auto plan = renderGraph_->Compile(graph_, kOutputNodeId);
         if (plan.Ok()) {
-            renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get(), expressionEngine_.get());
+            renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get(), expressionEngine_.get(), audioEngine_.get());
         }
         device_->EndFrame();
     }

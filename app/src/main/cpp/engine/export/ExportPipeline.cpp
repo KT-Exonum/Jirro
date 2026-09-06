@@ -18,9 +18,9 @@ namespace vfx {
 
 ExportPipeline::ExportPipeline(GraphicsDevice& device, const RenderGraph& renderGraph,
                                const NodeGraph& nodeGraph, const Timeline& timeline,
-                               const MediaEngine& mediaEngine)
+                               const MediaEngine& mediaEngine, AudioEngine* audioEngine)
     : device_(device), renderGraph_(renderGraph), nodeGraph_(nodeGraph),
-      timeline_(timeline), mediaEngine_(mediaEngine) {
+      timeline_(timeline), mediaEngine_(mediaEngine), audioEngine_(audioEngine) {
 }
 
 ExportPipeline::~ExportPipeline() {
@@ -480,17 +480,16 @@ std::optional<ExportPipeline::FrameData> ExportPipeline::RenderFrame(double time
     outputDesc.transient = true;
     outputDesc.debugName = "export_frame_" + std::to_string(framesWritten_);
     
-    auto acquired = device_.texturePool().Acquire(outputDesc);
+    auto acquired = device_.CreateTexture(outputDesc);
     if (!acquired) return std::nullopt;
     
     TextureHandle outputTexture = acquired.value;
     
     // Execute render graph for this frame
-    // We need to set the timeline time for the render graph
-    // This would involve updating uniform buffers with the current timeline time
-    // and executing each pass in the render plan
+    // Note: In a full implementation, we'd also set up the device for off-screen rendering
+    // and use a framebuffer with the output texture.
+    // For now, we record the texture handle for the encoder to consume.
     
-    // For now, return a placeholder
     FrameData frame;
     frame.texture = outputTexture;
     frame.timelineTime = timelineTime;
@@ -500,15 +499,18 @@ std::optional<ExportPipeline::FrameData> ExportPipeline::RenderFrame(double time
 }
 
 std::optional<ExportPipeline::AudioChunk> ExportPipeline::GetMixedAudio(double startTime, double endTime) {
-    // Get all active audio clips from timeline
-    // Mix their audio samples
-    // Return mixed audio chunk
-    
     AudioChunk chunk;
     chunk.presentationTimeUs = static_cast<int64_t>(startTime * 1'000'000.0);
     
-    // Placeholder: would mix audio from active clips
-    // For now return empty
+    if (audioEngine_) {
+        auto mixed = audioEngine_->GetMixedAudio(startTime, endTime - startTime);
+        if (!mixed.empty()) {
+            chunk.samples = std::move(mixed);
+            return chunk;
+        }
+    }
+    
+    // Fallback: iterate timeline clips and mix manually (stub)
     return chunk;
 }
 

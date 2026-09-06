@@ -21,6 +21,7 @@
 #include "engine/graph/RenderGraph.h"
 #include "engine/timeline/Timeline.h"
 #include "engine/media/MediaEngine.h"
+#include "engine/audio/AudioEngine.h"
 
 namespace vfx {
 
@@ -70,7 +71,7 @@ class ExportPipeline {
 public:
     ExportPipeline(GraphicsDevice& device, const RenderGraph& renderGraph, 
                    const NodeGraph& nodeGraph, const Timeline& timeline,
-                   const MediaEngine& mediaEngine);
+                   const MediaEngine& mediaEngine, AudioEngine* audioEngine = nullptr);
     ~ExportPipeline();
     
     // Start async export
@@ -127,6 +128,7 @@ private:
     const NodeGraph& nodeGraph_;
     const Timeline& timeline_;
     const MediaEngine& mediaEngine_;
+    AudioEngine* audioEngine_ = nullptr;
     
     ExportConfig config_;
     ProgressCallback progressCallback_;

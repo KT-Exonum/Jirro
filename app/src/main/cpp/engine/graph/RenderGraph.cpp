@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "engine/audio/AudioEngine.h"
+
 #define LOG_TAG "RenderGraph"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -194,6 +196,14 @@ extern size_t kPolarCoordinatesFragSpirvWords;
 extern const uint32_t* kDisplacementMapFragSpirv;
 extern size_t kDisplacementMapFragSpirvWords;
 
+// Audio visualization shaders
+extern const uint32_t* kAudioReactiveFragSpirv;
+extern size_t kAudioReactiveFragSpirvWords;
+extern const uint32_t* kAudioWaveformFragSpirv;
+extern size_t kAudioWaveformFragSpirvWords;
+extern const uint32_t* kAudioSpectrumFragSpirv;
+extern size_t kAudioSpectrumFragSpirvWords;
+
 // Text shaders
 extern const uint32_t* kTextVertSpirv;
 extern size_t kTextVertSpirvWords;
@@ -336,6 +346,10 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(MeshWarp, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kMeshWarpFragSpirv, kMeshWarpFragSpirvWords);
         V(PolarCoordinates, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPolarCoordinatesFragSpirv, kPolarCoordinatesFragSpirvWords);
         V(DisplacementMap, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDisplacementMapFragSpirv, kDisplacementMapFragSpirvWords);
+        // Audio visualization
+        V(AudioReactive, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kAudioReactiveFragSpirv, kAudioReactiveFragSpirvWords);
+        V(AudioWaveform, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kAudioWaveformFragSpirv, kAudioWaveformFragSpirvWords);
+        V(AudioSpectrum, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kAudioSpectrumFragSpirv, kAudioSpectrumFragSpirvWords);
         #undef V
         return m;
     }();
@@ -529,7 +543,7 @@ void RenderGraph::Execute(const NodeGraph& graph, const CompileResult& plan, dou
     lastTimelineSeconds_ = timelineSeconds;
     
     for (const auto& pass : plan.passes) {
-        ExecutePass(graph, pass, timelineSeconds, mediaEngine, expressionEngine);
+        ExecutePass(graph, pass, timelineSeconds, mediaEngine, expressionEngine, audioEngine);
     }
     texturePool_.EndFrame();
 }
@@ -548,8 +562,9 @@ ShaderModuleHandle RenderGraph::GetOrCreateShaderModule(const uint32_t* spirv, s
 }
 
 void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
-                                 MediaEngine* mediaEngine,
-                                 ExpressionEngine* expressionEngine) {
+                                  MediaEngine* mediaEngine,
+                                  ExpressionEngine* expressionEngine,
+                                  AudioEngine* audioEngine) {
     const Node* node = graph.FindNode(pass.nodeId);
     if (!node) return;
 
@@ -640,6 +655,29 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
         }
     }
     
+    // Inject audio reactive uniforms if audio engine is available
+    if (audioEngine) {
+        float audioLevel = 0.0f;
+        if (node->kind == NodeKind::AudioReactive || node->kind == NodeKind::AudioWaveform || node->kind == NodeKind::AudioSpectrum) {
+            audioLevel = audioEngine->GetAudioLevel(node->audio.sourceClipId);
+        }
+        animatedUniforms["audioLevel"] = audioLevel;
+        animatedUniforms["beatPhase"] = audioEngine->GetBeatPhase(node->audio.sourceClipId);
+        animatedUniforms["sensitivity"] = node->audio.sensitivity;
+        animatedUniforms["smoothing"] = node->audio.smoothing;
+        animatedUniforms["frequencyMin"] = node->audio.frequencyMin;
+        animatedUniforms["frequencyMax"] = node->audio.frequencyMax;
+        animatedUniforms["useBeatDetection"] = node->audio.useBeatDetection ? 1.0f : 0.0f;
+        animatedUniforms["beatThreshold"] = node->audio.beatThreshold;
+        animatedUniforms["waveformPoints"] = static_cast<float>(node->audio.waveformPoints);
+        animatedUniforms["spectrumBars"] = static_cast<float>(node->audio.spectrumBars);
+        animatedUniforms["barWidth"] = node->audio.barWidth;
+        animatedUniforms["barGap"] = node->audio.barGap;
+        animatedUniforms["barColorR"] = ((node->audio.barColor >> 16) & 0xFF) / 255.0f;
+        animatedUniforms["barColorG"] = ((node->audio.barColor >> 8) & 0xFF) / 255.0f;
+        animatedUniforms["barColorB"] = (node->audio.barColor & 0xFF) / 255.0f;
+    }
+
     for (const auto& [name, value] : node->uniformFloats) {
         if (animatedUniforms.find(name) == animatedUniforms.end()) {
             animatedUniforms[name] = value;
