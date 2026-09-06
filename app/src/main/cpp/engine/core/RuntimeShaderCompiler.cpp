@@ -100,7 +100,7 @@ void RuntimeShaderCompiler::CompileAllShaders(ShaderCompileCallback onComplete) 
     }
 
     cv_.notify_one();
-    compileThread_ = std::thread(&RuntimeShaderCompiler::CompilationThreadMain, this);
+    compileThread_ = std::jthread(&RuntimeShaderCompiler::CompilationThreadMain, this, stopSource_.get_token());
 }
 
 ShaderCompileResult RuntimeShaderCompiler::CompileShader(std::string_view assetPath) {
@@ -154,11 +154,8 @@ void RuntimeShaderCompiler::InvalidateCache() {
 }
 
 void RuntimeShaderCompiler::Shutdown() {
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        shutdown_.store(true);
-        cv_.notify_one();
-    }
+    stopSource_.request_stop();
+    cv_.notify_one();
     if (compileThread_.joinable()) {
         compileThread_.join();
     }
@@ -362,14 +359,14 @@ bool RuntimeShaderCompiler::SaveToCache(std::string_view cacheFilePath, std::spa
     return file.good();
 }
 
-void RuntimeShaderCompiler::CompilationThreadMain() {
+void RuntimeShaderCompiler::CompilationThreadMain(std::stop_token stopToken) {
     LOGI("Shader compilation thread started");
 
-    while (!shutdown_.load()) {
+    while (!stopToken.stop_requested()) {
         std::unique_lock<std::mutex> lock(mutex_);
-        cv_.wait(lock, [this] { return !jobQueue_.empty() || shutdown_.load(); });
+        cv_.wait(lock, [this, &stopToken] { return !jobQueue_.empty() || stopToken.stop_requested(); });
 
-        if (shutdown_.load()) break;
+        if (stopToken.stop_requested()) break;
 
         ProcessJobQueue();
     }

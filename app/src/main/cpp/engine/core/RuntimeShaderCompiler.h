@@ -74,7 +74,8 @@ private:
     std::condition_variable cv_;
     std::queue<CompileJob> jobQueue_;
     std::unordered_map<std::string, ShaderCompileResult> results_;
-    std::thread compileThread_;
+    std::jthread compileThread_;
+    std::stop_source stopSource_;
     std::atomic<bool> shutdown_{false};
     std::atomic<bool> compiling_{false};
 };
