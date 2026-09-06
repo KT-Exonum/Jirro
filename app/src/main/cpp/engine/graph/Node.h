@@ -74,6 +74,10 @@ enum class NodeKind {
     AudioReactive,    // Audio-reactive values output (spectrum/beat)
     AudioWaveform,    // Waveform visualization
     AudioSpectrum,    // Spectrum visualization (bars)
+    // Text/Typography
+    TextAnimator,     // Text animation effects
+    TextPath,         // Text on path
+    Typewriter,       // Typewriter effect
 
     // Motion Effects - Transform Motion (Alight Motion inspired)
     Oscillate,        // Sine/triangle wave oscillation
@@ -536,7 +540,11 @@ struct Node {
     std::string debugName;
 
     std::vector<NodeSocket> inputs;
-    NodeSocket output{"output"};
+    std::vector<NodeSocket> outputs;
+
+    // Node position in the editor
+    float x = 0.0f;
+    float y = 0.0f;
 
     // Static (non-animated) parameters.
     std::unordered_map<std::string, float> uniformFloats;

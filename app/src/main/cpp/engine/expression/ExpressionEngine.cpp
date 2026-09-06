@@ -135,7 +135,7 @@ namespace ExprFuncs {
     }
     float elastic(float t) {
         if (t == 0 || t == 1) return t;
-        return -std::pow(2, 10 * (t - 1)) * std::sin((t - 1.1f) * 5 * M_PI);
+        return -std::pow(2, 10 * (t - 1)) * std::sin((t - 1.1f) * 5 * std::numbers::pi_v<float>);
     }
     float back(float t) {
         const float c1 = 1.70158f;
@@ -177,8 +177,8 @@ void ExpressionEngine::InitContext() {
     
     // Math object
     JSValue math = JS_NewObject(ctx_);
-    JS_SetPropertyStr(ctx_, math, "PI", JS_NewFloat64(ctx_, M_PI));
-    JS_SetPropertyStr(ctx_, math, "E", JS_NewFloat64(ctx_, M_E));
+    JS_SetPropertyStr(ctx_, math, "PI", JS_NewFloat64(ctx_, std::numbers::pi_v<double>));
+    JS_SetPropertyStr(ctx_, math, "E", JS_NewFloat64(ctx_, std::numbers::e_v<double>));
     JS_SetPropertyStr(ctx_, math, "sin", JS_NewCFunction(ctx_, [](JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
         if (argc < 1) return JS_EXCEPTION;
         double v; JS_ToFloat64(ctx, &v, argv[0]);

@@ -72,6 +72,24 @@ std::shared_ptr<Model> glTFLoader::LoadOBJ(const std::string& path) {
     Mesh mesh;
     mesh.name = "OBJ_Mesh";
     
+    struct IndexKey {
+        uint32_t posIdx;
+        uint32_t normIdx;
+        uint32_t uvIdx;
+        bool operator==(const IndexKey& other) const {
+            return posIdx == other.posIdx && normIdx == other.normIdx && uvIdx == other.uvIdx;
+        }
+    };
+    
+    struct IndexKeyHash {
+        size_t operator()(const IndexKey& k) const {
+            return ((k.posIdx * 73856093) ^ (k.normIdx * 19349663) ^ (k.uvIdx * 83492791));
+        }
+    };
+    
+    std::unordered_map<IndexKey, uint32_t, IndexKeyHash> vertexMap;
+    std::vector<uint32_t> indices;
+    
     std::string line;
     while (std::getline(file, line)) {
         std::istringstream iss(line);
@@ -97,9 +115,38 @@ std::shared_ptr<Model> glTFLoader::LoadOBJ(const std::string& path) {
             std::vector<uint32_t> faceVerts;
             while (iss >> vertex) {
                 uint32_t idx = 0, uvIdx = 0, normIdx = 0;
-                sscanf(vertex.c_str(), "%d/%d/%d", &idx, &uvIdx, &normIdx);
-                faceVerts.push_back(static_cast<uint32_t>(std::abs(idx)) - 1);
+                int matched = sscanf(vertex.c_str(), "%d/%d/%d", &idx, &uvIdx, &normIdx);
+                if (matched < 1) continue;
+                
+                // Handle negative indices (relative to end)
+                if (idx < 0) idx = static_cast<uint32_t>(positions.size() / 3) + idx;
+                if (normIdx < 0 && includeNormals_) normIdx = static_cast<uint32_t>(normals.size() / 3) + normIdx;
+                if (uvIdx < 0) uvIdx = static_cast<uint32_t>(texcoords.size() / 2) + uvIdx;
+                
+                IndexKey key{idx - 1, normIdx - 1, uvIdx - 1};
+                auto [it, inserted] = vertexMap.emplace(key, static_cast<uint32_t>(vertices.size()));
+                if (inserted) {
+                    Vertex v{};
+                    v.position[0] = positions[(idx - 1) * 3];
+                    v.position[1] = positions[(idx - 1) * 3 + 1];
+                    v.position[2] = positions[(idx - 1) * 3 + 2];
+                    
+                    if (includeNormals_ && (normIdx - 1) * 3 + 2 < normals.size()) {
+                        v.normal[0] = normals[(normIdx - 1) * 3];
+                        v.normal[1] = normals[(normIdx - 1) * 3 + 1];
+                        v.normal[2] = normals[(normIdx - 1) * 3 + 2];
+                    }
+                    
+                    if ((uvIdx - 1) * 2 + 1 < texcoords.size()) {
+                        v.texcoord[0] = texcoords[(uvIdx - 1) * 2];
+                        v.texcoord[1] = texcoords[(uvIdx - 1) * 2 + 1];
+                    }
+                    
+                    vertices.push_back(v);
+                }
+                faceVerts.push_back(it->second);
             }
+            
             for (size_t i = 1; i + 1 < faceVerts.size(); ++i) {
                 indices.push_back(faceVerts[0]);
                 indices.push_back(faceVerts[i]);
@@ -108,30 +155,10 @@ std::shared_ptr<Model> glTFLoader::LoadOBJ(const std::string& path) {
         }
     }
     
-    mesh.vertexCount = positions.size() / 3;
+    mesh.vertexCount = vertices.size();
     mesh.indexCount = indices.size();
-    
-    for (size_t i = 0; i < mesh.vertexCount; ++i) {
-        Vertex v{};
-        v.position[0] = positions[i * 3];
-        v.position[1] = positions[i * 3 + 1];
-        v.position[2] = positions[i * 3 + 2];
-        
-        if (includeNormals_ && i * 3 + 2 < normals.size()) {
-            v.normal[0] = normals[i * 3];
-            v.normal[1] = normals[i * 3 + 1];
-            v.normal[2] = normals[i * 3 + 2];
-        }
-        
-        if (i * 2 + 1 < texcoords.size()) {
-            v.texcoord[0] = texcoords[i * 2];
-            v.texcoord[1] = texcoords[i * 2 + 1];
-        }
-        
-        mesh.vertices.push_back(v);
-    }
-    
-    mesh.indices = indices;
+    mesh.vertices = std::move(vertices);
+    mesh.indices = std::move(indices);
     model->meshes.push_back(std::move(mesh));
     LOGI("Loaded OBJ: %zu vertices, %zu indices", model->meshes.back().vertexCount, model->meshes.back().indexCount);
     return model;

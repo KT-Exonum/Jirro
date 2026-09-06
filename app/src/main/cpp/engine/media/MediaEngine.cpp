@@ -684,11 +684,12 @@ void MediaEngine::GenerateProxy(const ActiveProxyRequest& request) {
 
 void MediaEngine::Start() {
     if (running_.exchange(true)) return;
-    mediaThread_ = std::thread(&MediaEngine::MediaThreadMain, this);
+    mediaThread_ = std::jthread(&MediaEngine::MediaThreadMain, this, stopSource_.get_token());
 }
 
 void MediaEngine::Stop() {
     if (!running_.exchange(false)) return;
+    stopSource_.request_stop();
     if (mediaThread_.joinable()) mediaThread_.join();
     decoderPool_.CloseAll();
 }
@@ -699,8 +700,8 @@ void MediaEngine::SetActiveClips(std::vector<ActiveClipRequest> clips, double pl
     frameCache_.SetPlayheadHint(playheadTimelineSeconds);
 }
 
-void MediaEngine::MediaThreadMain() {
-    while (running_.load(std::memory_order_acquire)) {
+void MediaEngine::MediaThreadMain(std::stop_token stopToken) {
+    while (running_.load(std::memory_order_acquire) && !stopToken.stop_requested()) {
         std::vector<ActiveClipRequest> clipRequests;
         std::vector<ActiveAudioRequest> audioRequests;
         std::vector<ActiveProxyRequest> proxyRequests;

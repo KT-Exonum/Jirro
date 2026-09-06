@@ -21,7 +21,7 @@ void main() {
     wave *= ub.audioLevel * ub.sensitivity;
 
     float d = abs(uv.y - 0.5 - wave);
-    float line = smoothstep(0.005, 0.0, d);
+    float line = 1.0 - smoothstep(0.0, 0.005, d);
     vec3 col = vec3(0.0, line, line * 0.5);
 
     outColor = vec4(col, 1.0);

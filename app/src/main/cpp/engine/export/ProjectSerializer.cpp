@@ -141,7 +141,7 @@ bool ProjectSerializer::JsonDeserialize(const std::string& json, ProjectData& da
         if (keyPos == std::string::npos) return false;
         keyPos++;
         while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t')) keyPos++;
-        pos = keyPos + (json.substr(keyPos, 4) == "true" ? 5 : 6);
+        pos = keyPos + (json.substr(keyPos, 4) == "true" ? 4 : 5);
         return json.substr(keyPos, 4) == "true";
     };
     
@@ -224,10 +224,10 @@ bool ProjectSerializer::JsonDeserialize(const std::string& json, ProjectData& da
                 
                 std::string singleConn = connJson.substr(connStartPos, connEnd - connStartPos + 1);
                 SerializedConnection sc;
-                sc.fromNodeId = getString(singleConn, pos, "fromNodeId");
-                sc.fromPort = getString(singleConn, pos, "fromPort");
-                sc.toNodeId = getString(singleConn, pos, "toNodeId");
-                sc.toPort = getString(singleConn, pos, "toPort");
+                sc.fromNodeId = getString(singleConn, connPos, "fromNodeId");
+                sc.fromPort = getString(singleConn, connPos, "fromPort");
+                sc.toNodeId = getString(singleConn, connPos, "toNodeId");
+                sc.toPort = getString(singleConn, connPos, "toPort");
                 data.connections.push_back(std::move(sc));
                 connPos = connEnd + 1;
             }
@@ -251,13 +251,13 @@ bool ProjectSerializer::JsonDeserialize(const std::string& json, ProjectData& da
                 
                 std::string singleClip = clipsJson.substr(clipStart, clipEnd - clipStart + 1);
                 SerializedClip sc;
-                sc.id = getString(singleClip, pos, "id");
-                sc.sourceNodeId = getString(singleClip, pos, "sourceNodeId");
-                sc.timelineStart = getNumber(singleClip, pos, "timelineStart");
-                sc.sourceInPoint = getNumber(singleClip, pos, "sourceInPoint");
-                sc.sourceOutPoint = getNumber(singleClip, pos, "sourceOutPoint");
-                sc.playbackSpeed = getNumber(singleClip, pos, "playbackSpeed");
-                sc.layer = static_cast<int>(getNumber(singleClip, pos, "layer"));
+                sc.id = getString(singleClip, clipPos, "id");
+                sc.sourceNodeId = getString(singleClip, clipPos, "sourceNodeId");
+                sc.timelineStart = getNumber(singleClip, clipPos, "timelineStart");
+                sc.sourceInPoint = getNumber(singleClip, clipPos, "sourceInPoint");
+                sc.sourceOutPoint = getNumber(singleClip, clipPos, "sourceOutPoint");
+                sc.playbackSpeed = getNumber(singleClip, clipPos, "playbackSpeed");
+                sc.layer = static_cast<int>(getNumber(singleClip, clipPos, "layer"));
                 data.clips.push_back(std::move(sc));
                 clipPos = clipEnd + 1;
             }
@@ -266,81 +266,9 @@ bool ProjectSerializer::JsonDeserialize(const std::string& json, ProjectData& da
     
     return true;
 }
-    // Simplified JSON parser - in production use nlohmann/json or similar
-    // This is a minimal implementation for basic types
-    char c;
-    while (is >> c) {
-        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') continue;
-        
-        if (c == '{') {
-            value.type = JsonValue::Object;
-            while (is >> c) {
-                if (c == '}') break;
-                if (c == ',') continue;
-                if (c == ' ' || c == '\n') continue;
-                
-                std::string key;
-                if (c == '"') {
-                    std::getline(is, key, '"');
-                }
-                
-                is >> c; // skip :
-                
-                JsonValue val;
-                ReadJsonValue(is, val);
-                value.objVal[key] = std::move(val);
-            }
-            return true;
-        }
-        else if (c == '[') {
-            value.type = JsonValue::Array;
-            while (is >> c) {
-                if (c == ']') break;
-                if (c == ',') continue;
-                if (c == ' ' || c == '\n') { is.unget(); continue; }
-                
-                is.unget();
-                JsonValue val;
-                ReadJsonValue(is, val);
-                value.arrVal.push_back(std::move(val));
-            }
-            return true;
-        }
-        else if (c == '"') {
-            std::getline(is, value.strVal, '"');
-            value.type = JsonValue::String;
-            return true;
-        }
-        else if (c == 't' || c == 'f') {
-            std::string val(1, c);
-            char next;
-            while (is >> next && next != ' ' && next != ',' && next != '}' && next != ']') {
-                val += next;
-            }
-            value.type = JsonValue::Bool;
-            value.boolVal = (val == "true");
-            return true;
-        }
-        else if (c == 'n') {
-            // null
-            char buf[4];
-            is.read(buf, 3);
-            value.type = JsonValue::Null;
-            return true;
-        }
-        else {
-            // Number
-            std::string num(1, c);
-            char next;
-            while (is >> next && (isdigit(next) || next == '.' || next == '-' || next == 'e' || next == 'E')) {
-                num += next;
-            }
-            is.unget();
-            value.type = JsonValue::Number;
-            value.numVal = std::stod(num);
-            return true;
-        }
-    }
+
+bool ProjectSerializer::ReadJsonValue(std::istream& is, JsonValue& value) {
+    // Kept for API compatibility; LoadFromFile uses JsonDeserialize instead
     return false;
 }
 
@@ -596,10 +524,9 @@ int ProjectSerializer::StringToInterpolationType(const std::string& str) {
 static std::string GetCurrentTimestamp() {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
-    std::tm tm = *std::localtime(&time);
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S");
-    return oss.str();
+    std::tm tm{};
+    localtime_r(&time, &tm);
+    return std::format("{:%Y-%m-%dT%H:%M:%S}", tm);
 }
 
 // --- Serialize ---
@@ -622,7 +549,7 @@ ProjectData ProjectSerializer::Serialize(const NodeGraph& graph, const Timeline&
         
         // Ports
         for (const auto& port : node.inputs) sn.inputPorts.push_back(port.slotName);
-        sn.outputPorts.push_back(node.output.slotName);
+        for (const auto& port : node.outputs) sn.outputPorts.push_back(port.slotName);
         
         // Uniforms
         sn.uniforms = node.uniformFloats;
@@ -723,7 +650,7 @@ bool ProjectSerializer::Deserialize(const ProjectData& data, NodeGraph& graph, T
                 node.inputs.push_back({portName});
             }
             for (const auto& portName : sn.outputPorts) {
-                node.output = {portName};
+                node.outputs.push_back({portName});
             }
             
             // Uniforms

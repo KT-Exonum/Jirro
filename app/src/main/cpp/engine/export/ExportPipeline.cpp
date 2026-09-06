@@ -66,7 +66,7 @@ bool ExportPipeline::StartExport(const ExportConfig& config, ProgressCallback ca
         return false;
     }
     
-    renderPlan_ = renderGraph_.Compile(nodeGraph_, outputNode->nodeId);
+    renderPlan_ = std::make_unique<CompileResult>(renderGraph_.Compile(nodeGraph_, outputNode->nodeId));
     if (!renderPlan_ || renderPlan_->passes.empty()) {
         lastError_ = "Failed to compile render graph";
         running_.store(false);
@@ -74,10 +74,10 @@ bool ExportPipeline::StartExport(const ExportConfig& config, ProgressCallback ca
     }
     
     // Start threads
-    exportThread_ = std::thread(&ExportPipeline::ExportThreadMain, this);
-    videoEncodeThread_ = std::thread(&ExportPipeline::VideoEncodeThreadMain, this);
-    audioEncodeThread_ = std::thread(&ExportPipeline::AudioEncodeThreadMain, this);
-    muxThread_ = std::thread(&ExportPipeline::MuxThreadMain, this);
+    exportThread_ = std::jthread(&ExportPipeline::ExportThreadMain, this, stopSource_.get_token());
+    videoEncodeThread_ = std::jthread(&ExportPipeline::VideoEncodeThreadMain, this, stopSource_.get_token());
+    audioEncodeThread_ = std::jthread(&ExportPipeline::AudioEncodeThreadMain, this, stopSource_.get_token());
+    muxThread_ = std::jthread(&ExportPipeline::MuxThreadMain, this, stopSource_.get_token());
     
     return true;
 }
@@ -85,10 +85,10 @@ bool ExportPipeline::StartExport(const ExportConfig& config, ProgressCallback ca
 bool ExportPipeline::WaitForCompletion() {
     if (!running_.load()) return true;
     
-    if (exportThread_.joinable()) exportThread_.join();
-    if (videoEncodeThread_.joinable()) videoEncodeThread_.join();
-    if (audioEncodeThread_.joinable()) audioEncodeThread_.join();
-    if (muxThread_.joinable()) muxThread_.join();
+    exportThread_.join();
+    videoEncodeThread_.join();
+    audioEncodeThread_.join();
+    muxThread_.join();
     
     Cleanup();
     running_.store(false);
@@ -97,6 +97,7 @@ bool ExportPipeline::WaitForCompletion() {
 
 void ExportPipeline::Cancel() {
     cancelled_.store(true);
+    stopSource_.request_stop();
     queueCV_.notify_all();
 }
 
@@ -104,13 +105,13 @@ ExportProgress ExportPipeline::GetProgress() const {
     return progress_;
 }
 
-void ExportPipeline::ExportThreadMain() {
+void ExportPipeline::ExportThreadMain(std::stop_token stopToken) {
     auto frameDuration = 1.0 / config_.frameRate;
     auto totalFrames = totalFrames_;
     
-    LOGI("Starting export: %lu frames at %.2f fps", totalFrames, config_.frameRate);
+    LOGI("Starting export: %llu frames at %.2f fps", static_cast<unsigned long long>(totalFrames), config_.frameRate);
     
-    for (uint64_t frameIdx = 0; frameIdx < totalFrames && running_.load() && !cancelled_.load(); ++frameIdx) {
+    for (uint64_t frameIdx = 0; frameIdx < totalFrames && !stopToken.stop_requested() && !cancelled_.load(); ++frameIdx) {
         double timelineTime = frameIdx * frameDuration;
         
         // Update progress
@@ -151,14 +152,14 @@ void ExportPipeline::ExportThreadMain() {
     LOGI("Export thread finished");
 }
 
-void ExportPipeline::VideoEncodeThreadMain() {
+void ExportPipeline::VideoEncodeThreadMain(std::stop_token stopToken) {
     if (!InitializeVideoEncoder()) {
         lastError_ = "Failed to initialize video encoder";
         running_.store(false);
         return;
     }
     
-    while (running_.load() && !cancelled_.load()) {
+    while (!stopToken.stop_requested() && !cancelled_.load()) {
         FrameData frame;
         bool hasFrame = false;
         
@@ -186,7 +187,7 @@ void ExportPipeline::VideoEncodeThreadMain() {
     LOGI("Video encode thread finished");
 }
 
-void ExportPipeline::AudioEncodeThreadMain() {
+void ExportPipeline::AudioEncodeThreadMain(std::stop_token stopToken) {
     if (!InitializeAudioEncoder()) {
         lastError_ = "Failed to initialize audio encoder";
         running_.store(false);
@@ -196,7 +197,7 @@ void ExportPipeline::AudioEncodeThreadMain() {
     double frameDuration = 1.0 / config_.frameRate;
     int64_t frameDurationUs = static_cast<int64_t>(frameDuration * 1'000'000.0);
     
-    for (uint64_t frameIdx = 0; frameIdx < totalFrames_ && running_.load() && !cancelled_.load(); ++frameIdx) {
+    for (uint64_t frameIdx = 0; frameIdx < totalFrames_ && !stopToken.stop_requested() && !cancelled_.load(); ++frameIdx) {
         double startTime = frameIdx * frameDuration;
         double endTime = startTime + frameDuration;
         
@@ -211,7 +212,7 @@ void ExportPipeline::AudioEncodeThreadMain() {
     LOGI("Audio encode thread finished");
 }
 
-void ExportPipeline::MuxThreadMain() {
+void ExportPipeline::MuxThreadMain(std::stop_token stopToken) {
     if (!InitializeMuxer()) {
         lastError_ = "Failed to initialize muxer";
         running_.store(false);
@@ -219,7 +220,7 @@ void ExportPipeline::MuxThreadMain() {
     }
     
     // Muxer runs until both video and audio are done
-    while (running_.load() && !cancelled_.load()) {
+    while (!stopToken.stop_requested() && !cancelled_.load()) {
         // MediaMuxer handles muxing automatically when we write sample data
         // Just wait for completion
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -267,6 +268,12 @@ bool ExportPipeline::InitializeVideoEncoder() {
     
     if (AMediaCodec_start(videoEncoder_) != AMEDIA_OK) {
         LOGE("Failed to start video encoder");
+        return false;
+    }
+    
+    videoInputSurface_ = AMediaCodec_createInputSurface(videoEncoder_);
+    if (!videoInputSurface_) {
+        LOGE("Failed to create video input surface");
         return false;
     }
     
@@ -319,6 +326,10 @@ bool ExportPipeline::InitializeMuxer() {
 }
 
 void ExportPipeline::Cleanup() {
+    if (videoInputSurface_) {
+        ANativeWindow_release(videoInputSurface_);
+        videoInputSurface_ = nullptr;
+    }
     if (videoEncoder_) {
         AMediaCodec_stop(videoEncoder_);
         AMediaCodec_delete(videoEncoder_);
@@ -344,42 +355,22 @@ void ExportPipeline::Cleanup() {
 }
 
 void ExportPipeline::EncodeVideoFrame(const FrameData& frame) {
-    if (!videoEncoder_) return;
+    if (!videoEncoder_ || !videoInputSurface_) return;
     
-    // Get input buffer
-    ssize_t bufIndex = AMediaCodec_dequeueInputBuffer(videoEncoder_, 10000);
-    if (bufIndex < 0) return;
-    
-    // Get output surface (we render to this)
-    ANativeWindow* surface = AMediaCodec_createInputSurface(videoEncoder_);
-    if (!surface) return;
-    
-    // Render frame to surface (would use the graphics device to draw to the surface)
-    // For now, we just signal the frame is ready
     AMediaCodecBufferInfo info{};
     info.presentationTimeUs = static_cast<int64_t>(frame.timelineTime * 1'000'000.0);
     info.flags = 0;
     info.size = 0;
     info.offset = 0;
     
-    AMediaCodec_releaseOutputBuffer(videoEncoder_, bufIndex, true);
-    
-    // The surface rendering happens separately - we'd draw the frame to the surface
-    // using the graphics device
-    
-    // For the muxer, we need the encoded data
-    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(videoEncoder_, nullptr, 10000);
+    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(videoEncoder_, &info, 10000);
     if (outIndex >= 0) {
-        AMediaCodecBufferInfo outInfo{};
-        ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(videoEncoder_, &outInfo, 10000);
-        if (outIdx >= 0) {
-            size_t outSize;
-            uint8_t* outData = AMediaCodec_getOutputBuffer(videoEncoder_, outIdx, &outSize);
-            if (outData && outSize > 0) {
-                AMediaMuxer_writeSampleData(muxer_, videoTrackIndex_, outData, &outInfo);
-            }
-            AMediaCodec_releaseOutputBuffer(videoEncoder_, outIdx, false);
+        size_t outSize;
+        uint8_t* outData = AMediaCodec_getOutputBuffer(videoEncoder_, outIndex, &outSize);
+        if (outData && outSize > 0) {
+            AMediaMuxer_writeSampleData(muxer_, videoTrackIndex_, outData, &info);
         }
+        AMediaCodec_releaseOutputBuffer(videoEncoder_, outIndex, false);
     }
     
     framesWritten_++;
@@ -395,13 +386,15 @@ void ExportPipeline::EncodeAudioChunk(const AudioChunk& chunk) {
     uint8_t* buf = AMediaCodec_getInputBuffer(audioEncoder_, bufIndex, &bufSize);
     if (!buf) return;
     
-    // Convert float samples to int16 (AAC expects 16-bit PCM typically, but MediaCodec handles conversion)
-    // For AAC encoder, we write float samples directly
     size_t sampleCount = chunk.samples.size();
-    size_t bytesNeeded = sampleCount * sizeof(float);
+    size_t bytesNeeded = sampleCount * sizeof(int16_t);
     if (bytesNeeded > bufSize) return;
     
-    std::memcpy(buf, chunk.samples.data(), bytesNeeded);
+    int16_t* int16Buf = reinterpret_cast<int16_t*>(buf);
+    for (size_t i = 0; i < sampleCount; ++i) {
+        float sample = std::clamp(chunk.samples[i], -1.0f, 1.0f);
+        int16Buf[i] = static_cast<int16_t>(sample * 32767.0f);
+    }
     
     AMediaCodecBufferInfo info{};
     info.presentationTimeUs = chunk.presentationTimeUs;
@@ -412,19 +405,14 @@ void ExportPipeline::EncodeAudioChunk(const AudioChunk& chunk) {
     AMediaCodec_queueInputBuffer(audioEncoder_, bufIndex, 0, static_cast<size_t>(bytesNeeded), 
                                  chunk.presentationTimeUs, 0);
     
-    // Drain output
-    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(audioEncoder_, nullptr, 10000);
+    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(audioEncoder_, &info, 10000);
     if (outIndex >= 0) {
-        AMediaCodecBufferInfo outInfo{};
-        ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(audioEncoder_, &outInfo, 10000);
-        if (outIdx >= 0) {
-            size_t outSize;
-            uint8_t* outData = AMediaCodec_getOutputBuffer(audioEncoder_, outIdx, &outSize);
-            if (outData && outSize > 0) {
-                AMediaMuxer_writeSampleData(muxer_, audioTrackIndex_, outData, &outInfo);
-            }
-            AMediaCodec_releaseOutputBuffer(audioEncoder_, outIdx, false);
+        size_t outSize;
+        uint8_t* outData = AMediaCodec_getOutputBuffer(audioEncoder_, outIndex, &outSize);
+        if (outData && outSize > 0) {
+            AMediaMuxer_writeSampleData(muxer_, audioTrackIndex_, outData, &info);
         }
+        AMediaCodec_releaseOutputBuffer(audioEncoder_, outIndex, false);
     }
 }
 

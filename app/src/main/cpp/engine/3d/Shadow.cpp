@@ -1,8 +1,10 @@
 #include "Shadow.h"
 
+#include <algorithm>
+
 namespace vfx {
 
-void ShadowManager::CalculateCascades(const ShadowMap& shadowMap, float cameraNear, float cameraFar) {
+void ShadowManager::CalculateCascades(ShadowMap& shadowMap, float cameraNear, float cameraFar) {
     float lambda = cascadeSplitLambda_;
     float range = cameraFar - cameraNear;
     

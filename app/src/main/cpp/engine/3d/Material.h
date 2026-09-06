@@ -8,7 +8,7 @@
 
 namespace vfx {
 
-enum class BlendMode {
+enum class MaterialBlendMode {
     Opaque,
     AlphaBlend,
     AlphaTest,
@@ -51,7 +51,7 @@ struct Material {
     TextureSlot heightMap;
     
     // Render state
-    BlendMode blendMode = BlendMode::Opaque;
+    MaterialBlendMode blendMode = MaterialBlendMode::Opaque;
     CullMode cullMode = CullMode::Back;
     bool doubleSided = false;
     bool castShadows = true;

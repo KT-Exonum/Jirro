@@ -87,7 +87,7 @@ private:
     std::unordered_map<std::string, Light> lights_;
     std::unordered_map<std::string, LightProbe> probes_;
     std::array<float, 3> ambientColor_{0.03f, 0.03f, 0.03f};
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
 };
 
 } // namespace vfx

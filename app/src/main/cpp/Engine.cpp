@@ -37,11 +37,12 @@ void Engine::DetachSurface() { AttachSurface(nullptr); }
 
 void Engine::Start() {
     if (running_.exchange(true)) return; // already running
-    engineThread_ = std::thread(&Engine::ThreadMain, this);
+    engineThread_ = std::jthread(&Engine::ThreadMain, this, engineStopSource_.get_token());
 }
 
 void Engine::Stop() {
     if (!running_.exchange(false)) return;
+    engineStopSource_.request_stop();
     if (engineThread_.joinable()) engineThread_.join();
     if (mediaEngine_) mediaEngine_->Stop(); // join the media thread before tearing down the device it imports into
     if (exportPipeline_) exportPipeline_->Cancel();
@@ -53,7 +54,7 @@ void Engine::Stop() {
     }
 }
 
-void Engine::ThreadMain() {
+void Engine::ThreadMain(std::stop_token stopToken) {
     // Section 14: this thread owns the Render Graph, GraphicsDevice, and
     // Timeline stepping. Media decode work is intentionally NOT pumped here
     // — MediaEngine (Phase 2) runs its own thread, started once the device
@@ -62,7 +63,7 @@ void Engine::ThreadMain() {
     // decode latency.
     lastTickTime_ = std::chrono::steady_clock::now();
 
-    while (running_.load(std::memory_order_acquire)) {
+    while (running_.load(std::memory_order_acquire) && !stopToken.stop_requested()) {
         Tick();
 
         // Section 16: this loop is intentionally not a tight spin. A real

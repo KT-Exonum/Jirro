@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <format>
 
 #define LOG_TAG "AssetManager"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -40,6 +41,22 @@ AssetType ExtensionToType(const std::string& ext) {
     };
     auto it = map.find(ext);
     return it != map.end() ? it->second : AssetType::Unknown;
+}
+
+std::string EscapeJsonString(std::string_view s) {
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (char c : s) {
+        switch (c) {
+            case '"':  out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:   out += c; break;
+        }
+    }
+    return out;
 }
 } // anonymous
 
@@ -239,23 +256,38 @@ bool AssetManager::SaveDatabase(const std::string& filePath) {
     for (const auto& [id, ptr] : assets_) {
         if (!first) file << ",\n";
         first = false;
-        file << "    {\n";
-        file << "      \"id\": \"" << ptr->assetId << "\",\n";
-        file << "      \"sourcePath\": \"" << ptr->sourcePath << "\",\n";
-        file << "      \"type\": " << static_cast<int>(ptr->type) << ",\n";
-        file << "      \"displayName\": \"" << ptr->displayName << "\",\n";
-        file << "      \"fileSizeBytes\": " << ptr->fileSizeBytes << ",\n";
-        file << "      \"width\": " << ptr->width << ",\n";
-        file << "      \"height\": " << ptr->height << ",\n";
-        file << "      \"frameCount\": " << ptr->frameCount << ",\n";
-        file << "      \"frameRate\": " << ptr->frameRate << ",\n";
-        file << "      \"durationUs\": " << ptr->durationUs << ",\n";
-        file << "      \"proxyStatus\": " << static_cast<int>(ptr->proxyStatus) << ",\n";
-        file << "      \"proxyPath\": \"" << ptr->proxyPath << "\",\n";
-        file << "      \"proxyWidth\": " << ptr->proxyWidth << ",\n";
-        file << "      \"proxyHeight\": " << ptr->proxyHeight << ",\n";
-        file << "      \"isMissing\": " << (ptr->isMissing ? "true" : "false") << "\n";
-        file << "    }";
+        file << std::format("    {{\n"
+                            "      \"id\": \"{}\",\n"
+                            "      \"sourcePath\": \"{}\",\n"
+                            "      \"type\": {},\n"
+                            "      \"displayName\": \"{}\",\n"
+                            "      \"fileSizeBytes\": {},\n"
+                            "      \"width\": {},\n"
+                            "      \"height\": {},\n"
+                            "      \"frameCount\": {},\n"
+                            "      \"frameRate\": {},\n"
+                            "      \"durationUs\": {},\n"
+                            "      \"proxyStatus\": {},\n"
+                            "      \"proxyPath\": \"{}\",\n"
+                            "      \"proxyWidth\": {},\n"
+                            "      \"proxyHeight\": {},\n"
+                            "      \"isMissing\": {}\n"
+                            "    }}",
+                            EscapeJsonString(ptr->assetId),
+                            EscapeJsonString(ptr->sourcePath),
+                            static_cast<int>(ptr->type),
+                            EscapeJsonString(ptr->displayName),
+                            ptr->fileSizeBytes,
+                            ptr->width,
+                            ptr->height,
+                            ptr->frameCount,
+                            ptr->frameRate,
+                            ptr->durationUs,
+                            static_cast<int>(ptr->proxyStatus),
+                            EscapeJsonString(ptr->proxyPath),
+                            ptr->proxyWidth,
+                            ptr->proxyHeight,
+                            ptr->isMissing ? "true" : "false");
     }
     file << "\n  ]\n}\n";
     return true;

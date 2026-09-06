@@ -28,6 +28,12 @@ find_program(GLSLANG_VALIDATOR
 set(SHADER_EMBEDDED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/shaders_embedded.h")
 set(SHADER_COMPILE_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/compile_shaders.py")
 
+file(GLOB SHADER_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp"
+)
+
 if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
     add_custom_command(
         OUTPUT  ${SHADER_EMBEDDED_HEADER}
@@ -37,9 +43,7 @@ if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
                 --output ${SHADER_EMBEDDED_HEADER}
                 --glslang-validator ${GLSLANG_VALIDATOR}
         DEPENDS ${SHADER_COMPILE_SCRIPT}
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp
+                ${SHADER_SOURCES}
         COMMENT "Compiling GLSL shaders to embedded SPIR-V header"
         VERBATIM
     )

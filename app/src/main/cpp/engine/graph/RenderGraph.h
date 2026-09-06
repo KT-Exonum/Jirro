@@ -16,60 +16,9 @@
 #include "engine/core/GraphicsDevice.h"
 #include "engine/expression/ExpressionEngine.h"
 #include "engine/media/MediaEngine.h"
+#include "engine/graph/ParticleSystem.h"
 
 namespace vfx {
-
-// Forward declaration
-struct Particle;
-
-// Particle structure for GPU storage buffer (matches compute shader)
-struct Particle {
-    float position[2];
-    float velocity[2];
-    float color[4];
-    float size;
-    float rotation;
-    float life;
-    float maxLife;
-    float age;
-    uint32_t active;
-    float rotationSpeed;
-    float sizeStart;
-    float sizeEnd;
-    float colorStart[4];
-    float colorEnd[4];
-    float drag;
-};
-
-static_assert(sizeof(Particle) == 112, "Particle struct must be 112 bytes for GPU alignment");
-
-// Simulation parameters for compute shader (matches compute shader uniform)
-struct ParticleSimParams {
-    float resolution[2];
-    float deltaTime;
-    float emitRate;
-    float emitRateVariation;
-    uint32_t emitterShape;
-    float emitPosition[2];
-    float emitRadius;
-    float emitLineStart[2];
-    float emitLineEnd[2];
-    float initialLife;
-    float lifeVariation;
-    float initialSpeed;
-    float speedVariation;
-    float emitAngle;
-    float angleVariation;
-    float gravity;
-    float windX;
-    float windY;
-    float turbulence;
-    float drag;
-    float deltaTimeInv;
-    uint32_t maxParticles;
-    uint32_t frameIndex;
-    uint32_t seed;
-};
 
 struct CompiledPass {
     std::string nodeId;
@@ -148,6 +97,9 @@ private:
 
     // Load or create shader module from SPIR-V bytecode (cached by bytecode content)
     ShaderModuleHandle GetOrCreateShaderModule(const uint32_t* spirv, size_t wordCount);
+
+    // Expand groups by inlining member nodes
+    void ExpandGroups(const NodeGraph& graph, std::unordered_set<std::string>& reachable);
 
     GraphicsDevice& device_;
     TransientTexturePool texturePool_;

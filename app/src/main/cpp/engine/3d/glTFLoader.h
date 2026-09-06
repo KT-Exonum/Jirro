@@ -18,7 +18,7 @@ struct Vertex {
     float weights[4];
 };
 
-static_assert(sizeof(Vertex) == 80, "Vertex must be 80 bytes for std140 alignment");
+static_assert(sizeof(Vertex) == 96, "Vertex must be 96 bytes for std140 alignment");
 
 struct SubMesh {
     std::string name;

@@ -736,10 +736,6 @@ void TransientTexturePool::EndFrame() {
     for (auto& entry : pool_) entry.idle = true;
 }
 
-void TransientTexturePool::EndFrame() {
-    for (auto& entry : pool_) entry.idle = true;
-}
-
 // Particle system initialization
 void RenderGraph::InitializeParticleSystem(const ParticleConfig& config) {
     if (particleState_.initialized) return;
@@ -759,15 +755,6 @@ void RenderGraph::InitializeParticleSystem(const ParticleConfig& config) {
         return;
     }
     particleState_.particleBuffer = particleBufferResult.value;
-    
-    // Zero-initialize the particle buffer (all particles start as dead)
-    VkBufferResource* particleBufRes = buffers_.Get(particleState_.particleBuffer);
-    if (particleBufRes && particleBufRes->mapped) {
-        std::memset(particleBufRes->mapped, 0, sizeof(vfx::Particle) * particleState_.maxParticles);
-    } else {
-        // Use vkCmdFillBuffer to clear device-local buffer
-        device_.FillBuffer(particleState_.particleBuffer, 0);
-    }
     
     // Create simulation params uniform buffer
     BufferDesc simParamsDesc;
@@ -863,26 +850,6 @@ ParticleSimParams RenderGraph::PackSimParams(const ParticleConfig& config, doubl
     params.maxParticles = particleState_.maxParticles;
     params.frameIndex = particleState_.frameIndex;
     params.seed = seed;
-
-    // Pack forces
-    params.forceCount = 0;
-    params.curlNoiseScale = config.curlNoiseScale;
-    params.curlNoiseStrength = config.curlNoiseStrength;
-    for (int i = 0; i < 8 && i < 8; i++) {
-        if (config.forces[i].enabled) {
-            // Pack force data into vec4: xy = position, z = strength, w = type
-            params.forcePositions[params.forceCount][0] = config.forces[i].positionX;
-            params.forcePositions[params.forceCount][1] = config.forces[i].positionY;
-            params.forcePositions[params.forceCount][2] = config.forces[i].strength;
-            params.forcePositions[params.forceCount][3] = float(config.forces[i].type);
-            params.forceRadius[params.forceCount] = config.forces[i].radius;
-            params.forceStrength[params.forceCount] = config.forces[i].strength;
-            params.forceCount++;
-        }
-    }
-    params.curlNoiseScale = config.curlNoiseScale;
-    params.curlNoiseStrength = config.curlNoiseStrength;
-    params.sdfTextureCount = 0;
 
     return params;
 }

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <android/log.h>
 
 #define LOG_TAG "AudioEngine"
@@ -11,24 +12,12 @@
 
 namespace vfx {
 
-// ============================================================================
-// AudioAnalyzer
-// ============================================================================
-
 namespace {
-float HannWindow(size_t i, size_t size) {
-    return 0.5f * (1.0f - std::cos(2.0f * M_PI * i / (size - 1)));
-}
+constexpr float kPi = std::numbers::pi_v<float>;
 
-std::vector<float> GenerateWindow(int fftSize) {
-    std::vector<float> w(fftSize);
-    for (int i = 0; i < fftSize; ++i) w[i] = HannWindow(i, fftSize);
-    return w;
-}
-
-void FFT(std::vector<std::complex<float>>& data) {
+[[assume(n > 1 && (n & (n - 1)) == 0)]]
+void FFT(std::span<std::complex<float>> data) {
     const size_t n = data.size();
-    if (n <= 1) return;
 
     for (size_t i = 0, j = 0; i < n; ++i) {
         if (i < j) std::swap(data[i], data[j]);
@@ -38,7 +27,7 @@ void FFT(std::vector<std::complex<float>>& data) {
     }
 
     for (size_t len = 2; len <= n; len <<= 1) {
-        float ang = -2.0f * M_PI / len;
+        float ang = -2.0f * kPi / len;
         std::complex<float> wlen(std::cos(ang), std::sin(ang));
         for (size_t i = 0; i < n; i += len) {
             std::complex<float> w(1.0f, 0.0f);
@@ -54,28 +43,36 @@ void FFT(std::vector<std::complex<float>>& data) {
 }
 } // anonymous
 
+// ============================================================================
+// AudioAnalyzer
+// ============================================================================
+
 AudioAnalyzer::AudioAnalyzer(int sampleRate, int fftSize)
     : sampleRate_(sampleRate), fftSize_(fftSize),
-      window_(GenerateWindow(fftSize)),
+      window_(fftSize),
       fftBuffer_(fftSize),
-      fftComplex_(fftSize) {}
-
-void AudioAnalyzer::ApplyWindow(float* buffer, size_t size) {
-    for (size_t i = 0; i < size; ++i) {
-        buffer[i] *= (i < window_.size()) ? window_[i] : 1.0f;
+      fftComplex_(fftSize) {
+    for (int i = 0; i < fftSize; ++i) {
+        window_[i] = 0.5f * (1.0f - std::cos(2.0f * kPi * i / (fftSize - 1)));
     }
 }
 
-void AudioAnalyzer::ComputeFFT(const float* input) {
-    std::memcpy(fftBuffer_.data(), input, fftSize_ * sizeof(float));
-    ApplyWindow(fftBuffer_.data(), fftSize_);
+void AudioAnalyzer::ApplyWindow(std::span<float> buffer) {
+    for (size_t i = 0; i < buffer.size() && i < window_.size(); ++i) {
+        buffer[i] *= window_[i];
+    }
+}
+
+void AudioAnalyzer::ComputeFFT(std::span<const float> input) {
+    std::copy(input.begin(), input.end(), fftBuffer_.begin());
+    ApplyWindow(fftBuffer_);
     for (int i = 0; i < fftSize_; ++i) {
         fftComplex_[i] = std::complex<float>(fftBuffer_[i], 0.0f);
     }
     FFT(fftComplex_);
 }
 
-SpectrumData AudioAnalyzer::AnalyzeSpectrum(const float* samples, size_t frameCount, int channels) {
+SpectrumData AudioAnalyzer::AnalyzeSpectrum(std::span<const float> samples, int channels) {
     SpectrumData data;
     data.sampleRate = sampleRate_;
     data.fftSize = fftSize_;
@@ -87,7 +84,7 @@ SpectrumData AudioAnalyzer::AnalyzeSpectrum(const float* samples, size_t frameCo
         data.frequencies[i] = i * binHz;
     }
 
-    if (frameCount < fftSize_) return data;
+    if (samples.size() < static_cast<size_t>(fftSize_)) return data;
 
     ComputeFFT(samples);
     for (int i = 0; i < fftSize_ / 2; ++i) {
@@ -98,8 +95,8 @@ SpectrumData AudioAnalyzer::AnalyzeSpectrum(const float* samples, size_t frameCo
     return data;
 }
 
-std::optional<BeatInfo> AudioAnalyzer::DetectBeats(const float* samples, size_t frameCount, int channels, double currentTimeSec) {
-    float rms = GetRMS(samples, frameCount, channels);
+std::optional<BeatInfo> AudioAnalyzer::DetectBeats(std::span<const float> samples, int channels, double currentTimeSec) {
+    float rms = GetRMS(samples, channels);
     const float attackCoef = 0.2f;
     const float decayCoef = 0.05f;
     float energy = rms * rms;
@@ -114,7 +111,7 @@ std::optional<BeatInfo> AudioAnalyzer::DetectBeats(const float* samples, size_t 
     bool isBeat = energy > beatState_.avgEnergy * 1.4f && variance > 0.3f;
 
     BeatInfo info;
-    if (isBeat && (currentTimeSec - beatState_.lastBeatSample / sampleRate_) > 0.25) {
+    if (isBeat && (currentTimeSec - static_cast<float>(beatState_.lastBeatSample) / sampleRate_) > 0.25) {
         info.beatTimes.push_back(static_cast<float>(currentTimeSec));
         info.beatStrengths.push_back(std::clamp(energy / (beatState_.avgEnergy + 1e-6f), 0.0f, 1.0f));
         beatState_.lastBeatSample = static_cast<int64_t>(currentTimeSec * sampleRate_);
@@ -134,15 +131,15 @@ std::optional<BeatInfo> AudioAnalyzer::DetectBeats(const float* samples, size_t 
     return info;
 }
 
-std::vector<float> AudioAnalyzer::GetWaveform(const float* samples, size_t frameCount, int channels, size_t targetPoints) {
+std::vector<float> AudioAnalyzer::GetWaveform(std::span<const float> samples, int channels, size_t targetPoints) {
     std::vector<float> result(targetPoints, 0.0f);
-    if (frameCount == 0 || targetPoints == 0) return result;
+    if (samples.empty() || targetPoints == 0) return result;
 
-    size_t samplesPerPoint = frameCount / targetPoints;
+    size_t samplesPerPoint = samples.size() / channels / targetPoints;
     for (size_t i = 0; i < targetPoints; ++i) {
         float maxVal = 0.0f;
-        size_t start = i * samplesPerPoint;
-        size_t end = std::min(start + samplesPerPoint, frameCount);
+        size_t start = i * samplesPerPoint * channels;
+        size_t end = std::min(start + samplesPerPoint * channels, samples.size());
         for (size_t j = start; j < end; j += channels) {
             float val = samples[j];
             maxVal = std::max(maxVal, std::abs(val));
@@ -152,14 +149,15 @@ std::vector<float> AudioAnalyzer::GetWaveform(const float* samples, size_t frame
     return result;
 }
 
-float AudioAnalyzer::GetRMS(const float* samples, size_t frameCount, int channels) {
-    if (frameCount == 0) return 0.0f;
+float AudioAnalyzer::GetRMS(std::span<const float> samples, int channels) const {
+    if (samples.empty()) return 0.0f;
     float sum = 0.0f;
-    for (size_t i = 0; i < frameCount; i += channels) {
-        float val = samples[i];
+    size_t frameCount = samples.size() / channels;
+    for (size_t i = 0; i < frameCount; ++i) {
+        float val = samples[i * channels];
         sum += val * val;
     }
-    return std::sqrt(sum / (frameCount / channels));
+    return std::sqrt(sum / frameCount);
 }
 
 // ============================================================================
@@ -188,18 +186,19 @@ void AudioMixer::RemoveInput(const std::string& id) {
     inputs_.erase(id);
 }
 
-bool AudioMixer::WriteInput(const std::string& id, const float* samples, size_t frameCount) {
+bool AudioMixer::WriteInput(const std::string& id, std::span<const float> samples) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = inputs_.find(id);
     if (it == inputs_.end()) return false;
 
     MixInput& input = it->second;
     size_t writePos = input.writePos;
-    size_t available = bufferFrames_ - ((writePos >= input.readPos) ? (writePos - input.readPos) : (bufferFrames_ - input.readPos + writePos));
 
-    for (size_t i = 0; i < frameCount; ++i) {
-        input.buffer[writePos * channels_] = samples[i * channels_];
-        if (channels_ > 1) input.buffer[writePos * channels_ + 1] = samples[i * channels_ + 1];
+    for (size_t i = 0; i < samples.size(); i += input.channels) {
+        input.buffer[writePos * channels_] = samples[i];
+        if (channels_ > 1 && i + 1 < samples.size()) {
+            input.buffer[writePos * channels_ + 1] = samples[i + 1];
+        }
         writePos = (writePos + 1) % bufferFrames_;
     }
     input.writePos = writePos;
@@ -221,19 +220,23 @@ void AudioMixer::SetInputMute(const std::string& id, bool mute) {
     if (auto it = inputs_.find(id); it != inputs_.end()) it->second.mute = mute;
 }
 
-size_t AudioMixer::Mix(float* output, size_t frameCount) {
+size_t AudioMixer::Mix(std::span<float> output) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (inputs_.empty()) {
-        std::memset(output, 0, frameCount * channels_ * sizeof(float));
-        return frameCount;
+        std::fill(output.begin(), output.end(), 0.0f);
+        return output.size() / channels_;
     }
 
-    std::memset(output, 0, frameCount * channels_ * sizeof(float));
+    std::fill(output.begin(), output.end(), 0.0f);
 
     for (auto& [id, input] : inputs_) {
         if (input.mute) continue;
-        for (size_t i = 0; i < frameCount; ++i) {
-            if (input.readPos == input.writePos) break;
+        size_t available = (input.writePos >= input.readPos)
+            ? (input.writePos - input.readPos)
+            : (bufferFrames_ - input.readPos + input.writePos);
+
+        size_t framesToRead = std::min(available, output.size() / channels_);
+        for (size_t i = 0; i < framesToRead; ++i) {
             size_t idx = input.readPos * channels_;
             float vol = input.volume * masterVolume_;
             float pan = input.pan + masterPan_;
@@ -250,17 +253,19 @@ size_t AudioMixer::Mix(float* output, size_t frameCount) {
         }
     }
 
-    for (size_t i = 0; i < frameCount * channels_; ++i) {
-        output[i] = std::clamp(output[i], -1.0f, 1.0f);
+    for (float& sample : output) {
+        sample = std::clamp(sample, -1.0f, 1.0f);
     }
 
-    return frameCount;
+    return output.size() / channels_;
 }
 
 std::vector<float> AudioMixer::RenderMix(double startTimeSec, double endTimeSec) {
     size_t totalFrames = static_cast<size_t>((endTimeSec - startTimeSec) * sampleRate_);
     std::vector<float> output(totalFrames * channels_);
-    Mix(output.data(), totalFrames);
+    if (!output.empty()) {
+        Mix(output);
+    }
     return output;
 }
 
@@ -272,15 +277,15 @@ AudioDecoder::AudioDecoder() = default;
 
 AudioDecoder::~AudioDecoder() { Close(); }
 
-bool AudioDecoder::Open(const std::string& path) {
+std::expected<void, std::string> AudioDecoder::Open(std::string_view path) {
     extractor_ = AMediaExtractor_new();
-    if (!extractor_) return false;
+    if (!extractor_) return std::unexpected("Failed to create media extractor");
 
-    media_status_t status = AMediaExtractor_setDataSource(extractor_, path.c_str());
+    media_status_t status = AMediaExtractor_setDataSource(extractor_, std::string(path).c_str());
     if (status != AMEDIA_OK) {
-        LOGE("Failed to open media: %s", path.c_str());
+        LOGE("Failed to open media: %s", std::string(path).c_str());
         Close();
-        return false;
+        return std::unexpected("Failed to set data source");
     }
 
     int trackCount = AMediaExtractor_getTrackCount(extractor_);
@@ -307,30 +312,32 @@ bool AudioDecoder::Open(const std::string& path) {
             codec_ = AMediaCodec_createDecoderByType(mime);
             if (!codec_) {
                 LOGE("Failed to create decoder for %s", mime);
+                AMediaFormat_delete(fmt);
                 Close();
-                return false;
+                return std::unexpected("Failed to create decoder");
             }
 
             media_status_t cs = AMediaCodec_configure(codec_, fmt, nullptr, nullptr, 0);
             if (cs != AMEDIA_OK) {
                 LOGE("Failed to configure codec");
+                AMediaFormat_delete(fmt);
                 Close();
-                return false;
+                return std::unexpected("Failed to configure codec");
             }
 
             AMediaCodec_start(codec_);
             AMediaFormat_delete(fmt);
-            return true;
+            return {};
         }
         AMediaFormat_delete(fmt);
     }
 
-    LOGE("No audio track found in %s", path.c_str());
+    LOGE("No audio track found in %s", std::string(path).c_str());
     Close();
-    return false;
+    return std::unexpected("No audio track found");
 }
 
-bool AudioDecoder::OpenFromMediaExtractor(AMediaExtractor* extractor, int trackIndex) {
+std::expected<void, std::string> AudioDecoder::OpenFromMediaExtractor(AMediaExtractor* extractor, int trackIndex) {
     extractor_ = extractor;
     AMediaExtractor_selectTrack(extractor_, trackIndex);
     trackIndex_ = trackIndex;
@@ -356,11 +363,11 @@ bool AudioDecoder::OpenFromMediaExtractor(AMediaExtractor* extractor, int trackI
     if (cs != AMEDIA_OK) {
         AMediaFormat_delete(fmt);
         Close();
-        return false;
+        return std::unexpected("Failed to configure codec");
     }
     AMediaCodec_start(codec_);
     AMediaFormat_delete(fmt);
-    return true;
+    return {};
 }
 
 void AudioDecoder::Close() {
@@ -385,6 +392,8 @@ std::optional<AudioFrame> AudioDecoder::DecodeFrame() {
     if (inputIndex >= 0) {
         size_t bufSize = 0;
         uint8_t* buf = AMediaCodec_getInputBuffer(codec_, inputIndex, &bufSize);
+        if (!buf) return std::nullopt;
+
         ssize_t sampleSize = AMediaExtractor_readSampleData(extractor_, buf, static_cast<int32_t>(bufSize));
 
         if (sampleSize < 0) {
@@ -407,6 +416,8 @@ std::optional<AudioFrame> AudioDecoder::DecodeFrame() {
 
         size_t bufSize = 0;
         uint8_t* buf = AMediaCodec_getOutputBuffer(codec_, outputIndex, &bufSize);
+        if (!buf) return std::nullopt;
+
         AudioFrame frame;
         frame.channels = format_.channels;
         frame.presentationTimeUs = info.presentationTimeUs;
@@ -415,9 +426,8 @@ std::optional<AudioFrame> AudioDecoder::DecodeFrame() {
         size_t sampleCount = info.size / sizeof(int16_t);
         frame.samples.resize(sampleCount);
         int16_t* samples16 = reinterpret_cast<int16_t*>(buf);
-        for (size_t i = 0; i < sampleCount; ++i) {
-            frame.samples[i] = static_cast<float>(samples16[i]) / 32768.0f;
-        }
+        std::ranges::transform(samples16, samples16 + sampleCount, frame.samples.begin(),
+            [](int16_t s) { return static_cast<float>(s) / 32768.0f; });
 
         AMediaCodec_releaseOutputBuffer(codec_, outputIndex, false);
         return frame;
@@ -429,6 +439,9 @@ std::optional<AudioFrame> AudioDecoder::DecodeFrame() {
 bool AudioDecoder::Seek(int64_t timeUs) {
     if (!extractor_) return false;
     AMediaExtractor_seekTo(extractor_, timeUs, AMEDIAEXTRACTOR_SEEK_CLOSEST_SYNC);
+    if (codec_) {
+        AMediaCodec_flush(codec_);
+    }
     sawEOS_ = false;
     return true;
 }
@@ -439,22 +452,24 @@ bool AudioDecoder::Seek(int64_t timeUs) {
 
 AudioEngine::AudioEngine() = default;
 
-AudioEngine::~AudioEngine() { Shutdown(); }
+AudioEngine::~AudioEngine() {
+    if (analysisStopSource_.stop_possible()) {
+        analysisStopSource_.request_stop();
+    }
+    analysisCV_.notify_all();
+}
 
 bool AudioEngine::Initialize(GraphicsDevice* device) {
     (void)device;
     mixer_ = std::make_unique<AudioMixer>();
     analyzer_ = std::make_unique<AudioAnalyzer>();
-    analysisRunning_.store(true);
-    analysisThread_ = std::thread(&AudioEngine::AnalysisThreadMain, this);
     LOGI("AudioEngine initialized");
     return true;
 }
 
 void AudioEngine::Shutdown() {
-    analysisRunning_.store(false);
+    analysisStopSource_.request_stop();
     analysisCV_.notify_all();
-    if (analysisThread_.joinable()) analysisThread_.join();
 
     std::lock_guard<std::mutex> lock(mutex_);
     decoders_.clear();
@@ -464,15 +479,18 @@ void AudioEngine::Shutdown() {
     analyzer_.reset();
 }
 
-std::string AudioEngine::LoadAudio(const std::string& path) {
+std::string AudioEngine::LoadAudio(std::string_view path) {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::string id = "audio_" + std::to_string(std::hash<std::string>{}(path));
     auto decoder = std::make_unique<AudioDecoder>();
-    if (!decoder->Open(path)) return "";
+    auto result = decoder->Open(path);
+    if (!result) {
+        LOGE("Failed to load audio: %s", result.error().c_str());
+        return {};
+    }
 
-    std::string audioId = "audio_" + std::to_string(reinterpret_cast<uintptr_t>(decoder.get()));
+    std::string audioId = std::format("audio_{:x}", std::hash<std::string>{}(std::string(path)));
     decoders_[audioId] = std::move(decoder);
-    LOGI("Loaded audio: %s -> %s", path.c_str(), audioId.c_str());
+    LOGI("Loaded audio: %s -> %s", std::string(path).c_str(), audioId.c_str());
     return audioId;
 }
 
@@ -481,7 +499,7 @@ AudioClip* AudioEngine::CreateClip(const std::string& audioId, int64_t startUs, 
     auto it = decoders_.find(audioId);
     if (it == decoders_.end()) return nullptr;
 
-    std::string clipId = "clip_" + std::to_string(clips_.size());
+    std::string clipId = std::format("clip_{}", nextClipId_.fetch_add(1));
     auto clip = std::make_unique<AudioClip>();
     clip->clipId = clipId;
     clip->sourcePath = audioId;
@@ -506,15 +524,22 @@ void AudioEngine::RemoveClip(const std::string& clipId) {
     clipOrder_.erase(std::remove(clipOrder_.begin(), clipOrder_.end(), clipId), clipOrder_.end());
 }
 
-AudioClip* AudioEngine::GetClip(const std::string& clipId) {
+AudioClip* AudioEngine::GetClip(const std::string& clipId) const {
     std::lock_guard<std::mutex> lock(mutex_);
     if (auto it = clips_.find(clipId); it != clips_.end()) return it->second.get();
     return nullptr;
 }
 
-const std::vector<AudioClip*>& AudioEngine::GetAllClips() const {
-    static std::vector<AudioClip*> empty;
-    return empty;
+std::vector<AudioClip*> AudioEngine::GetAllClips() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<AudioClip*> result;
+    result.reserve(clipOrder_.size());
+    for (const auto& id : clipOrder_) {
+        if (auto it = clips_.find(id); it != clips_.end()) {
+            result.push_back(it->second.get());
+        }
+    }
+    return result;
 }
 
 void AudioEngine::SetPlaybackTime(double timeSec) {
@@ -527,7 +552,6 @@ void AudioEngine::SetPlaybackSpeed(float speed) { playbackSpeed_ = std::clamp(sp
 void AudioEngine::SetMasterVolume(float volume) { masterVolume_ = std::clamp(volume, 0.0f, 2.0f); }
 
 std::vector<float> AudioEngine::GetMixedAudio(double timeSec, double durationSec) {
-    size_t frameCount = static_cast<size_t>(durationSec * mixer_ ? mixer_->masterVolume_ : 1.0f * 48000);
     if (!mixer_) return {};
     return mixer_->RenderMix(timeSec, timeSec + durationSec);
 }
@@ -535,7 +559,8 @@ std::vector<float> AudioEngine::GetMixedAudio(double timeSec, double durationSec
 SpectrumData AudioEngine::GetCurrentSpectrum() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!analyzer_) return {};
-    return analyzer_->AnalyzeSpectrum(nullptr, 0, 2);
+    // TODO: return actual mixed audio spectrum from current playback position
+    return {};
 }
 
 BeatInfo AudioEngine::GetCurrentBeatInfo() {
@@ -571,10 +596,10 @@ void AudioEngine::Update(double deltaTime) {
     UpdateClipPositions();
 }
 
-void AudioEngine::AnalysisThreadMain() {
-    while (analysisRunning_.load(std::memory_order_acquire)) {
+void AudioEngine::AnalysisThreadMain(std::stop_token stopToken) {
+    while (!stopToken.stop_requested()) {
         std::unique_lock<std::mutex> lock(analysisMutex_);
-        analysisCV_.wait_for(lock, std::chrono::milliseconds(50));
+        analysisCV_.wait_for(lock, std::chrono::milliseconds(50), [this, &stopToken] { return stopToken.stop_requested(); });
     }
 }
 
@@ -582,9 +607,9 @@ void AudioEngine::UpdateClipPositions() {
     for (const auto& id : clipOrder_) {
         if (auto it = clips_.find(id); it != clips_.end()) {
             AudioClip* clip = it->second.get();
-            if (currentTimeSec_ * 1e6 >= clip->endTimeUs && clip->endTimeUs > 0) {
-                clip->mute = true;
-            }
+            bool inRange = currentTimeSec_ * 1e6 >= clip->startTimeUs &&
+                          (clip->endTimeUs == 0 || currentTimeSec_ * 1e6 < clip->endTimeUs);
+            clip->mute = !inRange;
         }
     }
 }

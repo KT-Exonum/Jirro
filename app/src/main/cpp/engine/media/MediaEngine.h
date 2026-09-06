@@ -406,7 +406,8 @@ private:
     std::vector<ActiveAudioRequest> pendingAudioRequests_;
     std::vector<ActiveProxyRequest> pendingProxyRequests_;
 
-    std::thread mediaThread_;
+    std::jthread mediaThread_;
+    std::stop_source stopSource_;
     std::atomic<bool> running_{false};
 };
 

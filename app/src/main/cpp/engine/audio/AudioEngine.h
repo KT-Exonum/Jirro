@@ -2,17 +2,18 @@
 // Audio Engine: decoding, mixing, analysis (beat detection, spectrum, waveform)
 // Integrates with MediaEngine for video audio tracks and standalone audio files
 
-#include <string>
-#include <vector>
+#include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
-#include <atomic>
-#include <queue>
-#include <condition_variable>
-#include <thread>
-#include <functional>
-#include <unordered_map>
 #include <optional>
+#include <span>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 
 #include <media/NdkMediaExtractor.h>
 #include <media/NdkMediaCodec.h>
@@ -35,9 +36,9 @@ struct AudioFrame {
     std::vector<float> samples; // interleaved: L, R, L, R...
     int64_t presentationTimeUs = 0;
     bool isEndOfStream = false;
-    
-    size_t GetFrameCount() const { return samples.size() / channels; }
     int channels = 2;
+
+    [[nodiscard]] size_t GetFrameCount() const { return samples.size() / channels; }
 };
 
 // Audio clip reference (for timeline)
@@ -51,7 +52,7 @@ struct AudioClip {
     bool mute = false;
     bool solo = false;
     float speed = 1.0f; // playback speed
-    
+
     // Analysis results (cached)
     std::vector<float> waveform; // downsampled for UI
     std::vector<float> spectrumHistory; // for spectrum display
@@ -73,8 +74,8 @@ struct SpectrumData {
     std::vector<float> frequencies; // Hz per bin
     float sampleRate = 48000;
     int fftSize = 1024;
-    
-    float GetMagnitudeAtHz(float hz) const {
+
+    [[nodiscard]] float GetMagnitudeAtHz(float hz) const {
         if (frequencies.empty()) return 0.0f;
         int bin = static_cast<int>(hz / (sampleRate / static_cast<float>(fftSize)) * fftSize);
         bin = std::clamp(bin, 0, static_cast<int>(magnitudes.size()) - 1);
@@ -85,27 +86,27 @@ struct SpectrumData {
 // Audio analyzer for real-time analysis
 class AudioAnalyzer {
 public:
-    AudioAnalyzer(int sampleRate = 48000, int fftSize = 1024);
-    
+    explicit AudioAnalyzer(int sampleRate = 48000, int fftSize = 1024);
+
     // Process audio buffer, returns spectrum
-    SpectrumData AnalyzeSpectrum(const float* samples, size_t frameCount, int channels);
-    
+    SpectrumData AnalyzeSpectrum(std::span<const float> samples, int channels);
+
     // Beat detection - call periodically with audio data
-    std::optional<BeatInfo> DetectBeats(const float* samples, size_t frameCount, int channels, double currentTimeSec);
-    
+    std::optional<BeatInfo> DetectBeats(std::span<const float> samples, int channels, double currentTimeSec);
+
     // Get waveform data for UI (downsampled)
-    std::vector<float> GetWaveform(const float* samples, size_t frameCount, int channels, size_t targetPoints);
-    
+    std::vector<float> GetWaveform(std::span<const float> samples, int channels, size_t targetPoints);
+
     // Get RMS level
-    float GetRMS(const float* samples, size_t frameCount, int channels);
-    
+    [[nodiscard]] float GetRMS(std::span<const float> samples, int channels) const;
+
 private:
     int sampleRate_;
     int fftSize_;
     std::vector<float> window_;
     std::vector<float> fftBuffer_;
     std::vector<std::complex<float>> fftComplex_;
-    
+
     // Beat detection state
     struct BeatState {
         std::vector<float> energyHistory;
@@ -114,9 +115,9 @@ private:
         float avgEnergy = 0.0f;
         int64_t lastBeatSample = 0;
     } beatState_;
-    
-    void ComputeFFT(const float* input);
-    void ApplyWindow(float* buffer, size_t size);
+
+    void ComputeFFT(std::span<const float> input);
+    void ApplyWindow(std::span<float> buffer);
 };
 
 // Audio mixer - combines multiple audio sources
@@ -133,32 +134,32 @@ public:
         int channels = 2;
         int sampleRate = 48000;
     };
-    
+
     AudioMixer(int sampleRate = 48000, int channels = 2, int bufferFrames = 48000);
-    
+
     // Add a mix input (audio track)
     void AddInput(const std::string& id, int channels = 2);
     void RemoveInput(const std::string& id);
-    
+
     // Write audio to an input (called by decoders)
-    bool WriteInput(const std::string& id, const float* samples, size_t frameCount);
-    
+    bool WriteInput(const std::string& id, std::span<const float> samples);
+
     // Set input parameters
     void SetInputVolume(const std::string& id, float volume);
     void SetInputPan(const std::string& id, float pan);
     void SetInputMute(const std::string& id, bool mute);
-    
+
     // Mix all inputs into output buffer
     // Returns number of frames mixed
-    size_t Mix(float* output, size_t frameCount);
-    
+    size_t Mix(std::span<float> output);
+
     // Get mixed audio for export
     std::vector<float> RenderMix(double startTimeSec, double endTimeSec);
-    
+
     // Master output
     float masterVolume_ = 1.0f;
     float masterPan_ = 0.0f;
-    
+
 private:
     int sampleRate_;
     int channels_;
@@ -172,23 +173,23 @@ class AudioDecoder {
 public:
     AudioDecoder();
     ~AudioDecoder();
-    
-    bool Open(const std::string& path);
-    bool OpenFromMediaExtractor(AMediaExtractor* extractor, int trackIndex);
+
+    std::expected<void, std::string> Open(std::string_view path);
+    std::expected<void, std::string> OpenFromMediaExtractor(AMediaExtractor* extractor, int trackIndex);
     void Close();
-    
+
     [[nodiscard]] bool IsOpen() const { return codec_ != nullptr; }
     [[nodiscard]] AudioFormat GetFormat() const { return format_; }
-    
+
     // Decode next frame
     std::optional<AudioFrame> DecodeFrame();
-    
+
     // Seek to time
     bool Seek(int64_t timeUs);
-    
+
     // Get duration
-    int64_t GetDurationUs() const { return format_.durationUs; }
-    
+    [[nodiscard]] int64_t GetDurationUs() const { return format_.durationUs; }
+
 private:
     AMediaExtractor* extractor_ = nullptr;
     AMediaCodec* codec_ = nullptr;
@@ -196,7 +197,7 @@ private:
     int trackIndex_ = -1;
     AudioFormat format_;
     bool sawEOS_ = false;
-    
+
     std::vector<uint8_t> inputBuffer_;
     std::vector<float> outputBuffer_;
 };
@@ -206,62 +207,63 @@ class AudioEngine {
 public:
     AudioEngine();
     ~AudioEngine();
-    
+
     // Initialize with graphics device (for compute-based analysis)
     bool Initialize(GraphicsDevice* device = nullptr);
     void Shutdown();
-    
+
     // Load audio file
-    std::string LoadAudio(const std::string& path);
-    
+    std::string LoadAudio(std::string_view path);
+
     // Create audio clip for timeline
     AudioClip* CreateClip(const std::string& audioId, int64_t startUs = 0, int64_t endUs = 0);
     void RemoveClip(const std::string& clipId);
-    
+
     // Get clip
-    AudioClip* GetClip(const std::string& clipId);
-    const std::vector<AudioClip*>& GetAllClips() const;
-    
+    [[nodiscard]] AudioClip* GetClip(const std::string& clipId) const;
+    [[nodiscard]] std::vector<AudioClip*> GetAllClips() const;
+
     // Playback control
     void SetPlaybackTime(double timeSec);
     void SetPlaybackSpeed(float speed);
     void SetMasterVolume(float volume);
-    
+
     // Get mixed audio for current time (for export/render)
-    std::vector<float> GetMixedAudio(double timeSec, double durationSec);
-    
+    [[nodiscard]] std::vector<float> GetMixedAudio(double timeSec, double durationSec);
+
     // Real-time analysis (called from render thread)
-    SpectrumData GetCurrentSpectrum();
-    BeatInfo GetCurrentBeatInfo();
-    std::vector<float> GetCurrentWaveform(size_t points = 512);
-    
+    [[nodiscard]] SpectrumData GetCurrentSpectrum();
+    [[nodiscard]] BeatInfo GetCurrentBeatInfo();
+    [[nodiscard]] std::vector<float> GetCurrentWaveform(size_t points = 512);
+
     // Audio reactive values (for expression engine / uniform binding)
-    float GetAudioLevel(const std::string& clipId, float frequency = 0.0f); // 0 = full spectrum
-    float GetBeatPhase(const std::string& clipId);
-    bool IsOnBeat(const std::string& clipId, float threshold = 0.5f);
-    
+    [[nodiscard]] float GetAudioLevel(const std::string& clipId, float frequency = 0.0f);
+    [[nodiscard]] float GetBeatPhase(const std::string& clipId);
+    [[nodiscard]] bool IsOnBeat(const std::string& clipId, float threshold = 0.5f);
+
     // Update - called each frame
     void Update(double deltaTime);
-    
+
 private:
     std::unique_ptr<AudioMixer> mixer_;
     std::unique_ptr<AudioAnalyzer> analyzer_;
     std::unordered_map<std::string, std::unique_ptr<AudioDecoder>> decoders_;
     std::unordered_map<std::string, std::unique_ptr<AudioClip>> clips_;
     std::vector<std::string> clipOrder_;
-    
+    std::atomic<size_t> nextClipId_{0};
+
     std::mutex mutex_;
     double currentTimeSec_ = 0.0;
     float playbackSpeed_ = 1.0f;
     float masterVolume_ = 1.0f;
-    
+
     // Analysis thread
-    std::thread analysisThread_;
-    std::atomic<bool> analysisRunning_{false};
+    std::jthread analysisThread_;
+    std::stop_source analysisStopSource_;
     std::condition_variable analysisCV_;
     std::mutex analysisMutex_;
-    
-    void AnalysisThreadMain();
+
+    void AnalysisThreadMain(std::stop_token stopToken);
     void UpdateClipPositions();
 };
 

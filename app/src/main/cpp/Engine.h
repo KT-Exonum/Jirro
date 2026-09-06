@@ -341,7 +341,8 @@ private:
     void Redo();
 
     std::atomic<bool> running_{false};
-    std::thread engineThread_;
+    std::jthread engineThread_;
+    std::stop_source engineStopSource_;
 
     CommandQueue commandQueue_;
 

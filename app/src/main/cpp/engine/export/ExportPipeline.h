@@ -137,10 +137,11 @@ private:
     std::atomic<bool> cancelled_{false};
     std::string lastError_;
     
-    std::thread exportThread_;
-    std::thread videoEncodeThread_;
-    std::thread audioEncodeThread_;
-    std::thread muxThread_;
+    std::jthread exportThread_;
+    std::jthread videoEncodeThread_;
+    std::jthread audioEncodeThread_;
+    std::jthread muxThread_;
+    std::stop_source stopSource_;
     
     // Synchronization
     std::mutex queueMutex_;
@@ -156,6 +157,7 @@ private:
     AMediaMuxer* muxer_ = nullptr;
     AMediaFormat* videoFormat_ = nullptr;
     AMediaFormat* audioFormat_ = nullptr;
+    ANativeWindow* videoInputSurface_ = nullptr;
     int videoTrackIndex_ = -1;
     int audioTrackIndex_ = -1;
     
