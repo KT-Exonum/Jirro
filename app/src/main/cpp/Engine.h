@@ -10,6 +10,9 @@
 // frame and hands MediaEngine to RenderGraph::Execute so VideoSource passes
 // can pull decoded frames — but MediaEngine's actual decode work happens on
 // its own thread, never here.
+//
+// Phase 6: owns Profiler, ExportPipeline, ProjectManager for optimization,
+// export, and project persistence.
 
 #include <android/native_window.h>
 
@@ -21,6 +24,9 @@
 
 #include "engine/core/CommandQueue.h"
 #include "engine/core/GraphicsDevice.h"
+#include "engine/core/Profiler.h"
+#include "engine/export/ExportPipeline.h"
+#include "engine/export/ProjectSerializer.h"
 #include "engine/graph/Node.h"
 #include "engine/graph/RenderGraph.h"
 #include "engine/media/MediaEngine.h"
@@ -36,6 +42,30 @@ struct UpdateUniformCommand {
     std::string nodeId;
     std::string uniformName;
     float value;
+};
+
+// Phase 6: Export command
+struct ExportCommand {
+    std::string outputPath;
+    uint32_t width = 1920;
+    uint32_t height = 1080;
+    double frameRate = 30.0;
+    double startTime = 0.0;
+    double endTime = 10.0;
+    int bitrateMbps = 20;
+    std::string codec = "video/avc";
+    std::function<void(ExportResult)> onComplete;
+};
+
+// Phase 6: Project commands
+struct SaveProjectCommand {
+    std::string filePath;
+    std::function<void(bool)> onComplete;
+};
+
+struct LoadProjectCommand {
+    std::string filePath;
+    std::function<void(bool)> onComplete;
 };
 
 class Engine {
@@ -82,6 +112,8 @@ public:
     // Phase 4: Timeline control for variable speed, reverse, scrubbing
     void QueueSetPlaybackSpeed(double speed) {
         QueueCommand([speed](Engine& engine) {
+            engine.timeline_->SetPlaybackState(speed > 0 ? PlaybackState::Playing
+                                                         : PlaybackState::Stopped);
             engine.masterSpeed_ = speed;
         });
     }
@@ -99,6 +131,34 @@ public:
         });
     }
 
+    // Phase 6: Export command
+    void QueueExport(ExportCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.StartExport(std::move(cmd));
+        });
+    }
+
+    // Phase 6: Project commands
+    void QueueSaveProject(SaveProjectCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.SaveProject(std::move(cmd));
+        });
+    }
+
+    void QueueLoadProject(LoadProjectCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.LoadProject(std::move(cmd));
+        });
+    }
+
+    // Profiling access
+    [[nodiscard]] Profiler* GetProfiler() { return profiler_.get(); }
+    [[nodiscard]] const Profiler* GetProfiler() const { return profiler_.get(); }
+    
+    // Project manager access
+    [[nodiscard]] ProjectManager* GetProjectManager() { return projectManager_.get(); }
+    [[nodiscard]] const ProjectManager* GetProjectManager() const { return projectManager_.get(); }
+
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
 
@@ -106,6 +166,12 @@ private:
     void ThreadMain(); // engine thread entry point
     void Tick();       // one frame: drain commands, advance timeline, refresh media requests, render
     void RefreshActiveClips(double timelineSeconds); // Phase 2: Timeline -> MediaEngine::SetActiveClips
+    
+    // Phase 6: Export and project operations
+    void StartExport(ExportCommand&& cmd);
+    void SaveProject(SaveProjectCommand&& cmd);
+    void LoadProject(LoadProjectCommand&& cmd);
+    void UpdateThermalAdaptation();
 
     std::atomic<bool> running_{false};
     std::thread engineThread_;
@@ -115,8 +181,13 @@ private:
     std::unique_ptr<GraphicsDevice> device_;
     std::unique_ptr<RenderGraph> renderGraph_;
     std::unique_ptr<Timeline> timeline_;
-    std::unique_ptr<MediaEngine> mediaEngine_; // constructed once `device_` exists (needs it for imports)
+    std::unique_ptr<MediaEngine> mediaEngine_;
     NodeGraph graph_;
+
+    // Phase 6: Profiling, export, project management
+    std::unique_ptr<Profiler> profiler_;
+    std::unique_ptr<ExportPipeline> exportPipeline_;
+    std::unique_ptr<ProjectManager> projectManager_;
 
     std::mutex windowMutex_;
     ANativeWindow* pendingWindow_ = nullptr;

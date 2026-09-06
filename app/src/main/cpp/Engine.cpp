@@ -7,6 +7,7 @@
 
 #define LOG_TAG "Engine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace vfx {
 
@@ -41,6 +42,7 @@ void Engine::Stop() {
     if (!running_.exchange(false)) return;
     if (engineThread_.joinable()) engineThread_.join();
     if (mediaEngine_) mediaEngine_->Stop(); // join the media thread before tearing down the device it imports into
+    if (exportPipeline_) exportPipeline_->Cancel();
     if (device_) device_->Shutdown();
     std::lock_guard<std::mutex> lock(windowMutex_);
     if (pendingWindow_) {
@@ -113,8 +115,31 @@ void Engine::Tick() {
             // constructed here rather than in Engine's constructor.
             mediaEngine_ = std::make_unique<MediaEngine>(*device_, DecoderPoolConfig{}, FrameCacheConfig{});
             mediaEngine_->Start();
+
+            // Phase 6: Initialize profiler, export pipeline, project manager
+            profiler_ = std::make_unique<Profiler>(ProfilerConfig{
+                .enableGpuTimestamps = true,
+                .enableCpuTiming = true,
+                .enableMemoryTracking = true,
+                .targetFrameTimeMs = 16.67
+            });
+            profiler_->Initialize(dynamic_cast<VulkanDevice*>(device_.get()));
+
+            exportPipeline_ = std::make_unique<ExportPipeline>(*device_, *renderGraph_, graph_, *timeline_);
+
+            projectManager_ = std::make_unique<ProjectManager>();
+            projectManager_->SetOnProjectChanged([this](const std::string& path) {
+                LOGI("Project changed: %s", path.c_str());
+            });
+            projectManager_->SetOnError([this](const std::string& err) {
+                LOGE("Project error: %s", err.c_str());
+            });
+            projectManager_->EnableAutosave(true, 60);
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
+            if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
+            if (profiler_) { profiler_->Shutdown(); profiler_.reset(); }
+            projectManager_.reset();
             device_->Shutdown();
             device_.reset();
             renderGraph_.reset();
@@ -134,6 +159,14 @@ void Engine::Tick() {
     // FrameCache populated ahead of RenderGraph actually needing a frame.
     RefreshActiveClips(timeline_->CurrentTime().seconds);
 
+    // 3c. Phase 6: Update thermal adaptation and profiler
+    UpdateThermalAdaptation();
+    if (profiler_) {
+        profiler_->BeginFrame(timeline_->CurrentTime().frameIndex);
+        // Note: GPU timestamps are recorded in VulkanDevice::DrawFullscreenPass
+        profiler_->EndFrame();
+    }
+
     // 4. Render using RenderGraph (Phase 3).
     // Find the output node (first node of kind Output, or create a default)
     static const std::string kOutputNodeId = "output";
@@ -150,12 +183,107 @@ void Engine::Tick() {
     }
 
     if (device_->BeginFrame()) {
+        // Phase 6: Profile render
+        auto cpuScope = profiler_ ? profiler_->CpuScope("RenderGraph_Execute") : nullptr;
+        
         auto plan = renderGraph_->Compile(graph_, kOutputNodeId);
         if (plan.Ok()) {
             renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get());
         }
         device_->EndFrame();
     }
+    
+    // Trigger autosave if needed
+    if (projectManager_) {
+        projectManager_->TriggerAutosave();
+    }
+}
+
+void Engine::UpdateThermalAdaptation() {
+    if (!profiler_) return;
+    
+    // Check thermal status and adapt quality
+    if (profiler_->IsThrottling()) {
+        // Could reduce resolution, lower frame rate, simplify shaders
+        // For now, just log
+        static bool logged = false;
+        if (!logged) {
+            LOGI("Thermal throttling detected - consider reducing quality");
+            logged = true;
+        }
+    } else {
+        // Reset when thermal status improves
+    }
+}
+
+void Engine::StartExport(ExportCommand&& cmd) {
+    if (!exportPipeline_) {
+        if (cmd.onComplete) {
+            ExportResult result;
+            result.success = false;
+            result.errorMessage = "Export pipeline not initialized";
+            cmd.onComplete(result);
+        }
+        return;
+    }
+
+    ExportConfig config;
+    config.outputPath = cmd.outputPath;
+    config.width = cmd.width;
+    config.height = cmd.height;
+    config.frameRate = cmd.frameRate;
+    config.startTime = cmd.startTime;
+    config.endTime = cmd.endTime;
+    config.bitrateMbps = cmd.bitrateMbps;
+    config.codec = cmd.codec;
+    config.useHardwareEncoder = true;
+
+    exportPipeline_->StartExport(config,
+        [](double progress, const std::string& status) {
+            LOGI("Export progress: %.1f%% - %s", progress * 100, status.c_str());
+        },
+        [callback = std::move(cmd.onComplete)](ExportResult result) {
+            if (callback) callback(result);
+        });
+}
+
+void Engine::SaveProject(SaveProjectCommand&& cmd) {
+    if (!projectManager_) {
+        if (cmd.onComplete) cmd.onComplete(false);
+        return;
+    }
+
+    // Serialize current state
+    auto projectData = ProjectSerializer::Serialize(graph_, *timeline_);
+    
+    // Update metadata
+    projectData.metadata.name = projectManager_->GetProjectName();
+    projectData.metadata.modifiedDate = ProjectSerializer::GetCurrentTimestamp();
+    
+    bool success = false;
+    if (cmd.filePath.empty()) {
+        success = projectManager_->SaveProject();
+    } else {
+        success = projectManager_->SaveProjectAs(cmd.filePath);
+    }
+
+    if (cmd.onComplete) cmd.onComplete(success);
+}
+
+void Engine::LoadProject(LoadProjectCommand&& cmd) {
+    if (!projectManager_) {
+        if (cmd.onComplete) cmd.onComplete(false);
+        return;
+    }
+
+    bool success = projectManager_->OpenProject(cmd.filePath);
+    if (success) {
+        // Deserialize into engine state
+        const auto& data = projectManager_->GetData();
+        ProjectSerializer::Deserialize(data, graph_, *timeline_);
+    }
+
+    if (cmd.onComplete) cmd.onComplete(success);
 }
 
 } // namespace vfx

@@ -61,6 +61,39 @@ class NativeEngine {
         if (handle != 0L) nativeSetMasterSpeed(handle, speed)
     }
 
+    // Phase 6: Export
+    fun export(
+        outputPath: String,
+        width: Int = 1920,
+        height: Int = 1080,
+        frameRate: Double = 30.0,
+        startTime: Double = 0.0,
+        endTime: Double = 10.0,
+        bitrateMbps: Int = 20,
+        codec: String = "video/avc"
+    ) {
+        if (handle != 0L) nativeExport(handle, outputPath, width, height, frameRate, startTime, endTime, bitrateMbps, codec)
+    }
+
+    // Phase 6: Project management
+    fun saveProject(filePath: String?) {
+        if (handle != 0L) nativeSaveProject(handle, filePath ?: "")
+    }
+
+    fun loadProject(filePath: String) {
+        if (handle != 0L) nativeLoadProject(handle, filePath)
+    }
+
+    fun newProject(name: String = "Untitled Project") {
+        if (handle != 0L) nativeNewProject(handle, name)
+    }
+
+    // Phase 6: Profiling
+    fun getProfileStats(): String {
+        if (handle != 0L) return nativeGetProfileStats(handle)
+        return "{}"
+    }
+
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAttachSurface(handle: Long, surface: Surface)
@@ -71,6 +104,11 @@ class NativeEngine {
     private external fun nativeSetPlaybackSpeed(handle: Long, speed: Double)
     private external fun nativeSetScrubbing(handle: Long, scrubbing: Boolean)
     private external fun nativeSetMasterSpeed(handle: Long, speed: Double)
+    private external fun nativeExport(handle: Long, outputPath: String, width: Int, height: Int, frameRate: Double, startTime: Double, endTime: Double, bitrateMbps: Int, codec: String)
+    private external fun nativeSaveProject(handle: Long, filePath: String)
+    private external fun nativeLoadProject(handle: Long, filePath: String)
+    private external fun nativeNewProject(handle: Long, name: String)
+    private external fun nativeGetProfileStats(handle: Long): String
 
     companion object {
         init {

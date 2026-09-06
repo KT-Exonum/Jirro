@@ -12,6 +12,9 @@ add_library(vfxengine SHARED
     engine/vulkan/VulkanDevice.cpp
     engine/graph/RenderGraph.cpp
     engine/media/MediaEngine.cpp
+    engine/core/Profiler.cpp
+    engine/export/ExportPipeline.cpp
+    engine/export/ProjectSerializer.cpp
 )
 
 target_include_directories(vfxengine PRIVATE

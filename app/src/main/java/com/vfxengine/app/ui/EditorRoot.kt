@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.vfxengine.app.ui.common.EditorState
+import com.vfxengine.app.ui.common.ProfilerOverlay
 import com.vfxengine.app.ui.common.ResizablePanel
 import com.vfxengine.app.ui.common.SettingsDialog
 import com.vfxengine.app.ui.common.Settings
@@ -51,6 +52,7 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     val state = remember { EditorState(engine) }
     val settings = remember { mutableStateOf(Settings()) }
     var showSettings by remember { mutableStateOf(false) }
+    var showProfiler by remember { mutableStateOf(false) }
     
     // Panel sizes (in dp)
     var leftWidth by remember { mutableStateOf(400f) }
@@ -59,6 +61,9 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     var previewHeight by remember { mutableStateOf(400f) }
     var timelineHeight by remember { mutableStateOf(200f) }
     
+    // Profiler stats
+    val profilerStats by remember { mutableStateOf("{}") }
+    
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color(0xFF0F0F0F)
@@ -66,7 +71,7 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top toolbar
-                EditorToolbar(state, settings.value, onSettingsClick = { showSettings = true })
+                EditorToolbar(state, settings.value, onSettingsClick = { showSettings = true }, onProfilerClick = { showProfiler = !showProfiler })
                 
                 Divider(color = Color.White.copy(alpha = 0.1f))
                 
@@ -168,6 +173,15 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
                     nativeEngine = engine
                 )
             }
+            
+            // Profiler overlay
+            if (showProfiler) {
+                ProfilerOverlay(
+                    statsJson = profilerStats,
+                    visible = showProfiler,
+                    onDismiss = { showProfiler = false }
+                )
+            }
         }
     }
 }
@@ -182,7 +196,8 @@ private fun applySettingsToEngine(engine: com.vfxengine.app.NativeEngine, settin
 fun EditorToolbar(
     state: EditorState,
     settings: Settings,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onProfilerClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -205,7 +220,7 @@ fun EditorToolbar(
         
         androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f))
         
-        // View toggles + Settings
+        // View toggles + Settings + Profiler
         Row {
             androidx.compose.material3.IconButton(onClick = { /* Toggle node editor */ }) {
                 androidx.compose.material3.Icon(
@@ -223,6 +238,12 @@ fun EditorToolbar(
                 androidx.compose.material3.Icon(
                     painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
                     contentDescription = "Inspector"
+                )
+            }
+            androidx.compose.material3.IconButton(onClick = onProfilerClick) {
+                androidx.compose.material3.Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_report_image),
+                    contentDescription = "Profiler"
                 )
             }
             androidx.compose.material3.IconButton(onClick = onSettingsClick) {
