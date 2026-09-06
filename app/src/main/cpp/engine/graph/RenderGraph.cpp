@@ -3,13 +3,39 @@
 #include <android/log.h>
 
 #include <algorithm>
+#include <array>
 #include <deque>
 #include <unordered_set>
 
 #define LOG_TAG "RenderGraph"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 namespace vfx {
+
+// Forward declare SPIR-V bytecode from VulkanDevice.cpp (generated_shader_bytecode namespace)
+extern const uint32_t* kFullscreenVertSpirv;
+extern size_t kFullscreenVertSpirvWords;
+extern const uint32_t* kBlendNormalFragSpirv;
+extern size_t kBlendNormalFragSpirvWords;
+extern const uint32_t* kBlendMultiplyFragSpirv;
+extern size_t kBlendMultiplyFragSpirvWords;
+extern const uint32_t* kBlendScreenFragSpirv;
+extern size_t kBlendScreenFragSpirvWords;
+extern const uint32_t* kBlendOverlayFragSpirv;
+extern size_t kBlendOverlayFragSpirvWords;
+extern const uint32_t* kBlendAddFragSpirv;
+extern size_t kBlendAddFragSpirvWords;
+extern const uint32_t* kBlendSubtractFragSpirv;
+extern size_t kBlendSubtractFragSpirvWords;
+extern const uint32_t* kColorCorrectionFragSpirv;
+extern size_t kColorCorrectionFragSpirvWords;
+extern const uint32_t* kBlurFragSpirv;
+extern size_t kBlurFragSpirvWords;
+extern const uint32_t* kMaskFragSpirv;
+extern size_t kMaskFragSpirvWords;
+extern const uint32_t* kCompositeFragSpirv;
+extern size_t kCompositeFragSpirvWords;
 
 CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) {
     CompileResult result;
@@ -101,6 +127,19 @@ void RenderGraph::Execute(const NodeGraph& graph, const CompileResult& plan, dou
     texturePool_.EndFrame();
 }
 
+ShaderModuleHandle RenderGraph::GetOrCreateShaderModule(const uint32_t* spirv, size_t wordCount) {
+    std::string key(reinterpret_cast<const char*>(spirv), wordCount * sizeof(uint32_t));
+    auto it = shaderModuleCache_.find(key);
+    if (it != shaderModuleCache_.end()) return it->second;
+
+    auto result = device_.CreateShaderModule(std::span<const uint32_t>(spirv, wordCount));
+    if (!result) return ShaderModuleHandle{0, 0};
+
+    ShaderModuleHandle handle = result.value;
+    shaderModuleCache_[key] = handle;
+    return handle;
+}
+
 void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
                                MediaEngine* mediaEngine) {
     const Node* node = graph.FindNode(pass.nodeId);
@@ -112,46 +151,133 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
         // miss this tick is expected and not an error; we hold the last
         // frame this node produced rather than flashing to black while the
         // media thread catches up.
-        //
-        // Note: `timelineSeconds` here is the *timeline* clock, but
-        // TryGetFrame is keyed by *source* time within the clip (post
-        // trim/speed mapping, see Clip::ToSourceTime in Timeline.h). Wiring
-        // that mapping through requires RenderGraph to know which Clip (not
-        // just which Node) is active — that plumbing is Engine::Tick's job
-        // (it calls Timeline::ActiveClipsAt() then MediaEngine::SetActiveClips()
-        // with each clip's ToSourceTime already applied), so by the time we
-        // get here `timelineSeconds` has already been resolved to source
-        // time for VideoSource passes specifically. See Engine.cpp.
         if (mediaEngine) {
             if (auto frame = mediaEngine->TryGetFrame(pass.nodeId, timelineSeconds)) {
                 lastVideoFrameByNode_[pass.nodeId] = frame->texture;
             }
         }
-        // pass.output is const in CompiledPass as stored in the plan; the
-        // texture actually sampled by downstream passes is looked up by
-        // node id from lastVideoFrameByNode_ rather than mutated here, so
-        // Compile()'s cached plan never needs to change when frames arrive
-        // asynchronously at different times than compilation.
         return;
     }
 
-    // GPU-dependent execution seam for everything else. Wiring this up needs:
-    //  - ImageSource: static-image decode + upload (not yet implemented;
-    //    Phase 2 only covers video per the spec's phase breakdown)
-    //  - Shader/ColorCorrection/Blur/Mask: GetOrCreatePipeline + uniform
-    //    upload from node->EvaluateUniform(name, timelineSeconds), then
-    //    device_.DrawFullscreenPass, sampling lastVideoFrameByNode_[inputId]
-    //    for any input that traces back to a VideoSource node (Phase 3)
-    //  - Blend/Composite: same, with two bound inputs and node->blendMode
-    //    selecting the pipeline's blend-state variant
-    //  - Output: DrawFullscreenPass into the swapchain-backed texture
-    //    instead of a pooled one, then let VulkanDevice::EndFrame() present
-    //
-    // This function intentionally does not fabricate a rendering result —
-    // see README.md's status table for why.
-    (void)node;
-    (void)texturePool_;
-    (void)pipelineCache_;
+    // For all other node kinds, we need to render into an output texture
+    // Acquire output texture from pool (unless this is the final output)
+    TextureDesc outputDesc;
+    outputDesc.width = 1920;  // TODO: get from swapchain/surface size
+    outputDesc.height = 1080;
+    outputDesc.format = PixelFormat::RGBA8Unorm;
+    outputDesc.usage = pass.isFinalOutput ? TextureUsage::ColorAttachmentAndSampled : TextureUsage::ColorAttachmentAndSampled;
+    outputDesc.transient = true;
+    outputDesc.debugName = "pass_output_" + pass.nodeId;
+
+    TextureHandle outputTexture;
+    if (pass.isFinalOutput) {
+        // For final output, we need the swapchain image - but we don't have direct access
+        // In a real implementation, this would be the swapchain texture
+        // For now, acquire from pool
+        auto acquired = texturePool_.Acquire(outputDesc);
+        if (!acquired) return;
+        outputTexture = acquired.value;
+    } else {
+        auto acquired = texturePool_.Acquire(outputDesc);
+        if (!acquired) return;
+        outputTexture = acquired.value;
+    }
+
+    // Gather input textures
+    std::vector<TextureHandle> inputTextures;
+    for (const std::string& inputNodeId : pass.inputNodeIds) {
+        // Check if input is a VideoSource (has decoded frame)
+        auto videoIt = lastVideoFrameByNode_.find(inputNodeId);
+        if (videoIt != lastVideoFrameByNode_.end()) {
+            inputTextures.push_back(videoIt->second);
+        } else {
+            // For other node types, the output should have been stored
+            // We'd need to track intermediate outputs - for now skip
+            LOGI("ExecutePass: input '%s' not found in lastVideoFrameByNode_", inputNodeId.c_str());
+        }
+    }
+
+    // Get or create shader modules and pipeline based on node kind
+    ShaderModuleHandle vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
+    ShaderModuleHandle fsHandle{0, 0};
+
+    switch (pass.kind) {
+        case NodeKind::ImageSource: {
+            // Simple passthrough - use normal blend shader
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        case NodeKind::Shader: {
+            // Custom shader node - use the node's SPIR-V
+            if (!node->spirvFragment.empty()) {
+                fsHandle = GetOrCreateShaderModule(node->spirvFragment.data(), node->spirvFragment.size());
+            } else {
+                fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            }
+            break;
+        }
+        case NodeKind::Blend: {
+            switch (node->blendMode) {
+                case BlendMode::Normal:     fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords); break;
+                case BlendMode::Multiply:   fsHandle = GetOrCreateShaderModule(kBlendMultiplyFragSpirv, kBlendMultiplyFragSpirvWords); break;
+                case BlendMode::Screen:     fsHandle = GetOrCreateShaderModule(kBlendScreenFragSpirv, kBlendScreenFragSpirvWords); break;
+                case BlendMode::Overlay:    fsHandle = GetOrCreateShaderModule(kBlendOverlayFragSpirv, kBlendOverlayFragSpirvWords); break;
+                case BlendMode::Add:        fsHandle = GetOrCreateShaderModule(kBlendAddFragSpirv, kBlendAddFragSpirvWords); break;
+                case BlendMode::Subtract:   fsHandle = GetOrCreateShaderModule(kBlendSubtractFragSpirv, kBlendSubtractFragSpirvWords); break;
+            }
+            break;
+        }
+        case NodeKind::ColorCorrection: {
+            fsHandle = GetOrCreateShaderModule(kColorCorrectionFragSpirv, kColorCorrectionFragSpirvWords);
+            break;
+        }
+        case NodeKind::Blur: {
+            fsHandle = GetOrCreateShaderModule(kBlurFragSpirv, kBlurFragSpirvWords);
+            break;
+        }
+        case NodeKind::Mask: {
+            fsHandle = GetOrCreateShaderModule(kMaskFragSpirv, kMaskFragSpirvWords);
+            break;
+        }
+        case NodeKind::Composite: {
+            fsHandle = GetOrCreateShaderModule(kCompositeFragSpirv, kCompositeFragSpirvWords);
+            break;
+        }
+        case NodeKind::Output: {
+            // Output just passes through the input
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        default: {
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+    }
+
+    if (!vsHandle.IsValid() || !fsHandle.IsValid()) {
+        LOGE("ExecutePass: failed to get/create shader modules for node '%s'", pass.nodeId.c_str());
+        if (!pass.isFinalOutput) texturePool_.Release(outputTexture);
+        return;
+    }
+
+    // Get or create pipeline
+    auto pipelineResult = device_.GetOrCreatePipeline(vsHandle, fsHandle, outputDesc.usage);
+    if (!pipelineResult) {
+        LOGE("ExecutePass: failed to get/create pipeline for node '%s': %s", pass.nodeId.c_str(), pipelineResult.error.c_str());
+        if (!pass.isFinalOutput) texturePool_.Release(outputTexture);
+        return;
+    }
+    PipelineHandle pipelineHandle = pipelineResult.value;
+
+    // Draw the pass
+    device_.DrawFullscreenPass(pipelineHandle, inputTextures, outputTexture);
+
+    // Store output texture for downstream passes
+    lastVideoFrameByNode_[pass.nodeId] = outputTexture;
+
+    // Release output texture back to pool if not final (but keep reference for downstream)
+    // The TransientTexturePool::EndFrame() will mark all as idle
+    // We keep the handle in lastVideoFrameByNode_ so downstream passes can use it
 }
 
 Result<TextureHandle> TransientTexturePool::Acquire(const TextureDesc& desc) {

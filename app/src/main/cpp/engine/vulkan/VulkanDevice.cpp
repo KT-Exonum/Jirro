@@ -24,7 +24,57 @@ const uint32_t kTriangleVert[] = {0};
 const size_t kTriangleVertWords = 0;
 const uint32_t kTriangleFrag[] = {0};
 const size_t kTriangleFragWords = 0;
+
+// Phase 3: fullscreen vertex + blend/effect fragment shaders
+// TODO(phase3): populate from `xxd -i shader.frag.spv` after offline compilation
+const uint32_t kFullscreenVert[] = {0};
+const size_t kFullscreenVertWords = 0;
+
+const uint32_t kBlendNormalFrag[] = {0};
+const size_t kBlendNormalFragWords = 0;
+const uint32_t kBlendMultiplyFrag[] = {0};
+const size_t kBlendMultiplyFragWords = 0;
+const uint32_t kBlendScreenFrag[] = {0};
+const size_t kBlendScreenFragWords = 0;
+const uint32_t kBlendOverlayFrag[] = {0};
+const size_t kBlendOverlayFragWords = 0;
+const uint32_t kBlendAddFrag[] = {0};
+const size_t kBlendAddFragWords = 0;
+const uint32_t kBlendSubtractFrag[] = {0};
+const size_t kBlendSubtractFragWords = 0;
+const uint32_t kColorCorrectionFrag[] = {0};
+const size_t kColorCorrectionFragWords = 0;
+const uint32_t kBlurFrag[] = {0};
+const size_t kBlurFragWords = 0;
+const uint32_t kMaskFrag[] = {0};
+const size_t kMaskFragWords = 0;
+const uint32_t kCompositeFrag[] = {0};
+const size_t kCompositeFragWords = 0;
 } // namespace generated_shader_bytecode
+
+// SPIR-V bytecode pointers for RenderGraph access (defined in vfx namespace)
+constexpr const uint32_t* kFullscreenVertSpirv = generated_shader_bytecode::kFullscreenVert;
+constexpr size_t kFullscreenVertSpirvWords = generated_shader_bytecode::kFullscreenVertWords;
+constexpr const uint32_t* kBlendNormalFragSpirv = generated_shader_bytecode::kBlendNormalFrag;
+constexpr size_t kBlendNormalFragSpirvWords = generated_shader_bytecode::kBlendNormalFragWords;
+constexpr const uint32_t* kBlendMultiplyFragSpirv = generated_shader_bytecode::kBlendMultiplyFrag;
+constexpr size_t kBlendMultiplyFragSpirvWords = generated_shader_bytecode::kBlendMultiplyFragWords;
+constexpr const uint32_t* kBlendScreenFragSpirv = generated_shader_bytecode::kBlendScreenFrag;
+constexpr size_t kBlendScreenFragSpirvWords = generated_shader_bytecode::kBlendScreenFragWords;
+constexpr const uint32_t* kBlendOverlayFragSpirv = generated_shader_bytecode::kBlendOverlayFrag;
+constexpr size_t kBlendOverlayFragSpirvWords = generated_shader_bytecode::kBlendOverlayFragWords;
+constexpr const uint32_t* kBlendAddFragSpirv = generated_shader_bytecode::kBlendAddFrag;
+constexpr size_t kBlendAddFragSpirvWords = generated_shader_bytecode::kBlendAddFragWords;
+constexpr const uint32_t* kBlendSubtractFragSpirv = generated_shader_bytecode::kBlendSubtractFrag;
+constexpr size_t kBlendSubtractFragSpirvWords = generated_shader_bytecode::kBlendSubtractFragWords;
+constexpr const uint32_t* kColorCorrectionFragSpirv = generated_shader_bytecode::kColorCorrectionFrag;
+constexpr size_t kColorCorrectionFragSpirvWords = generated_shader_bytecode::kColorCorrectionFragWords;
+constexpr const uint32_t* kBlurFragSpirv = generated_shader_bytecode::kBlurFrag;
+constexpr size_t kBlurFragSpirvWords = generated_shader_bytecode::kBlurFragWords;
+constexpr const uint32_t* kMaskFragSpirv = generated_shader_bytecode::kMaskFrag;
+constexpr size_t kMaskFragSpirvWords = generated_shader_bytecode::kMaskFragWords;
+constexpr const uint32_t* kCompositeFragSpirv = generated_shader_bytecode::kCompositeFrag;
+constexpr size_t kCompositeFragSpirvWords = generated_shader_bytecode::kCompositeFragWords;
 
 namespace {
 
@@ -84,6 +134,9 @@ bool VulkanDevice::Initialize(ANativeWindow* window) {
     if (!CreateCommandPoolAndBuffers()) return false;
     if (!CreateSyncObjects()) return false;
     if (!CreateBringUpPipeline()) return false;
+
+    if (!CreateDescriptorPoolAndLayouts()) return false;
+    if (!CreateFrameUniformBuffers()) return false;
 
     VkPipelineCacheCreateInfo cacheInfo{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     vkCreatePipelineCache(device_, &cacheInfo, nullptr, &pipelineCache_);
@@ -386,6 +439,159 @@ bool VulkanDevice::CreateSyncObjects() {
             return false;
         }
     }
+    return true;
+}
+
+bool VulkanDevice::CreateDescriptorPoolAndLayouts() {
+    // Descriptor pool: enough for kMaxFramesInFlight * (uniform + param + texture sets)
+    VkDescriptorPoolSize poolSizes[] = {
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, kMaxFramesInFlight * 2},  // uniform + param buffers
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, kMaxFramesInFlight * 4}, // texture sets
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    poolInfo.maxSets = kMaxFramesInFlight * 3;
+    poolInfo.poolSizeCount = 2;
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+
+    if (vkCreateDescriptorPool(device_, &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
+        LOGE("Failed to create descriptor pool");
+        return false;
+    }
+
+    // Set 0: Uniforms (projection + resolution) - vertex + fragment
+    VkDescriptorSetLayoutBinding uniformBinding{};
+    uniformBinding.binding = 0;
+    uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniformBinding.descriptorCount = 1;
+    uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo uniformLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    uniformLayoutInfo.bindingCount = 1;
+    uniformLayoutInfo.pBindings = &uniformBinding;
+    if (vkCreateDescriptorSetLayout(device_, &uniformLayoutInfo, nullptr, &uniformSetLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Set 1: Params (effect-specific uniform buffer) - fragment only
+    VkDescriptorSetLayoutBinding paramBinding{};
+    paramBinding.binding = 0;
+    paramBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    paramBinding.descriptorCount = 1;
+    paramBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo paramLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    paramLayoutInfo.bindingCount = 1;
+    paramLayoutInfo.pBindings = &paramBinding;
+    if (vkCreateDescriptorSetLayout(device_, &paramLayoutInfo, nullptr, &paramSetLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Set 2: 1 regular texture (combined image sampler)
+    VkDescriptorSetLayoutBinding texBinding1{};
+    texBinding1.binding = 0;
+    texBinding1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    texBinding1.descriptorCount = 1;
+    texBinding1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo texLayoutInfo1{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    texLayoutInfo1.bindingCount = 1;
+    texLayoutInfo1.pBindings = &texBinding1;
+    if (vkCreateDescriptorSetLayout(device_, &texLayoutInfo1, nullptr, &textureSetLayout1_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Set 2: 2 regular textures
+    VkDescriptorSetLayoutBinding texBindings2[2] = {texBinding1, texBinding1};
+    texBindings2[1].binding = 1;
+    VkDescriptorSetLayoutCreateInfo texLayoutInfo2{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    texLayoutInfo2.bindingCount = 2;
+    texLayoutInfo2.pBindings = texBindings2;
+    if (vkCreateDescriptorSetLayout(device_, &texLayoutInfo2, nullptr, &textureSetLayout2_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Set 2: 1 YCbCr texture (with immutable sampler - created per-pipeline)
+    VkDescriptorSetLayoutBinding ycbcrBinding{};
+    ycbcrBinding.binding = 0;
+    ycbcrBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    ycbcrBinding.descriptorCount = 1;
+    ycbcrBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    ycbcrBinding.pImmutableSamplers = nullptr; // Set per-pipeline
+
+    VkDescriptorSetLayoutCreateInfo ycbcrLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    ycbcrLayoutInfo.bindingCount = 1;
+    ycbcrLayoutInfo.pBindings = &ycbcrBinding;
+    if (vkCreateDescriptorSetLayout(device_, &ycbcrLayoutInfo, nullptr, &textureSetLayoutYcbcr_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Set 2: 1 YCbCr + 1 regular
+    VkDescriptorSetLayoutBinding mixedBindings[2] = {ycbcrBinding, texBinding1};
+    mixedBindings[1].binding = 1;
+    VkDescriptorSetLayoutCreateInfo mixedLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    mixedLayoutInfo.bindingCount = 2;
+    mixedLayoutInfo.pBindings = mixedBindings;
+    if (vkCreateDescriptorSetLayout(device_, &mixedLayoutInfo, nullptr, &textureSetLayoutYcbcr1_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Pipeline layout with all 3 descriptor sets
+    VkDescriptorSetLayout layouts[3] = {uniformSetLayout_, paramSetLayout_, textureSetLayout2_};
+    VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    layoutInfo.setLayoutCount = 3;
+    layoutInfo.pSetLayouts = layouts;
+    if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &graphPipelineLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    return true;
+}
+
+bool VulkanDevice::CreateFrameUniformBuffers() {
+    // Create uniform buffers for each frame in flight
+    // Uniform buffer: mat4 projection (64 bytes) + vec2 resolution (8 bytes) = 72 bytes, align to 256
+    const VkDeviceSize uniformBufferSize = 256;
+    // Param buffer: varies by effect, allocate max size (256 bytes)
+    const VkDeviceSize paramBufferSize = 256;
+
+    for (int i = 0; i < kMaxFramesInFlight; ++i) {
+        // Uniform buffer (host visible for CPU updates)
+        auto uniformResult = CreateBuffer(uniformBufferSize, true);
+        if (!uniformResult) return false;
+        frameUniformBuffers_[i].uniformBuffer = uniformResult.value;
+
+        // Param buffer (host visible for CPU updates)
+        auto paramResult = CreateBuffer(paramBufferSize, true);
+        if (!paramResult) return false;
+        frameUniformBuffers_[i].paramBuffer = paramResult.value;
+
+        // Allocate descriptor sets
+        VkDescriptorSetLayout uniformLayouts[] = {uniformSetLayout_};
+        VkDescriptorSetLayout paramLayouts[] = {paramSetLayout_};
+        VkDescriptorSetLayout textureLayouts[] = {textureSetLayout2_}; // Default to 2 textures
+
+        VkDescriptorSetAllocateInfo allocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        allocInfo.descriptorPool = descriptorPool_;
+
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = uniformLayouts;
+        if (vkAllocateDescriptorSets(device_, &allocInfo, &frameUniformBuffers_[i].uniformSet) != VK_SUCCESS) {
+            return false;
+        }
+
+        allocInfo.pSetLayouts = paramLayouts;
+        if (vkAllocateDescriptorSets(device_, &allocInfo, &frameUniformBuffers_[i].paramSet) != VK_SUCCESS) {
+            return false;
+        }
+
+        allocInfo.pSetLayouts = textureLayouts;
+        if (vkAllocateDescriptorSets(device_, &allocInfo, &frameUniformBuffers_[i].textureSet) != VK_SUCCESS) {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -734,24 +940,368 @@ Result<ShaderModuleHandle> VulkanDevice::CreateShaderModule(std::span<const uint
     return Result<ShaderModuleHandle>::Ok(shaderModules_.Insert(module));
 }
 
-Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle, ShaderModuleHandle,
-                                                          TextureUsage) {
-    // Phase 3: build a full graphics pipeline from the two shader modules,
-    // cache-key on (vs, fs, blend-mode, target format) using pipelineCache_
-    // so repeated node-graph rebuilds are near-free once warm. Note for
-    // when this lands: a pipeline sampling a Phase 2 video texture needs
-    // VkPipelineShaderStageCreateInfo's fragment stage descriptor set layout
-    // built with the matching VkSamplerYcbcrConversion baked into an
-    // immutable sampler (see GetOrCreateYcbcrSampler below) — a ycbcr-image
-    // cannot be sampled through an ordinary dynamically-bound sampler.
-    return Result<PipelineHandle>::Fail("GetOrCreatePipeline: implement with Phase 3 blend-mode nodes");
+Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
+                                                        TextureUsage targetUsage) {
+    // Pipeline cache key: (vs, fs, targetUsage)
+    struct PipelineKey {
+        ShaderModuleHandle vs;
+        ShaderModuleHandle fs;
+        TextureUsage usage;
+        bool operator==(const PipelineKey& other) const {
+            return vs.index == other.vs.index && vs.generation == other.vs.generation &&
+                   fs.index == other.fs.index && fs.generation == other.fs.generation &&
+                   usage == other.usage;
+        }
+    };
+    struct PipelineKeyHash {
+        size_t operator()(const PipelineKey& k) const noexcept {
+            return std::hash<uint64_t>{}(
+                (static_cast<uint64_t>(k.vs.index) << 32) | k.vs.generation) ^
+                   std::hash<uint64_t>{}(
+                (static_cast<uint64_t>(k.fs.index) << 32) | k.fs.generation) ^
+                   std::hash<int>{}(static_cast<int>(k.usage));
+        }
+    };
+
+    static thread_local std::unordered_map<PipelineKey, PipelineHandle, PipelineKeyHash> pipelineCache;
+
+    PipelineKey key{vs, fs, targetUsage};
+    if (auto it = pipelineCache.find(key); it != pipelineCache.end()) {
+        return Result<PipelineHandle>::Ok(it->second);
+    }
+
+    // Get shader modules
+    VkShaderModule* vsModule = shaderModules_.Get(vs);
+    VkShaderModule* fsModule = shaderModules_.Get(fs);
+    if (!vsModule || !fsModule) {
+        return Result<PipelineHandle>::Fail("Invalid shader module handle");
+    }
+
+    // Descriptor set layouts:
+    // Set 0: Uniforms (projection, resolution) - shared across all pipelines
+    // Set 1: Params (effect-specific uniforms) - varies per effect type
+    // Set 2: Textures (input samplers) - varies by input count
+
+    // We'll create descriptor set layouts on first use and cache them
+    static VkDescriptorSetLayout uniformSetLayout = VK_NULL_HANDLE;
+    static VkDescriptorSetLayout paramSetLayout = VK_NULL_HANDLE;
+    static VkDescriptorSetLayout textureSetLayout1 = VK_NULL_HANDLE; // 1 texture
+    static VkDescriptorSetLayout textureSetLayout2 = VK_NULL_HANDLE; // 2 textures
+    static VkDescriptorSetLayout textureSetLayoutYcbcr = VK_NULL_HANDLE; // 1 YCbCr texture (immutable sampler)
+    static VkDescriptorSetLayout textureSetLayoutYcbcr1 = VK_NULL_HANDLE; // 1 YCbCr + 1 regular
+    static VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+
+    if (uniformSetLayout == VK_NULL_HANDLE) {
+        // Set 0: Uniforms (projection matrix + resolution)
+        VkDescriptorSetLayoutBinding uniformBinding{};
+        uniformBinding.binding = 0;
+        uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uniformBinding.descriptorCount = 1;
+        uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo uniformLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        uniformLayoutInfo.bindingCount = 1;
+        uniformLayoutInfo.pBindings = &uniformBinding;
+        vkCreateDescriptorSetLayout(device_, &uniformLayoutInfo, nullptr, &uniformSetLayout);
+
+        // Set 1: Params (effect-specific uniform buffer)
+        VkDescriptorSetLayoutBinding paramBinding{};
+        paramBinding.binding = 0;
+        paramBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        paramBinding.descriptorCount = 1;
+        paramBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo paramLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        paramLayoutInfo.bindingCount = 1;
+        paramLayoutInfo.pBindings = &paramBinding;
+        vkCreateDescriptorSetLayout(device_, &paramLayoutInfo, nullptr, &paramSetLayout);
+
+        // Set 2: 1 regular texture (combined image sampler)
+        VkDescriptorSetLayoutBinding texBinding1{};
+        texBinding1.binding = 0;
+        texBinding1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        texBinding1.descriptorCount = 1;
+        texBinding1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo texLayoutInfo1{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        texLayoutInfo1.bindingCount = 1;
+        texLayoutInfo1.pBindings = &texBinding1;
+        vkCreateDescriptorSetLayout(device_, &texLayoutInfo1, nullptr, &textureSetLayout1);
+
+        // Set 2: 2 regular textures
+        VkDescriptorSetLayoutBinding texBindings2[2] = {texBinding1, texBinding1};
+        texBindings2[1].binding = 1;
+        VkDescriptorSetLayoutCreateInfo texLayoutInfo2{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        texLayoutInfo2.bindingCount = 2;
+        texLayoutInfo2.pBindings = texBindings2;
+        vkCreateDescriptorSetLayout(device_, &texLayoutInfo2, nullptr, &textureSetLayout2);
+
+        // Set 2: 1 YCbCr texture (with immutable sampler)
+        // We need a dummy YCbCr sampler for layout creation - real one comes at bind time
+        VkDescriptorSetLayoutBinding ycbcrBinding{};
+        ycbcrBinding.binding = 0;
+        ycbcrBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        ycbcrBinding.descriptorCount = 1;
+        ycbcrBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        ycbcrBinding.pImmutableSamplers = nullptr; // Will be set per-pipeline for YCbCr
+
+        VkDescriptorSetLayoutCreateInfo ycbcrLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        ycbcrLayoutInfo.bindingCount = 1;
+        ycbcrLayoutInfo.pBindings = &ycbcrBinding;
+        vkCreateDescriptorSetLayout(device_, &ycbcrLayoutInfo, nullptr, &textureSetLayoutYcbcr);
+
+        // Set 2: 1 YCbCr + 1 regular
+        VkDescriptorSetLayoutBinding mixedBindings[2] = {ycbcrBinding, texBinding1};
+        mixedBindings[1].binding = 1;
+        VkDescriptorSetLayoutCreateInfo mixedLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        mixedLayoutInfo.bindingCount = 2;
+        mixedLayoutInfo.pBindings = mixedBindings;
+        vkCreateDescriptorSetLayout(device_, &mixedLayoutInfo, nullptr, &textureSetLayoutYcbcr1);
+
+        // Pipeline layout with all 3 descriptor sets
+        VkDescriptorSetLayout layouts[3] = {uniformSetLayout, paramSetLayout, textureSetLayout2};
+        VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        layoutInfo.setLayoutCount = 3;
+        layoutInfo.pSetLayouts = layouts;
+        vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &pipelineLayout);
+    }
+
+    // Shader stages
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = *vsModule;
+    stages[0].pName = "main";
+    stages[1] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = *fsModule;
+    stages[1].pName = "main";
+
+    // Vertex input: none (fullscreen triangle via gl_VertexIndex)
+    VkPipelineVertexInputStateCreateInfo vertexInput{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    // Viewport/scissor will be dynamic
+    VkPipelineViewportStateCreateInfo viewportState{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.lineWidth = 1.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisample{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Color blend: no blending for off-screen passes (handled in shader), but enable for swapchain
+    VkPipelineColorBlendAttachmentState blendAttachment{};
+    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlend{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    colorBlend.attachmentCount = 1;
+    colorBlend.pAttachments = &blendAttachment;
+
+    // Dynamic state for viewport/scissor
+    VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicState{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+    dynamicState.dynamicStateCount = 2;
+    dynamicState.pDynamicStates = dynamicStates;
+
+    VkFormat targetFormat = (targetUsage == TextureUsage::ColorAttachment ||
+                             targetUsage == TextureUsage::ColorAttachmentAndSampled)
+                                ? swapchainFormat_
+                                : VK_FORMAT_R8G8B8A8_UNORM;
+
+    VkPipelineRenderingCreateInfo renderingInfo{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachmentFormats = &targetFormat;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+    pipelineInfo.pNext = &renderingInfo;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = stages;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisample;
+    pipelineInfo.pColorBlendState = &colorBlend;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.renderPass = VK_NULL_HANDLE; // Using dynamic rendering
+    pipelineInfo.subpass = 0;
+
+    VkPipeline pipeline;
+    if (vkCreateGraphicsPipelines(device_, pipelineCache_, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+        return Result<PipelineHandle>::Fail("vkCreateGraphicsPipelines failed");
+    }
+
+    VkPipelineResource resource{pipeline, pipelineLayout};
+    PipelineHandle handle = pipelines_.Insert(resource);
+    pipelineCache[key] = handle;
+
+    return Result<PipelineHandle>::Ok(handle);
 }
 
-void VulkanDevice::DrawFullscreenPass(PipelineHandle, std::span<const TextureHandle>, TextureHandle) {
-    // Phase 3: bind pipeline, bind input textures as descriptor set, draw
-    // fullscreen triangle into `output`'s framebuffer. Ping-pong management
-    // (Section 6) happens one layer up in RenderGraph::Execute, which
-    // decides *which* pooled texture is `output` for each pass.
+void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
+                                       TextureHandle output) {
+    // Record into current command buffer
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+
+    // Get pipeline resource
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+
+    // Get output texture
+    VkTextureResource* outputRes = textures_.Get(output);
+    if (!outputRes) return;
+
+    // Get per-frame uniform buffers and descriptor sets
+    FrameUniformBuffers& frameBuffers = frameUniformBuffers_[currentFrame_];
+
+    // Update uniform buffer (Set 0): projection matrix + resolution
+    struct UniformData {
+        float projection[16]; // mat4 column-major
+        float resolution[2];
+        float _pad[2];
+    } uniformData;
+
+    // Orthographic projection for fullscreen triangle (NDC -> UV mapping)
+    // Identity projection since vertex shader outputs NDC directly
+    for (int i = 0; i < 16; ++i) uniformData.projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+    uniformData.resolution[0] = static_cast<float>(outputRes->width);
+    uniformData.resolution[1] = static_cast<float>(outputRes->height);
+
+    VkBufferResource* uniformBufRes = buffers_.Get(frameBuffers.uniformBuffer);
+    if (uniformBufRes && uniformBufRes->mapped) {
+        std::memcpy(uniformBufRes->mapped, &uniformData, sizeof(uniformData));
+    }
+
+    // Update descriptor set 0 (uniforms) - bind uniform buffer
+    VkDescriptorBufferInfo uniformBufferInfo{};
+    uniformBufferInfo.buffer = uniformBufRes ? uniformBufRes->buffer : VK_NULL_HANDLE;
+    uniformBufferInfo.offset = 0;
+    uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    uniformWrite.dstSet = frameBuffers.uniformSet;
+    uniformWrite.dstBinding = 0;
+    uniformWrite.descriptorCount = 1;
+    uniformWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniformWrite.pBufferInfo = &uniformBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
+
+    // For now, use a default empty param buffer (Set 1)
+    VkBufferResource* paramBufRes = buffers_.Get(frameBuffers.paramBuffer);
+    VkDescriptorBufferInfo paramBufferInfo{};
+    paramBufferInfo.buffer = paramBufRes ? paramBufRes->buffer : VK_NULL_HANDLE;
+    paramBufferInfo.offset = 0;
+    paramBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet paramWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    paramWrite.dstSet = frameBuffers.paramSet;
+    paramWrite.dstBinding = 0;
+    paramWrite.descriptorCount = 1;
+    paramWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    paramWrite.pBufferInfo = &paramBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &paramWrite, 0, nullptr);
+
+    // Update descriptor set 2 (textures) - bind input textures
+    // For simplicity, we'll bind up to 2 textures to the pre-allocated texture set
+    // (which uses textureSetLayout2_ - 2 combined image samplers)
+    VkDescriptorImageInfo imageInfos[2] = {};
+    uint32_t boundCount = 0;
+    for (uint32_t i = 0; i < inputs.size() && i < 2; ++i) {
+        VkTextureResource* texRes = textures_.Get(inputs[i]);
+        if (texRes) {
+            imageInfos[boundCount].sampler = texRes->ycbcrSampler ? texRes->ycbcrSampler : VK_NULL_HANDLE;
+            imageInfos[boundCount].imageView = texRes->view;
+            imageInfos[boundCount].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            boundCount++;
+        }
+    }
+
+    if (boundCount > 0) {
+        VkWriteDescriptorSet textureWrites[2]{};
+        for (uint32_t i = 0; i < boundCount; ++i) {
+            textureWrites[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            textureWrites[i].dstSet = frameBuffers.textureSet;
+            textureWrites[i].dstBinding = i;
+            textureWrites[i].descriptorCount = 1;
+            textureWrites[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            textureWrites[i].pImageInfo = &imageInfos[i];
+        }
+        vkUpdateDescriptorSets(device_, boundCount, textureWrites, 0, nullptr);
+    }
+
+    // Bind pipeline
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineRes->pipeline);
+
+    // Bind descriptor sets (Set 0, 1, 2)
+    VkDescriptorSet sets[3] = {
+        frameBuffers.uniformSet,
+        frameBuffers.paramSet,
+        frameBuffers.textureSet
+    };
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphPipelineLayout_,
+                            0, 3, sets, 0, nullptr);
+
+    // Set dynamic viewport/scissor for output texture
+    VkViewport viewport{0, 0, static_cast<float>(outputRes->width),
+                         static_cast<float>(outputRes->height), 0.0f, 1.0f};
+    VkRect2D scissor{{0, 0}, {outputRes->width, outputRes->height}};
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    // Transition output to color attachment optimal
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.image = outputRes->image;
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    // Begin dynamic rendering
+    VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    colorAttachment.imageView = outputRes->view;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
+    renderingInfo.renderArea = {{0, 0}, {outputRes->width, outputRes->height}};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(cmd, &renderingInfo);
+
+    // Draw fullscreen triangle (3 vertices)
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    lastFrameStats_.drawCalls++;
+
+    vkCmdEndRendering(cmd);
+
+    // Transition output to shader read optimal for next pass
+    barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
 VkSamplerYcbcrConversion VulkanDevice::GetOrCreateYcbcrConversion(
@@ -962,6 +1512,36 @@ void VulkanDevice::Shutdown() {
     ycbcrSamplers_.clear();
     for (auto& [key, conversion] : ycbcrConversions_) vkDestroySamplerYcbcrConversion(device_, conversion, nullptr);
     ycbcrConversions_.clear();
+
+    // Phase 3: cleanup descriptor pool and layouts
+    if (descriptorPool_) vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
+    descriptorPool_ = VK_NULL_HANDLE;
+
+    if (uniformSetLayout_) vkDestroyDescriptorSetLayout(device_, uniformSetLayout_, nullptr);
+    uniformSetLayout_ = VK_NULL_HANDLE;
+
+    if (paramSetLayout_) vkDestroyDescriptorSetLayout(device_, paramSetLayout_, nullptr);
+    paramSetLayout_ = VK_NULL_HANDLE;
+
+    if (textureSetLayout1_) vkDestroyDescriptorSetLayout(device_, textureSetLayout1_, nullptr);
+    textureSetLayout1_ = VK_NULL_HANDLE;
+
+    if (textureSetLayout2_) vkDestroyDescriptorSetLayout(device_, textureSetLayout2_, nullptr);
+    textureSetLayout2_ = VK_NULL_HANDLE;
+
+    if (textureSetLayoutYcbcr_) vkDestroyDescriptorSetLayout(device_, textureSetLayoutYcbcr_, nullptr);
+    textureSetLayoutYcbcr_ = VK_NULL_HANDLE;
+
+    if (textureSetLayoutYcbcr1_) vkDestroyDescriptorSetLayout(device_, textureSetLayoutYcbcr1_, nullptr);
+    textureSetLayoutYcbcr1_ = VK_NULL_HANDLE;
+
+    if (graphPipelineLayout_) vkDestroyPipelineLayout(device_, graphPipelineLayout_, nullptr);
+    graphPipelineLayout_ = VK_NULL_HANDLE;
+
+    // Frame uniform buffers are released via ReleaseBuffer (they're in the buffer pool)
+    for (int i = 0; i < kMaxFramesInFlight; ++i) {
+        frameUniformBuffers_[i] = {};
+    }
 
     if (bringUpPipeline_) vkDestroyPipeline(device_, bringUpPipeline_, nullptr);
     if (bringUpLayout_) vkDestroyPipelineLayout(device_, bringUpLayout_, nullptr);

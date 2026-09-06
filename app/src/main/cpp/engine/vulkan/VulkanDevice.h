@@ -207,6 +207,26 @@ private:
     ResourcePool<VkPipelineResource, PipelineTag> pipelines_;
     ResourcePool<VkShaderModule, ShaderModuleTag> shaderModules_;
 
+    // Phase 3: descriptor pool and set layouts for render graph passes
+    VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout uniformSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout paramSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayout1_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayout2_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayoutYcbcr_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayoutYcbcr1_ = VK_NULL_HANDLE;
+    VkPipelineLayout graphPipelineLayout_ = VK_NULL_HANDLE;
+
+    // Per-frame uniform buffers for render graph
+    struct FrameUniformBuffers {
+        BufferHandle uniformBuffer;  // Set 0: projection + resolution
+        BufferHandle paramBuffer;    // Set 1: effect params
+        VkDescriptorSet uniformSet;
+        VkDescriptorSet paramSet;
+        VkDescriptorSet textureSet;
+    };
+    std::array<FrameUniformBuffers, kMaxFramesInFlight> frameUniformBuffers_{};
+
     // Phase 2: caches so repeated frames from the same decoder (same
     // AHardwareBuffer format every time) don't recreate a
     // VkSamplerYcbcrConversion + VkSampler per frame — these are

@@ -134,22 +134,25 @@ void Engine::Tick() {
     // FrameCache populated ahead of RenderGraph actually needing a frame.
     RefreshActiveClips(timeline_->CurrentTime().seconds);
 
-    // 4. Render. Phase 1 bring-up path draws the fixed triangle; once
-    // RenderGraph::Compile/Execute are wired to real GPU work for
-    // Shader/Blend/Composite/Output (Phase 3), the triangle call is replaced
-    // with:
-    //   auto plan = renderGraph_->Compile(graph_, outputNodeId);
-    //   if (plan.Ok()) renderGraph_->Execute(graph_, plan,
-    //                                         timeline_->CurrentTime().seconds,
-    //                                         mediaEngine_.get());
-    // VideoSource passes already work end-to-end today via that Execute()
-    // call (see RenderGraph::ExecutePass) — what's still missing for a
-    // visible result is Phase 3's DrawFullscreenPass wiring to actually
-    // composite lastVideoFrameByNode_ onto the swapchain image instead of
-    // the bring-up triangle below.
+    // 4. Render using RenderGraph (Phase 3).
+    // Find the output node (first node of kind Output, or create a default)
+    static const std::string kOutputNodeId = "output";
+    const Node* outputNode = graph_.FindNode(kOutputNodeId);
+    if (!outputNode) {
+        // No output node yet - fall back to bring-up triangle for now
+        if (device_->BeginFrame()) {
+            if (auto* vulkan = dynamic_cast<VulkanDevice*>(device_.get())) {
+                vulkan->RenderBringUpTriangle();
+            }
+            device_->EndFrame();
+        }
+        return;
+    }
+
     if (device_->BeginFrame()) {
-        if (auto* vulkan = dynamic_cast<VulkanDevice*>(device_.get())) {
-            vulkan->RenderBringUpTriangle();
+        auto plan = renderGraph_->Compile(graph_, kOutputNodeId);
+        if (plan.Ok()) {
+            renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get());
         }
         device_->EndFrame();
     }
