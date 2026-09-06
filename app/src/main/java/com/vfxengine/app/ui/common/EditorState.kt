@@ -252,26 +252,93 @@ class EditorState(
 
     enum class InterpolationType { Step, Linear, Bezier, Custom }
 
+    enum class ProceduralWaveType { Sine, Noise, Triangle, Square, Sawtooth }
+
+    data class ProceduralConfig(
+        var enabled: Boolean = false,
+        var frequency: Float = 1.0f,      // wiggles per second
+        var amplitude: Float = 10.0f,     // max displacement from base value
+        var octaves: Int = 1,             // fractal noise layers
+        var amplitudeMult: Float = 0.5f,  // per-octave amplitude falloff
+        var waveType: ProceduralWaveType = ProceduralWaveType.Noise,
+        var seed: Int = 0,                // for deterministic noise
+        var phase: Float = 0.0f,          // time offset
+    )
+
     data class KeyframeTrack(
-        val keyframes: MutableList<Keyframe> = mutableListOf()
+        val keyframes: MutableList<Keyframe> = mutableListOf(),
+        var procedural: ProceduralConfig = ProceduralConfig()
     ) {
         fun evaluate(time: Double): Float {
-            if (keyframes.isEmpty()) return 0f
-            if (keyframes.size == 1 || time <= keyframes.first().time) return keyframes.first().value
-            if (time >= keyframes.last().time) return keyframes.last().value
+            val baseValue = if (keyframes.isEmpty()) 0f
+            else if (keyframes.size == 1 || time <= keyframes.first().time) keyframes.first().value
+            else if (time >= keyframes.last().time) keyframes.last().value
+            else {
+                val next = keyframes.firstOrNull { it.time > time } ?: return keyframes.last().value
+                val prev = keyframes.lastOrNull { it.time <= time } ?: return keyframes.first().value
 
-            val next = keyframes.firstOrNull { it.time > time } ?: return keyframes.last().value
-            val prev = keyframes.lastOrNull { it.time <= time } ?: return keyframes.first().value
+                val span = next.time - prev.time
+                val t = if (span > 0) (time - prev.time) / span else 0.0
 
-            val span = next.time - prev.time
-            val t = if (span > 0) (time - prev.time) / span else 0.0
-
-            return when (prev.interpolation) {
-                InterpolationType.Step -> prev.value
-                InterpolationType.Linear -> prev.value + (next.value - prev.value) * t.toFloat()
-                InterpolationType.Bezier -> evaluateBezier(prev, next, t)
-                InterpolationType.Custom -> evaluateCustom(prev, next, t)
+                when (prev.interpolation) {
+                    InterpolationType.Step -> prev.value
+                    InterpolationType.Linear -> prev.value + (next.value - prev.value) * t.toFloat()
+                    InterpolationType.Bezier -> evaluateBezier(prev, next, t)
+                    InterpolationType.Custom -> evaluateCustom(prev, next, t)
+                }
             }
+
+            // Apply procedural on top
+            if (procedural.enabled) {
+                baseValue + evaluateProcedural(time, procedural)
+            } else {
+                baseValue
+            }
+        }
+
+        private fun evaluateProcedural(time: Double, config: ProceduralConfig): Float {
+            val t = (time + config.phase.toDouble()) * config.frequency
+            val seed = config.seed.toDouble()
+            val amp = config.amplitude
+            val octaves = config.octaves
+            val ampMult = config.amplitudeMult
+
+            var result = 0.0
+            var freq = t
+            var a = 1.0
+
+            for (i in 0 until octaves) {
+                val wave = when (config.waveType) {
+                    ProceduralWaveType.Sine -> kotlin.math.sin(freq * 2.0 * kotlin.math.PI)
+                    ProceduralWaveType.Noise -> simplexNoise1D(freq + seed * 1000.0 + i * 100.0)
+                    ProceduralWaveType.Triangle -> 2.0 * abs((freq % 1.0) - 0.5) - 0.5
+                    ProceduralWaveType.Square -> if (freq % 1.0 < 0.5) 1.0 else -1.0
+                    ProceduralWaveType.Sawtooth -> 2.0 * (freq % 1.0) - 1.0
+                }
+                result += wave * a
+                freq *= 2.0
+                a *= ampMult.toDouble()
+            }
+
+            return (result * amp).toFloat()
+        }
+
+        private fun simplexNoise1D(x: Double): Double {
+            // Simple 1D noise using hash-based gradient noise
+            val i = kotlin.math.floor(x).toLong()
+            val f = x - i.toDouble()
+            val u = f * f * (3.0 - 2.0 * f) // smoothstep
+            val a = hash11(i + config.seed.toLong())
+            val b = hash11(i + 1 + config.seed.toLong())
+            return a + (b - a) * u
+        }
+
+        private fun hash11(n: Long): Double {
+            var h = n
+            h = (h ^ (h ushr 16)) * 0x85ebca6bL
+            h = (h ^ (h ushr 13)) * 0xc2b2ae35L
+            h = h ^ (h ushr 16)
+            return (h.toDouble() / Long.MAX_VALUE) * 2.0 - 1.0
         }
 
         private fun evaluateBezier(prev: Keyframe, next: Keyframe, t: Double): Float {

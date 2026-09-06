@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.vfxengine.app.ui.common.EditorState
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.ranges.ClosedFloatingPointRange
 
 private const val KEYFRAME_SIZE = 22f
 private const val HANDLE_SIZE = 7f
@@ -62,6 +63,9 @@ fun KeyframeEditor(state: EditorState) {
     var valueReadout by remember { mutableStateOf<String?>(null) }
     var copiedKeyframe by remember { mutableStateOf<EditorState.Keyframe?>(null) }
     var autoKey by remember { mutableStateOf(false) }
+    var activeTab by remember { mutableStateOf(EditorTab.Curve) }
+
+    enum class EditorTab { Curve, Procedural }
 
     Box(
         modifier = Modifier
@@ -112,44 +116,65 @@ fun KeyframeEditor(state: EditorState) {
 
                 androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.08f))
 
+                // Tab bar
+                TabBar(
+                    activeTab = activeTab,
+                    onTabClick = { activeTab = it },
+                    procedural = target.track.procedural
+                )
+
+                androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.08f))
+
                 Box(modifier = Modifier.fillMaxSize()) {
-                    GraphArea(
-                        state = state,
-                        target = target,
-                        snapEnabled = snapEnabled,
-                        selectedIndex = selectedIndex,
-                        onSelectIndex = { selectedIndex = it },
-                        onValueReadout = { valueReadout = it },
-                        autoKey = autoKey
-                    )
+                    when (activeTab) {
+                        EditorTab.Curve -> {
+                            GraphArea(
+                                state = state,
+                                target = target,
+                                snapEnabled = snapEnabled,
+                                selectedIndex = selectedIndex,
+                                onSelectIndex = { selectedIndex = it },
+                                onValueReadout = { valueReadout = it },
+                                autoKey = autoKey
+                            )
 
-                    valueReadout?.let { readout ->
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                                .background(Color(0xFF1E1E1E).copy(alpha = 0.9f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(text = readout, color = Color.Cyan, fontSize = 11.sp, fontWeight = FontWeight.Mono)
-                        }
-                    }
-
-                    if (showInterpMenu && selectedIndex != null) {
-                        InterpMenu(
-                            current = target.track.keyframes.getOrNull(selectedIndex!!)?.interpolation
-                                ?: EditorState.InterpolationType.Linear,
-                            onSelect = { interp ->
-                                showInterpMenu = false
-                                val idx = selectedIndex ?: return@InterpMenu
-                                if (idx in target.track.keyframes.indices) {
-                                    val oldKf = target.track.keyframes[idx].copy()
-                                    target.track.keyframes[idx].interpolation = interp
-                                    state.updateKeyframe(target.nodeId, target.uniformName, oldKf, target.track.keyframes[idx].copy())
+                            valueReadout?.let { readout ->
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp)
+                                        .background(Color(0xFF1E1E1E).copy(alpha = 0.9f))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(text = readout, color = Color.Cyan, fontSize = 11.sp, fontWeight = FontWeight.Mono)
                                 }
-                            },
-                            onDismiss = { showInterpMenu = false }
-                        )
+                            }
+
+                            if (showInterpMenu && selectedIndex != null) {
+                                InterpMenu(
+                                    current = target.track.keyframes.getOrNull(selectedIndex!!)?.interpolation
+                                        ?: EditorState.InterpolationType.Linear,
+                                    onSelect = { interp ->
+                                        showInterpMenu = false
+                                        val idx = selectedIndex ?: return@InterpMenu
+                                        if (idx in target.track.keyframes.indices) {
+                                            val oldKf = target.track.keyframes[idx].copy()
+                                            target.track.keyframes[idx].interpolation = interp
+                                            state.updateKeyframe(target.nodeId, target.uniformName, oldKf, target.track.keyframes[idx].copy())
+                                        }
+                                    },
+                                    onDismiss = { showInterpMenu = false }
+                                )
+                            }
+                        }
+                        EditorTab.Procedural -> {
+                            ProceduralControls(
+                                procedural = target.track.procedural,
+                                onChange = { newProc ->
+                                    target.track.procedural = newProc
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -668,6 +693,252 @@ private fun InterpMenu(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TabBar(
+    activeTab: KeyframeEditor.EditorTab,
+    onTabClick: (KeyframeEditor.EditorTab) -> Unit,
+    procedural: EditorState.ProceduralConfig
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+    ) {
+        EditorTab.values().forEach { tab ->
+            val isActive = activeTab == tab
+            val label = when (tab) {
+                EditorTab.Curve -> "Curve"
+                EditorTab.Procedural -> "Procedural"
+            }
+            androidx.compose.material3.TextButton(
+                onClick = { onTabClick(tab) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp),
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                    containerColor = if (isActive) Color(0xFF1E1E1E) else Color.Transparent,
+                    contentColor = if (isActive) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.7f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = label, fontSize = 12.sp, fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
+                    if (tab == EditorTab.Procedural && procedural.enabled) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(Color(0xFF69F0AE))
+                                .padding(start = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProceduralControls(
+    procedural: EditorState.ProceduralConfig,
+    onChange: (EditorState.ProceduralConfig) -> Unit
+) {
+    val newProc = remember { mutableStateOf(procedural.copy()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+    ) {
+        // Master toggle
+        androidx.compose.material3.Switch(
+            checked = newProc.value.enabled,
+            onCheckedChange = { 
+                newProc.value = newProc.value.copy(enabled = it)
+                onChange(newProc.value)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            thumbContentColor = Color.Black,
+            trackColor = { Color(0xFF00E5FF) }
+        ) {
+            Text(text = "Enable Procedural", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+
+        androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.1f))
+
+        // Wave type
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+        ) {
+            Text(text = "Wave Type", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+            androidx.compose.material3.TextButton(
+                onClick = { /* could show dropdown */ },
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                Text(
+                    text = newProc.value.waveType.name,
+                    color = Color(0xFF00E5FF),
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        // Sliders
+        ProceduralSlider(
+            label = "Frequency",
+            value = newProc.value.frequency,
+            range = 0.01f..10f,
+            format = { "%.2f Hz" },
+            onValueChange = {
+                newProc.value = newProc.value.copy(frequency = it)
+                onChange(newProc.value)
+            }
+        )
+
+        ProceduralSlider(
+            label = "Amplitude",
+            value = newProc.value.amplitude,
+            range = 0f..100f,
+            format = { "%.1f" },
+            onValueChange = {
+                newProc.value = newProc.value.copy(amplitude = it)
+                onChange(newProc.value)
+            }
+        )
+
+        ProceduralSlider(
+            label = "Octaves",
+            value = newProc.value.octaves.toFloat(),
+            range = 1f..8f,
+            format = { "%.0f" },
+            onValueChange = {
+                newProc.value = newProc.value.copy(octaves = it.roundToInt())
+                onChange(newProc.value)
+            }
+        )
+
+        ProceduralSlider(
+            label = "Amplitude Mult",
+            value = newProc.value.amplitudeMult,
+            range = 0.1f..1f,
+            format = { "%.2f" },
+            onValueChange = {
+                newProc.value = newProc.value.copy(amplitudeMult = it)
+                onChange(newProc.value)
+            }
+        )
+
+        ProceduralSlider(
+            label = "Phase",
+            value = newProc.value.phase,
+            range = 0f..6.28f,
+            format = { "%.2f rad" },
+            onValueChange = {
+                newProc.value = newProc.value.copy(phase = it)
+                onChange(newProc.value)
+            }
+        )
+
+        ProceduralSlider(
+            label = "Seed",
+            value = newProc.value.seed.toFloat(),
+            range = 0f..9999f,
+            format = { "%.0f" },
+            onValueChange = {
+                newProc.value = newProc.value.copy(seed = it.roundToInt())
+                onChange(newProc.value)
+            }
+        )
+
+        // Preset buttons
+        Text(text = "Presets", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+        ) {
+            PresetProcButton("Subtle Jitter", 2f, 2f, 1, 0.5f, EditorState.ProceduralWaveType.Noise) {
+                newProc.value = newProc.value.copy(frequency = 2f, amplitude = 2f, octaves = 1, amplitudeMult = 0.5f, waveType = EditorState.ProceduralWaveType.Noise)
+                onChange(newProc.value)
+            }
+            PresetProcButton("Camera Shake", 5f, 15f, 3, 0.5f, EditorState.ProceduralWaveType.Noise) {
+                newProc.value = newProc.value.copy(frequency = 5f, amplitude = 15f, octaves = 3, amplitudeMult = 0.5f, waveType = EditorState.ProceduralWaveType.Noise)
+                onChange(newProc.value)
+            }
+            PresetProcButton("VHS Wobble", 1f, 8f, 2, 0.6f, EditorState.ProceduralWaveType.Triangle) {
+                newProc.value = newProc.value.copy(frequency = 1f, amplitude = 8f, octaves = 2, amplitudeMult = 0.6f, waveType = EditorState.ProceduralWaveType.Triangle)
+                onChange(newProc.value)
+            }
+            PresetProcButton("Pulse", 0.5f, 20f, 1, 0f, EditorState.ProceduralWaveType.Square) {
+                newProc.value = newProc.value.copy(frequency = 0.5f, amplitude = 20f, octaves = 1, amplitudeMult = 0f, waveType = EditorState.ProceduralWaveType.Square)
+                onChange(newProc.value)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProceduralSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    format: (Float) -> String,
+    onValueChange: (Float) -> Unit
+) {
+    var currentValue by remember { mutableStateOf(value) }
+    currentValue = value
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+        ) {
+            Text(text = label, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+            Text(text = format(currentValue), color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Mono)
+        }
+        androidx.compose.material3.Slider(
+            modifier = Modifier.fillMaxWidth(),
+            value = (currentValue - range.start) / (range.endInclusive - range.start),
+            onValueChange = { ratio ->
+                val newVal = range.start + ratio * (range.endInclusive - range.start)
+                currentValue = newVal
+                onValueChange(newVal)
+            },
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color(0xFF00E5FF),
+                activeTrackColor = Color(0xFF00E5FF),
+                inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+            )
+        )
+    }
+}
+
+@Composable
+private fun PresetProcButton(
+    label: String,
+    freq: Float,
+    amp: Float,
+    oct: Int,
+    ampMult: Float,
+    wave: EditorState.ProceduralWaveType,
+    onClick: () -> Unit
+) {
+    androidx.compose.material3.TextButton(
+        onClick = onClick,
+        modifier = Modifier.weight(1f).height(32.dp),
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            containerColor = Color(0xFF1E1E1E)
+        )
+    ) {
+        Text(text = label, color = Color.White, fontSize = 10.sp)
     }
 }
 
