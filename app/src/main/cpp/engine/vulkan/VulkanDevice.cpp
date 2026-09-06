@@ -482,11 +482,18 @@ bool VulkanDevice::CreateDescriptorPoolAndLayouts() {
         return false;
     }
 
-    // Pipeline layout with all 3 descriptor sets
+    // Pipeline layout with all 3 descriptor sets + push constants for motion effects
     VkDescriptorSetLayout layouts[3] = {uniformSetLayout_, paramSetLayout_, textureSetLayout2_};
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = 112; // 28 floats * 4 bytes = 112 bytes (motion transform PushConstants)
+
     VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     layoutInfo.setLayoutCount = 3;
     layoutInfo.pSetLayouts = layouts;
+    layoutInfo.pushConstantRangeCount = 1;
+    layoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &graphPipelineLayout_) != VK_SUCCESS) {
         return false;
     }
@@ -1216,11 +1223,42 @@ struct alignas(16) ParamBlock {
     float threshold = 0.5f;
     float feather = 0.0f;
     float expand = 0.0f;
-    float choke = 0.0f;
-    float _pad[6] = {0};
-};
+float choke = 0.0f;
 
-static_assert(sizeof(ParamBlock) <= 256, "ParamBlock must fit in per-frame param uniform buffer");
+        // Motion transform (3x3 matrix, column-major: [a b c; d e f; g h i])
+        // Applied as uv' = M * vec3(uv, 1.0)
+        float mTransform[9] = {
+            1.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 1.0f
+        };
+
+        // Motion effect parameters
+        float mFrequency = 1.0f;
+        float mMagnitude = 1.0f;
+        float mAngle = 0.0f;
+        float mPhase = 0.0f;
+        int mWaveType = 0;
+        float mDecay = 0.0f;
+        float mRotation = 0.0f;
+        float mSeed = 0.0f;
+        float mAmount = 1.0f;
+        float mSpeed = 1.0f;
+        float mScale = 1.0f;
+        float mOctaves = 1.0f;
+        float mIntensity = 1.0f;
+        float mBlockSize = 16.0f;
+        float mChromatic = 0.0f;
+        float mNoiseAmount = 0.0f;
+        float mScanlineAmount = 0.0f;
+        float mDistortion = 0.0f;
+        float mColorBleed = 0.0f;
+        float mJitter = 0.0f;
+
+        float _pad[6] = {0};
+    };
+
+static_assert(sizeof(ParamBlock) <= 512, "ParamBlock must fit in per-frame param uniform buffer");
 
 struct ParamWriter {
     ParamBlock block = {};
@@ -1252,6 +1290,27 @@ struct ParamWriter {
         else if (name == "feather") block.feather = value;
         else if (name == "expand") block.expand = value;
         else if (name == "choke") block.choke = value;
+        // Motion transform parameters
+        else if (name == "mFrequency" || name == "m_frequency") block.mFrequency = value;
+        else if (name == "mMagnitude" || name == "m_magnitude") block.mMagnitude = value;
+        else if (name == "mAngle" || name == "m_angle") block.mAngle = value;
+        else if (name == "mPhase" || name == "m_phase") block.mPhase = value;
+        else if (name == "mWaveType" || name == "m_wave_type") block.mWaveType = static_cast<int>(value);
+        else if (name == "mDecay" || name == "m_decay") block.mDecay = value;
+        else if (name == "mRotation" || name == "m_rotation") block.mRotation = value;
+        else if (name == "mSeed" || name == "m_seed") block.mSeed = value;
+        else if (name == "mAmount" || name == "m_amount") block.mAmount = value;
+        else if (name == "mSpeed" || name == "m_speed") block.mSpeed = value;
+        else if (name == "mScale" || name == "m_scale") block.mScale = value;
+        else if (name == "mOctaves" || name == "m_octaves") block.mOctaves = value;
+        else if (name == "mIntensity" || name == "m_intensity") block.mIntensity = value;
+        else if (name == "mBlockSize" || name == "m_block_size") block.mBlockSize = value;
+        else if (name == "mChromatic" || name == "m_chromatic") block.mChromatic = value;
+        else if (name == "mNoiseAmount" || name == "m_noise_amount") block.mNoiseAmount = value;
+        else if (name == "mScanlineAmount" || name == "m_scanline_amount") block.mScanlineAmount = value;
+        else if (name == "mDistortion" || name == "m_distortion") block.mDistortion = value;
+        else if (name == "mColorBleed" || name == "m_color_bleed") block.mColorBleed = value;
+        else if (name == "mJitter" || name == "m_jitter") block.mJitter = value;
     }
 
     void Pack(const std::unordered_map<std::string, float>& values) {
@@ -1362,6 +1421,62 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
 
     // Bind pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineRes->pipeline);
+
+    // Push motion transform constants
+    struct MotionPushConstants {
+        float mTransform[9];
+        float mFrequency;
+        float mMagnitude;
+        float mAngle;
+        float mPhase;
+        int mWaveType;
+        float mDecay;
+        float mRotation;
+        float mSeed;
+        float mAmount;
+        float mSpeed;
+        float mScale;
+        float mOctaves;
+        float mIntensity;
+        float mBlockSize;
+        float mChromatic;
+        float mNoiseAmount;
+        float mScanlineAmount;
+        float mDistortion;
+        float mColorBleed;
+        float mJitter;
+    } motionConstants = {};
+
+    // Build transform matrix from ParamBlock
+    // The ParamBlock mTransform is already built in Pack()
+    const auto& params = writer.Data();
+    for (int i = 0; i < 9; ++i) {
+        motionConstants.mTransform[i] = params.mTransform[i];
+    }
+    motionConstants.mFrequency = params.mFrequency;
+    motionConstants.mMagnitude = params.mMagnitude;
+    motionConstants.mAngle = params.mAngle;
+    motionConstants.mPhase = params.mPhase;
+    motionConstants.mWaveType = params.mWaveType;
+    motionConstants.mDecay = params.mDecay;
+    motionConstants.mRotation = params.mRotation;
+    motionConstants.mSeed = params.mSeed;
+    motionConstants.mAmount = params.mAmount;
+    motionConstants.mSpeed = params.mSpeed;
+    motionConstants.mScale = params.mScale;
+    motionConstants.mOctaves = params.mOctaves;
+    motionConstants.mIntensity = params.mIntensity;
+    motionConstants.mBlockSize = params.mBlockSize;
+    motionConstants.mChromatic = params.mChromatic;
+    motionConstants.mNoiseAmount = params.mNoiseAmount;
+    motionConstants.mScanlineAmount = params.mScanlineAmount;
+    motionConstants.mDistortion = params.mDistortion;
+    motionConstants.mColorBleed = params.mColorBleed;
+    motionConstants.mJitter = params.mJitter;
+
+    vkCmdPushConstants(cmd, graphPipelineLayout_, 
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, sizeof(motionConstants), &motionConstants);
 
     // Bind descriptor sets (Set 0, 1, 2)
     VkDescriptorSet sets[3] = {
