@@ -136,6 +136,60 @@ class EditorState(
         ChromaKey("Chroma Key", 0xFFE91E63.toInt(), 44),
         // 3D Models
         MeshSource("Mesh Source", 0xFF9C27B0.toInt(), 45),
+        // Audio/Reactive
+        AudioReactive("Audio Reactive", 0xFFE91E63.toInt(), 46),
+        AudioSpectrum("Audio Spectrum", 0xFFE91E63.toInt(), 47),
+        AudioWaveform("Audio Waveform", 0xFFE91E63.toInt(), 48),
+        BeatDetect("Beat Detect", 0xFFE91E63.toInt(), 49),
+        // Text/Typography
+        TextAnimator("Text Animator", 0xFF795548.toInt(), 50),
+        TextPath("Text on Path", 0xFF795548.toInt(), 51),
+        Typewriter("Typewriter", 0xFF795548.toInt(), 52),
+        // Generators
+        Gradient("Gradient", 0xFF00BCD4.toInt(), 53),
+        Noise("Noise", 0xFF00BCD4.toInt(), 54),
+        Checkerboard("Checkerboard", 0xFF00BCD4.toInt(), 55),
+        SolidColor("Solid Color", 0xFF00BCD4.toInt(), 56),
+        // Distortion/Warping
+        Displace("Displace", 0xFF9C27B0.toInt(), 57),
+        TurbulentDisplace("Turbulent Displace", 0xFF9C27B0.toInt(), 58),
+        MeshWarp("Mesh Warp", 0xFF9C27B0.toInt(), 59),
+        LensDistortion("Lens Distortion", 0xFF9C27B0.toInt(), 60),
+        Spherize("Spherize", 0xFF9C27B0.toInt(), 61),
+        // Stylize
+        Glow("Glow", 0xFFFF9800.toInt(), 62),
+        DropShadow("Drop Shadow", 0xFFFF9800.toInt(), 63),
+        Outline("Outline", 0xFFFF9800.toInt(), 64),
+        Cartoon("Cartoon/Posterize", 0xFFFF9800.toInt(), 65),
+        Halftone("Halftone", 0xFFFF9800.toInt(), 66),
+        VHS("VHS/Damage", 0xFFFF9800.toInt(), 67),
+        // Time
+        Echo("Echo/Trails", 0xFF00BCD4.toInt(), 68),
+        FrameHold("Frame Hold", 0xFF00BCD4.toInt(), 69),
+        TimeOffset("Time Offset", 0xFF00BCD4.toInt(), 70),
+        // Utility
+        Switch("Switch", 0xFF9E9E9E.toInt(), 71),
+        Expression("Expression", 0xFF9E9E9E.toInt(), 72),
+        Value("Value", 0xFF9E9E9E.toInt(), 73),
+        Random("Random", 0xFF9E9E9E.toInt(), 74),
+        // Color Grading
+        LiftGammaGain("Lift/Gamma/Gain", 0xFFF44336.toInt(), 75),
+        ColorWheels("Color Wheels", 0xFFF44336.toInt(), 76),
+        Curves("RGB Curves", 0xFFF44336.toInt(), 77),
+        HueVsSat("Hue vs Sat", 0xFFF44336.toInt(), 78),
+        LUT("LUT", 0xFFF44336.toInt(), 79),
+        // Transitions
+        CrossDissolve("Cross Dissolve", 0xFF3F51B5.toInt(), 80),
+        DipToColor("Dip to Color", 0xFF3F51B5.toInt(), 81),
+        Slide("Slide", 0xFF3F51B5.toInt(), 82),
+        Push("Push", 0xFF3F51B5.toInt(), 83),
+        // 3D/Environment
+        EnvironmentLight("Environment Light", 0xFF673AB7.toInt(), 84),
+        Fog("Fog/Atmosphere", 0xFF673AB7.toInt(), 85),
+        // Tracking/Stabilize
+        Stabilize("Stabilize", 0xFF9C27B0.toInt(), 86),
+        CornerPin("Corner Pin", 0xFF9C27B0.toInt(), 87),
+        PlanarTracker("Planar Tracker", 0xFF9C27B0.toInt(), 88),
     }
 
     data class Port(val name: String, val type: PortType) {
@@ -684,6 +738,105 @@ class EditorState(
             // 3D Models
             NodeType.MeshSource -> {
                 node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Audio/Reactive
+            NodeType.AudioReactive, NodeType.AudioSpectrum, NodeType.AudioWaveform -> {
+                node.inputs.add(Port("audio", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.BeatDetect -> {
+                node.inputs.add(Port("audio", Port.PortType.Input))
+                node.outputs.add(Port("beat", Port.PortType.Output))
+                node.outputs.add(Port("envelope", Port.PortType.Output))
+            }
+            // Text/Typography
+            NodeType.TextAnimator -> {
+                node.inputs.add(Port("text", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.TextPath -> {
+                node.inputs.add(Port("text", Port.PortType.Input))
+                node.inputs.add(Port("path", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.Typewriter -> {
+                node.inputs.add(Port("text", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Generators
+            NodeType.Gradient, NodeType.Noise, NodeType.Checkerboard, NodeType.SolidColor -> {
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Distortion/Warping
+            NodeType.Displace, NodeType.TurbulentDisplace, NodeType.MeshWarp, NodeType.LensDistortion, NodeType.Spherize -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.inputs.add(Port("map", Port.PortType.Input)) // displacement map
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Stylize
+            NodeType.Glow, NodeType.DropShadow, NodeType.Outline, NodeType.Cartoon, NodeType.Halftone, NodeType.VHS -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Time
+            NodeType.Echo -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.FrameHold, NodeType.TimeOffset -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Utility
+            NodeType.Switch -> {
+                node.inputs.add(Port("A", Port.PortType.Input))
+                node.inputs.add(Port("B", Port.PortType.Input))
+                node.inputs.add(Port("switch", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.Expression -> {
+                node.inputs.add(Port("A", Port.PortType.Input))
+                node.inputs.add(Port("B", Port.PortType.Input))
+                node.inputs.add(Port("C", Port.PortType.Input))
+                node.inputs.add(Port("D", Port.PortType.Input))
+                node.outputs.add(Port("result", Port.PortType.Output))
+            }
+            NodeType.Value -> {
+                node.outputs.add(Port("value", Port.PortType.Output))
+            }
+            NodeType.Random -> {
+                node.outputs.add(Port("value", Port.PortType.Output))
+                node.outputs.add(Port("seed", Port.PortType.Output))
+            }
+            // Color Grading
+            NodeType.LiftGammaGain, NodeType.ColorWheels, NodeType.Curves, NodeType.HueVsSat, NodeType.LUT -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Transitions
+            NodeType.CrossDissolve, NodeType.DipToColor, NodeType.Slide, NodeType.Push -> {
+                node.inputs.add(Port("A", Port.PortType.Input))
+                node.inputs.add(Port("B", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // 3D/Environment
+            NodeType.EnvironmentLight, NodeType.Fog -> {
+                node.outputs.add(Port("environment", Port.PortType.Output))
+            }
+            // Tracking/Stabilize
+            NodeType.Stabilize -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+                node.outputs.add(Port("transform", Port.PortType.Output))
+            }
+            NodeType.CornerPin -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.PlanarTracker -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("cornerPin", Port.PortType.Output))
+                node.outputs.add(Port("transform", Port.PortType.Output))
             }
         }
         nodes.value[id] = node

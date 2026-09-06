@@ -428,6 +428,135 @@ fun FusionToolPalette(state: EditorState) {
                     onItemClick = { type -> addNodeOfType(state, type) }
                 )
 
+                // Audio/Reactive
+                ToolCategorySection(
+                    title = "Audio Reactive",
+                    color = 0xFFE91E63.toInt(),
+                    items = listOf(
+                        ToolItem("Audio Reactive", EditorState.NodeType.AudioReactive, android.R.drawable.ic_media_play),
+                        ToolItem("Audio Spectrum", EditorState.NodeType.AudioSpectrum, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Audio Waveform", EditorState.NodeType.AudioWaveform, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Beat Detect", EditorState.NodeType.BeatDetect, android.R.drawable.ic_media_pause),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Text/Typography
+                ToolCategorySection(
+                    title = "Text & Typography",
+                    color = 0xFF795548.toInt(),
+                    items = listOf(
+                        ToolItem("Text Animator", EditorState.NodeType.TextAnimator, android.R.drawable.ic_menu_edit),
+                        ToolItem("Text on Path", EditorState.NodeType.TextPath, android.R.drawable.ic_menu_crop),
+                        ToolItem("Typewriter", EditorState.NodeType.Typewriter, android.R.drawable.ic_menu_edit),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Generators
+                ToolCategorySection(
+                    title = "Generators",
+                    color = 0xFF00BCD4.toInt(),
+                    items = listOf(
+                        ToolItem("Gradient", EditorState.NodeType.Gradient, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Noise", EditorState.NodeType.Noise, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Checkerboard", EditorState.NodeType.Checkerboard, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Solid Color", EditorState.NodeType.SolidColor, android.R.drawable.ic_menu_gallery),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Distortion/Warping
+                ToolCategorySection(
+                    title = "Distortion",
+                    color = 0xFF9C27B0.toInt(),
+                    items = listOf(
+                        ToolItem("Displace", EditorState.NodeType.Displace, android.R.drawable.ic_menu_crop),
+                        ToolItem("Turbulent Displace", EditorState.NodeType.TurbulentDisplace, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Mesh Warp", EditorState.NodeType.MeshWarp, android.R.drawable.ic_menu_agenda),
+                        ToolItem("Lens Distortion", EditorState.NodeType.LensDistortion, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Spherize", EditorState.NodeType.Spherize, android.R.drawable.ic_menu_crop),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Stylize
+                ToolCategorySection(
+                    title = "Stylize",
+                    color = 0xFFFF9800.toInt(),
+                    items = listOf(
+                        ToolItem("Glow", EditorState.NodeType.Glow, android.R.drawable.ic_media_play),
+                        ToolItem("Drop Shadow", EditorState.NodeType.DropShadow, android.R.drawable.ic_menu_crop),
+                        ToolItem("Outline", EditorState.NodeType.Outline, android.R.drawable.ic_menu_edit),
+                        ToolItem("Cartoon", EditorState.NodeType.Cartoon, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Halftone", EditorState.NodeType.Halftone, android.R.drawable.ic_menu_gallery),
+                        ToolItem("VHS/Damage", EditorState.NodeType.VHS, android.R.drawable.ic_media_rew),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Time
+                ToolCategorySection(
+                    title = "Time",
+                    color = 0xFF00BCD4.toInt(),
+                    items = listOf(
+                        ToolItem("Echo/Trails", EditorState.NodeType.Echo, android.R.drawable.ic_media_ff),
+                        ToolItem("Frame Hold", EditorState.NodeType.FrameHold, android.R.drawable.ic_media_pause),
+                        ToolItem("Time Offset", EditorState.NodeType.TimeOffset, android.R.drawable.ic_media_rew),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Color Grading
+                ToolCategorySection(
+                    title = "Color Grading",
+                    color = 0xFFF44336.toInt(),
+                    items = listOf(
+                        ToolItem("Lift/Gamma/Gain", EditorState.NodeType.LiftGammaGain, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Color Wheels", EditorState.NodeType.ColorWheels, android.R.drawable.ic_menu_gallery),
+                        ToolItem("RGB Curves", EditorState.NodeType.Curves, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Hue vs Sat", EditorState.NodeType.HueVsSat, android.R.drawable.ic_menu_gallery),
+                        ToolItem("LUT", EditorState.NodeType.LUT, android.R.drawable.ic_menu_gallery),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Transitions
+                ToolCategorySection(
+                    title = "Transitions",
+                    color = 0xFF3F51B5.toInt(),
+                    items = listOf(
+                        ToolItem("Cross Dissolve", EditorState.NodeType.CrossDissolve, android.R.drawable.ic_media_ff),
+                        ToolItem("Dip to Color", EditorState.NodeType.DipToColor, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Slide", EditorState.NodeType.Slide, android.R.drawable.ic_menu_crop),
+                        ToolItem("Push", EditorState.NodeType.Push, android.R.drawable.ic_media_ff),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // 3D/Environment
+                ToolCategorySection(
+                    title = "3D Environment",
+                    color = 0xFF673AB7.toInt(),
+                    items = listOf(
+                        ToolItem("Environment Light", EditorState.NodeType.EnvironmentLight, android.R.drawable.ic_menu_mapmode),
+                        ToolItem("Fog/Atmosphere", EditorState.NodeType.Fog, android.R.drawable.ic_menu_rotate),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Tracking/Stabilize
+                ToolCategorySection(
+                    title = "Tracking & Stabilize",
+                    color = 0xFF9C27B0.toInt(),
+                    items = listOf(
+                        ToolItem("Stabilize", EditorState.NodeType.Stabilize, android.R.drawable.ic_media_play),
+                        ToolItem("Corner Pin", EditorState.NodeType.CornerPin, android.R.drawable.ic_menu_crop),
+                        ToolItem("Planar Tracker", EditorState.NodeType.PlanarTracker, android.R.drawable.ic_menu_mapmode),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
                 // Utility
                 ToolCategorySection(
                     title = "Utility",
@@ -436,6 +565,10 @@ fun FusionToolPalette(state: EditorState) {
                         ToolItem("Shader", EditorState.NodeType.Shader, android.R.drawable.ic_menu_edit),
                         ToolItem("Null", EditorState.NodeType.Null, android.R.drawable.ic_menu_help),
                         ToolItem("Output", EditorState.NodeType.Output, android.R.drawable.ic_media_next),
+                        ToolItem("Switch", EditorState.NodeType.Switch, android.R.drawable.ic_media_ff),
+                        ToolItem("Expression", EditorState.NodeType.Expression, android.R.drawable.ic_menu_edit),
+                        ToolItem("Value", EditorState.NodeType.Value, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Random", EditorState.NodeType.Random, android.R.drawable.ic_media_rew),
                     ),
                     onItemClick = { type -> addNodeOfType(state, type) }
                 )
