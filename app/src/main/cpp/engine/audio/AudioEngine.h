@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <expected>
 #include <functional>
 #include <memory>
 #include <mutex>

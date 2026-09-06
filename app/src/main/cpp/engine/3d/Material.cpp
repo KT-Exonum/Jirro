@@ -49,7 +49,7 @@ Material MaterialLibrary::DefaultUnlit() {
     Material m;
     m.name = "Default Unlit";
     m.materialId = "default_unlit";
-    m.blendMode = BlendMode::Opaque;
+    m.blendMode = MaterialBlendMode::Opaque;
     return m;
 }
 
