@@ -375,8 +375,142 @@ void FrameCache::EvictOutsideWindow() {
 }
 
 // ---------------------------------------------------------------------------
-// MediaEngine
+// ProxyCache
 // ---------------------------------------------------------------------------
+
+std::optional<ProxyFrame> ProxyCache::Get(const std::string& clipId, double sourceTimeSeconds) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = cache_.find(clipId);
+    if (it == cache_.end() || it->second.empty()) return std::nullopt;
+
+    const Entry* best = nullptr;
+    double bestDelta = std::numeric_limits<double>::max();
+    for (const auto& entry : it->second) {
+        const double delta = std::abs(entry.sourceTimeSeconds - sourceTimeSeconds);
+        if (delta < bestDelta) {
+            bestDelta = delta;
+            best = &entry;
+        }
+    }
+    constexpr double kMaxAcceptableDeltaSeconds = 1.0 / 120.0;
+    if (best && bestDelta <= kMaxAcceptableDeltaSeconds) return best->frame;
+    return std::nullopt;
+}
+
+void ProxyCache::Put(const std::string& clipId, ProxyFrame frame) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const double sourceTimeSeconds = frame.presentationTimeUs / 1'000'000.0;
+    // Rough byte estimate for proxy (lower res)
+    const size_t frameBytes = static_cast<size_t>(frame.width) * frame.height * 2;
+    currentBytes_ += frameBytes;
+    cache_[clipId].push_back(Entry{std::move(frame), sourceTimeSeconds});
+}
+
+void ProxyCache::EvictOutsideWindow() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    constexpr double kApproxFrameSeconds = 1.0 / 24.0;
+    const double behind = config_.framesBehind * kApproxFrameSeconds;
+    const double ahead = config_.framesAhead * kApproxFrameSeconds;
+
+    for (auto& [clipId, entries] : cache_) {
+        std::erase_if(entries, [&](const Entry& e) {
+            const bool outside =
+                e.sourceTimeSeconds < playheadHint_ - behind || e.sourceTimeSeconds > playheadHint_ + ahead;
+            if (outside) {
+                const size_t frameBytes = static_cast<size_t>(e.frame.width) * e.frame.height * 2;
+                currentBytes_ -= frameBytes;
+            }
+            return outside;
+        });
+    }
+
+    while (currentBytes_ > config_.maxBytes) {
+        std::string worstClip;
+        size_t worstIdx = 0;
+        double worstDelta = -1.0;
+        for (auto& [clipId, entries] : cache_) {
+            for (size_t i = 0; i < entries.size(); ++i) {
+                const double delta = std::abs(entries[i].sourceTimeSeconds - playheadHint_);
+                if (delta > worstDelta) {
+                    worstDelta = delta;
+                    worstClip = clipId;
+                    worstIdx = i;
+                }
+            }
+        }
+        if (worstDelta < 0.0) break;
+        auto& entries = cache_[worstClip];
+        const size_t frameBytes = static_cast<size_t>(entries[worstIdx].frame.width) * entries[worstIdx].frame.height * 2;
+        currentBytes_ -= frameBytes;
+        entries.erase(entries.begin() + static_cast<long>(worstIdx));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// AudioCache
+// ---------------------------------------------------------------------------
+
+void AudioCache::LoadAudio(const std::string& clipId, const std::string& filePath) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (audioCache_.find(clipId) != audioCache_.end()) return; // already loaded
+
+    // In a real implementation, this would use AMediaExtractor/AMediaCodec to decode
+    // audio to PCM. For now, we create a placeholder.
+    AudioClipData clip;
+    clip.clipId = clipId;
+    clip.sampleRate = 48000;
+    clip.channels = 2;
+    clip.duration = 0.0; // Would be read from file
+    clip.isLoaded = true;
+    // Placeholder: allocate silent audio for duration estimation
+    clip.pcmData.assign(static_cast<size_t>(clip.duration * clip.sampleRate * clip.channels), 0.0f);
+    
+    const size_t bytes = clip.pcmData.size() * sizeof(float);
+    currentBytes_ += bytes;
+    audioCache_[clipId] = std::move(clip);
+}
+
+void AudioCache::UnloadAudio(const std::string& clipId) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = audioCache_.find(clipId);
+    if (it != audioCache_.end()) {
+        currentBytes_ -= it->second.pcmData.size() * sizeof(float);
+        audioCache_.erase(it);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MediaEngine: Audio/Proxy handling
+// ---------------------------------------------------------------------------
+
+void MediaEngine::SetActiveAudioClips(std::vector<ActiveAudioRequest> clips, double playheadTimelineSeconds) {
+    std::lock_guard<std::mutex> lock(requestMutex_);
+    pendingAudioRequests_ = std::move(clips);
+}
+
+void MediaEngine::SetActiveProxies(std::vector<ActiveProxyRequest> clips) {
+    std::lock_guard<std::mutex> lock(requestMutex_);
+    pendingProxyRequests_ = std::move(clips);
+}
+
+void MediaEngine::DecodeAudioFile(const std::string& clipId, const std::string& filePath) {
+    // Real implementation would:
+    // 1. AMediaExtractor for audio track
+    // 2. AMediaCodec decoder (or use AMediaExtractor's direct read for simple formats)
+    // 3. Resample to 48kHz stereo float
+    // 4. Store in AudioCache
+    audioCache_.LoadAudio(clipId, filePath);
+}
+
+void MediaEngine::GenerateProxy(const ActiveProxyRequest& request) {
+    // Real implementation would:
+    // 1. AMediaExtractor + AMediaCodec decoder for source
+    // 2. Scale frames to proxy resolution (MediaCodec can output to surface of target size)
+    // 3. AMediaCodec encoder for proxy (video/avc or video/hevc)
+    // 4. Write to proxy file path
+    // For now, just mark as needing generation
+    LOGI("Proxy generation requested for %s -> %s", request.sourceFilePath.c_str(), request.proxyFilePath.c_str());
+}
 
 void MediaEngine::Start() {
     if (running_.exchange(true)) return;
@@ -397,18 +531,33 @@ void MediaEngine::SetActiveClips(std::vector<ActiveClipRequest> clips, double pl
 
 void MediaEngine::MediaThreadMain() {
     while (running_.load(std::memory_order_acquire)) {
-        std::vector<ActiveClipRequest> requests;
+        std::vector<ActiveClipRequest> clipRequests;
+        std::vector<ActiveAudioRequest> audioRequests;
+        std::vector<ActiveProxyRequest> proxyRequests;
         {
             std::lock_guard<std::mutex> lock(requestMutex_);
-            requests = pendingRequests_;
+            clipRequests = pendingRequests_;
+            audioRequests = pendingAudioRequests_;
+            proxyRequests = pendingProxyRequests_;
         }
 
+        // Process proxy generation requests
+        for (const auto& req : proxyRequests) {
+            GenerateProxy(req);
+        }
+
+        // Process audio decoding requests
+        for (const auto& req : audioRequests) {
+            audioCache_.LoadAudio(req.clipId, req.sourceFilePath);
+        }
+
+        // Process video decode requests
         std::vector<std::string> keepPaths;
-        keepPaths.reserve(requests.size());
-        for (const auto& req : requests) keepPaths.push_back(req.sourceFilePath);
+        keepPaths.reserve(clipRequests.size());
+        for (const auto& req : clipRequests) keepPaths.push_back(req.sourceFilePath);
         decoderPool_.ReleaseIdleExcept(keepPaths);
 
-        for (const auto& req : requests) {
+        for (const auto& req : clipRequests) {
             VideoDecoder* decoder = decoderPool_.Acquire(req.sourceFilePath, device_);
             if (!decoder) continue;
 
@@ -426,6 +575,10 @@ void MediaEngine::MediaThreadMain() {
                 frameCache_.Put(req.clipId, std::move(*frame));
             }
         }
+
+        // Evict proxy cache
+        proxyCache_.SetPlayheadHint(clipRequests.empty() ? 0.0 : clipRequests[0].sourceTimeSeconds);
+        proxyCache_.EvictOutsideWindow();
 
         frameCache_.EvictOutsideWindow();
 
