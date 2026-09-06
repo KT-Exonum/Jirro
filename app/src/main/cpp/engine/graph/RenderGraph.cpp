@@ -94,6 +94,15 @@ extern const uint32_t* kShapeMergeFragSpirv;
 extern size_t kShapeMergeFragSpirvWords;
 extern const uint32_t* kShapeTransformVertSpirv;
 extern size_t kShapeTransformVertSpirvWords;
+// 2.5D shaders
+extern const uint32_t* kTransform3DVertSpirv;
+extern size_t kTransform3DVertSpirvWords;
+extern const uint32_t* kTransform3DFragSpirv;
+extern size_t kTransform3DFragSpirvWords;
+extern const uint32_t* kCamera3DVertSpirv;
+extern size_t kCamera3DVertSpirvWords;
+extern const uint32_t* kDepthOfFieldFragSpirv;
+extern size_t kDepthOfFieldFragSpirvWords;
 
 CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) {
     CompileResult result;
@@ -449,6 +458,24 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             // These are handled as part of Shape2D pipeline
             vsHandle = GetOrCreateShaderModule(kShape2DVertSpirv, kShape2DVertSpirvWords);
             fsHandle = GetOrCreateShaderModule(kShape2DFragSpirv, kShape2DFragSpirvWords);
+            break;
+        }
+        // 2.5D System nodes
+        case NodeKind::Transform3D: {
+            vsHandle = GetOrCreateShaderModule(kTransform3DVertSpirv, kTransform3DVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kTransform3DFragSpirv, kTransform3DFragSpirvWords);
+            break;
+        }
+        case NodeKind::Camera3D: {
+            // Camera3D outputs view-projection matrix for other nodes
+            // Doesn't render directly, but provides UBO
+            vsHandle = GetOrCreateShaderModule(kCamera3DVertSpirv, kCamera3DVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        case NodeKind::DepthOfField: {
+            vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kDepthOfFieldFragSpirv, kDepthOfFieldFragSpirvWords);
             break;
         }
         default: {

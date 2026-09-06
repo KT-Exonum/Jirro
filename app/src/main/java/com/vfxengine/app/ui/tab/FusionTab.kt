@@ -236,6 +236,18 @@ fun FusionToolPalette(state: EditorState) {
                     onItemClick = { type -> addNodeOfType(state, type) }
                 )
 
+                // 2.5D System (Z-axis for 2D planes)
+                ToolCategorySection(
+                    title = "2.5D / 3D",
+                    color = 0xFF673AB7.toInt(),
+                    items = listOf(
+                        ToolItem("Transform 3D", EditorState.NodeType.Transform3D, android.R.drawable.ic_menu_crop),
+                        ToolItem("Camera 3D", EditorState.NodeType.Camera3D, android.R.drawable.ic_menu_mapmode),
+                        ToolItem("Depth of Field", EditorState.NodeType.DepthOfField, android.R.drawable.ic_menu_rotate),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
                 // Filters
                 ToolCategorySection(
                     title = "Filters",
@@ -429,6 +441,74 @@ fun FusionHeader() {
                 Icon(
                     painter = painterResource(id = android.R.drawable.ic_media_ff),
                     contentDescription = "Zoom In",
+                    tint = Color.White
+                )
+            }
+        }
+
+        // 3D Viewport controls
+        androidx.compose.foundation.layout.Box(modifier = Modifier.width(16.dp))
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+            Text(text = "View", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+            IconButton(onClick = { /* view: perspective */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_zoom),
+                    contentDescription = "Perspective",
+                    tint = Color.Cyan
+                )
+            }
+            IconButton(onClick = { /* view: orthographic */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_crop),
+                    contentDescription = "Orthographic",
+                    tint = Color.White
+                )
+            }
+            IconButton(onClick = { /* view: top */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_upload),
+                    contentDescription = "Top",
+                    tint = Color.White
+                )
+            }
+            IconButton(onClick = { /* view: front */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_upload),
+                    contentDescription = "Front",
+                    tint = Color.White
+                )
+            }
+            IconButton(onClick = { /* view: right */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_upload),
+                    contentDescription = "Right",
+                    tint = Color.White
+                )
+            }
+        }
+
+        // Navigation mode
+        androidx.compose.foundation.layout.Box(modifier = Modifier.width(16.dp))
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+            Text(text = "Nav", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+            IconButton(onClick = { /* orbit */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_rotate),
+                    contentDescription = "Orbit",
+                    tint = Color.Cyan
+                )
+            }
+            IconButton(onClick = { /* pan */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_crop),
+                    contentDescription = "Pan",
+                    tint = Color.White
+                )
+            }
+            IconButton(onClick = { /* dolly */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_media_ff),
+                    contentDescription = "Dolly",
                     tint = Color.White
                 )
             }

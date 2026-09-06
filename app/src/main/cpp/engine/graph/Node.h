@@ -62,6 +62,10 @@ enum class NodeKind {
     ShapeFill,        // Fill (solid, gradient, texture)
     ShapeRepeater,    // Duplicate/array shapes
     ShapeBoolean,     // Boolean operations between shapes
+    // 2.5D System (Z-axis for 2D planes)
+    Transform3D,      // 3D transform on 2D layer
+    Camera3D,         // 3D camera with DOF
+    DepthOfField,     // Depth of field post-process
 };
 
 enum class BlendMode { Normal, Multiply, Screen, Overlay, Add, Subtract };
@@ -294,6 +298,59 @@ struct Shape2DConfig {
     float feather = 0.0f;             // edge feather
 };
 
+// 2.5D Transform (extends 2D Transform with Z-axis)
+struct Transform3D {
+    float positionX = 0.0f;
+    float positionY = 0.0f;
+    float positionZ = 0.0f;
+    float rotationX = 0.0f;  // radians
+    float rotationY = 0.0f;
+    float rotationZ = 0.0f;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+    float scaleZ = 1.0f;
+    float anchorX = 0.5f;
+    float anchorY = 0.5f;
+    float anchorZ = 0.0f;
+
+    [[nodiscard]] float EvaluatePositionX(double timelineSeconds) const { return positionX; }
+    [[nodiscard]] float EvaluatePositionY(double timelineSeconds) const { return positionY; }
+    [[nodiscard]] float EvaluatePositionZ(double timelineSeconds) const { return positionZ; }
+    [[nodiscard]] float EvaluateRotationX(double timelineSeconds) const { return rotationX; }
+    [[nodiscard]] float EvaluateRotationY(double timelineSeconds) const { return rotationY; }
+    [[nodiscard]] float EvaluateRotationZ(double timelineSeconds) const { return rotationZ; }
+    [[nodiscard]] float EvaluateScaleX(double timelineSeconds) const { return scaleX; }
+    [[nodiscard]] float EvaluateScaleY(double timelineSeconds) const { return scaleY; }
+    [[nodiscard]] float EvaluateScaleZ(double timelineSeconds) const { return scaleZ; }
+};
+
+// 3D Camera for 2.5D compositing
+struct Camera3D {
+    float focalLength = 50.0f;      // mm
+    float aperture = 2.8f;          // f-stop (for DOF)
+    float focusDistance = 1000.0f;  // mm
+    float nearPlane = 1.0f;
+    float farPlane = 10000.0f;
+    Transform3D transform;          // world transform
+
+    [[nodiscard]] float EvaluateFocalLength(double timelineSeconds) const { return focalLength; }
+    [[nodiscard]] float EvaluateAperture(double timelineSeconds) const { return aperture; }
+    [[nodiscard]] float EvaluateFocusDistance(double timelineSeconds) const { return focusDistance; }
+};
+
+// Depth of Field configuration
+struct DepthOfFieldConfig {
+    bool enabled = true;
+    float focalLength = 50.0f;      // mm (from camera)
+    float aperture = 2.8f;          // f-stop
+    float focusDistance = 1000.0f;  // mm
+    int samples = 8;                // bokeh sample count
+    float maxCoC = 0.02f;           // max circle of confusion (normalized)
+    bool useBokehShape = false;     // polygonal bokeh
+    int bokehSides = 6;             // polygon sides for bokeh
+    float bokehRotation = 0.0f;     // rotation of bokeh shape
+};
+
 struct Node {
     std::string nodeId;
     NodeKind kind;
@@ -361,6 +418,15 @@ struct Node {
     // Only meaningful for kind == ShapeRectangle, ShapeEllipse, ShapePolygon, ShapeStar, ShapePath, ShapeRender, ShapeMerge, ShapeTransform, ShapeStroke, ShapeFill, ShapeRepeater, ShapeBoolean.
     Shape2DConfig shape2D;
 
+    // Only meaningful for kind == Transform3D.
+    Transform3D transform3D;
+
+    // Only meaningful for kind == Camera3D.
+    Camera3D camera3D;
+
+    // Only meaningful for kind == DepthOfField.
+    DepthOfFieldConfig depthOfField;
+
     [[nodiscard]] float EvaluateUniform(const std::string& name, double timelineSeconds) const {
         // Check animated uniforms first
         if (auto it = animatedUniforms.find(name); it != animatedUniforms.end() && !it->second.Empty()) {
@@ -383,6 +449,29 @@ struct Node {
         t.scaleX = EvaluateUniform("scaleX", timelineSeconds);
         t.scaleY = EvaluateUniform("scaleY", timelineSeconds);
         return t;
+    }
+
+    [[nodiscard]] Transform3D EvaluateTransform3D(double timelineSeconds) const {
+        Transform3D t = transform3D;
+        t.positionX = EvaluateUniform("positionX", timelineSeconds);
+        t.positionY = EvaluateUniform("positionY", timelineSeconds);
+        t.positionZ = EvaluateUniform("positionZ", timelineSeconds);
+        t.rotationX = EvaluateUniform("rotationX", timelineSeconds);
+        t.rotationY = EvaluateUniform("rotationY", timelineSeconds);
+        t.rotationZ = EvaluateUniform("rotationZ", timelineSeconds);
+        t.scaleX = EvaluateUniform("scaleX", timelineSeconds);
+        t.scaleY = EvaluateUniform("scaleY", timelineSeconds);
+        t.scaleZ = EvaluateUniform("scaleZ", timelineSeconds);
+        return t;
+    }
+
+    [[nodiscard]] Camera3D EvaluateCamera3D(double timelineSeconds) const {
+        Camera3D c = camera3D;
+        c.focalLength = EvaluateUniform("focalLength", timelineSeconds);
+        c.aperture = EvaluateUniform("aperture", timelineSeconds);
+        c.focusDistance = EvaluateUniform("focusDistance", timelineSeconds);
+        c.transform = EvaluateTransform3D(timelineSeconds);
+        return c;
     }
 };
 

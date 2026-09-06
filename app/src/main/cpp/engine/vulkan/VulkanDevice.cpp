@@ -116,6 +116,20 @@ const uint32_t kShapeMergeFrag[] = {0};
 const size_t kShapeMergeFragWords = 0;
 const uint32_t kShapeTransformVert[] = {0};
 const size_t kShapeTransformVertWords = 0;
+
+// 2.5D shaders
+const uint32_t kTransform3DVert[] = {0};
+const size_t kTransform3DVertWords = 0;
+const uint32_t kTransform3DFrag[] = {0};
+const size_t kTransform3DFragWords = 0;
+const uint32_t kCamera3DVert[] = {0};
+const size_t kCamera3DVertWords = 0;
+const uint32_t kCamera3DFrag[] = {0};
+const size_t kCamera3DFragWords = 0;
+const uint32_t kDepthOfFieldVert[] = {0};
+const size_t kDepthOfFieldVertWords = 0;
+const uint32_t kDepthOfFieldFrag[] = {0};
+const size_t kDepthOfFieldFragWords = 0;
 } // namespace generated_shader_bytecode
 
 // SPIR-V bytecode pointers for RenderGraph access (defined in vfx namespace)
@@ -207,6 +221,20 @@ constexpr const uint32_t* kShapeMergeFragSpirv = generated_shader_bytecode::kSha
 constexpr size_t kShapeMergeFragSpirvWords = generated_shader_bytecode::kShapeMergeFragWords;
 constexpr const uint32_t* kShapeTransformVertSpirv = generated_shader_bytecode::kShapeTransformVert;
 constexpr size_t kShapeTransformVertSpirvWords = generated_shader_bytecode::kShapeTransformVertWords;
+
+// 2.5D shaders
+constexpr const uint32_t* kTransform3DVertSpirv = generated_shader_bytecode::kTransform3DVert;
+constexpr size_t kTransform3DVertSpirvWords = generated_shader_bytecode::kTransform3DVertWords;
+constexpr const uint32_t* kTransform3DFragSpirv = generated_shader_bytecode::kTransform3DFrag;
+constexpr size_t kTransform3DFragSpirvWords = generated_shader_bytecode::kTransform3DFragWords;
+constexpr const uint32_t* kCamera3DVertSpirv = generated_shader_bytecode::kCamera3DVert;
+constexpr size_t kCamera3DVertSpirvWords = generated_shader_bytecode::kCamera3DVertWords;
+constexpr const uint32_t* kCamera3DFragSpirv = generated_shader_bytecode::kCamera3DFrag;
+constexpr size_t kCamera3DFragSpirvWords = generated_shader_bytecode::kCamera3DFragWords;
+constexpr const uint32_t* kDepthOfFieldVertSpirv = generated_shader_bytecode::kDepthOfFieldVert;
+constexpr size_t kDepthOfFieldVertSpirvWords = generated_shader_bytecode::kDepthOfFieldVertWords;
+constexpr const uint32_t* kDepthOfFieldFragSpirv = generated_shader_bytecode::kDepthOfFieldFrag;
+constexpr size_t kDepthOfFieldFragSpirvWords = generated_shader_bytecode::kDepthOfFieldFragWords;
 
 namespace {
 

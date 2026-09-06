@@ -128,6 +128,10 @@ class EditorState(
         ShapeFill("Shape Fill", 0xFF4CAF50.toInt(), 38),
         ShapeRepeater("Shape Repeater", 0xFF4CAF50.toInt(), 39),
         ShapeBoolean("Shape Boolean", 0xFF4CAF50.toInt(), 40),
+        // 2.5D System (Z-axis for 2D planes)
+        Transform3D("Transform 3D", 0xFF673AB7.toInt(), 41),
+        Camera3D("Camera 3D", 0xFF673AB7.toInt(), 42),
+        DepthOfField("Depth of Field", 0xFF673AB7.toInt(), 43),
     }
 
     data class Port(val name: String, val type: PortType) {
@@ -528,6 +532,21 @@ class EditorState(
             NodeType.ShapeStroke, NodeType.ShapeFill, NodeType.ShapeRepeater, NodeType.ShapeBoolean -> {
                 node.inputs.add(Port("shape", Port.PortType.Input))
                 node.outputs.add(Port("shape", Port.PortType.Output))
+            }
+            // 2.5D System (Z-axis for 2D planes)
+            NodeType.Transform3D -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.Camera3D -> {
+                node.outputs.add(Port("viewProj", Port.PortType.Output))
+                node.outputs.add(Port("view", Port.PortType.Output))
+                node.outputs.add(Port("proj", Port.PortType.Output))
+            }
+            NodeType.DepthOfField -> {
+                node.inputs.add(Port("color", Port.PortType.Input))
+                node.inputs.add(Port("depth", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
             }
         }
         nodes.value[id] = node
