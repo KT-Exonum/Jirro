@@ -76,6 +76,9 @@ private:
     void ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
                       MediaEngine* mediaEngine);
 
+    // Load or create shader module from SPIR-V bytecode (cached by bytecode content)
+    ShaderModuleHandle GetOrCreateShaderModule(const uint32_t* spirv, size_t wordCount);
+
     GraphicsDevice& device_;
     TransientTexturePool texturePool_;
 
@@ -83,6 +86,9 @@ private:
     // calls at different timestamps don't recompile shaders every frame
     // (Section 16 "pipeline caching" / "descriptor reuse").
     std::unordered_map<std::string, PipelineHandle> pipelineCache_;
+
+    // Shader module cache keyed by SPIR-V bytecode content hash
+    std::unordered_map<std::string, ShaderModuleHandle> shaderModuleCache_;
 
     // Phase 2: the most recent frame successfully pulled for each
     // VideoSource node, so a pass holds its last good frame rather than

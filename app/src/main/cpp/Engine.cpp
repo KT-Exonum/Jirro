@@ -7,6 +7,8 @@
 
 #define LOG_TAG "Engine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 namespace vfx {
 
@@ -41,6 +43,7 @@ void Engine::Stop() {
     if (!running_.exchange(false)) return;
     if (engineThread_.joinable()) engineThread_.join();
     if (mediaEngine_) mediaEngine_->Stop(); // join the media thread before tearing down the device it imports into
+    if (exportPipeline_) exportPipeline_->Cancel();
     if (device_) device_->Shutdown();
     std::lock_guard<std::mutex> lock(windowMutex_);
     if (pendingWindow_) {
@@ -113,8 +116,31 @@ void Engine::Tick() {
             // constructed here rather than in Engine's constructor.
             mediaEngine_ = std::make_unique<MediaEngine>(*device_, DecoderPoolConfig{}, FrameCacheConfig{});
             mediaEngine_->Start();
+
+            // Phase 6: Initialize profiler, export pipeline, project manager
+            profiler_ = std::make_unique<Profiler>(ProfilerConfig{
+                .enableGpuTimestamps = true,
+                .enableCpuTiming = true,
+                .enableMemoryTracking = true,
+                .targetFrameTimeMs = 16.67
+            });
+            profiler_->Initialize(dynamic_cast<VulkanDevice*>(device_.get()));
+
+            exportPipeline_ = std::make_unique<ExportPipeline>(*device_, *renderGraph_, graph_, *timeline_);
+
+            projectManager_ = std::make_unique<ProjectManager>();
+            projectManager_->SetOnProjectChanged([this](const std::string& path) {
+                LOGI("Project changed: %s", path.c_str());
+            });
+            projectManager_->SetOnError([this](const std::string& err) {
+                LOGE("Project error: %s", err.c_str());
+            });
+            projectManager_->EnableAutosave(true, 60);
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
+            if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
+            if (profiler_) { profiler_->Shutdown(); profiler_.reset(); }
+            projectManager_.reset();
             device_->Shutdown();
             device_.reset();
             renderGraph_.reset();
@@ -127,32 +153,348 @@ void Engine::Tick() {
     const auto now = std::chrono::steady_clock::now();
     const double dt = std::chrono::duration<double>(now - lastTickTime_).count();
     lastTickTime_ = now;
-    timeline_->Advance(dt, /*masterSpeed=*/1.0);
+    timeline_->Advance(dt, masterSpeed_);
 
     // 3b. Phase 2: tell MediaEngine which clips are near the playhead right
     // now so its media thread can keep the right decoders warm and the
     // FrameCache populated ahead of RenderGraph actually needing a frame.
     RefreshActiveClips(timeline_->CurrentTime().seconds);
 
-    // 4. Render. Phase 1 bring-up path draws the fixed triangle; once
-    // RenderGraph::Compile/Execute are wired to real GPU work for
-    // Shader/Blend/Composite/Output (Phase 3), the triangle call is replaced
-    // with:
-    //   auto plan = renderGraph_->Compile(graph_, outputNodeId);
-    //   if (plan.Ok()) renderGraph_->Execute(graph_, plan,
-    //                                         timeline_->CurrentTime().seconds,
-    //                                         mediaEngine_.get());
-    // VideoSource passes already work end-to-end today via that Execute()
-    // call (see RenderGraph::ExecutePass) — what's still missing for a
-    // visible result is Phase 3's DrawFullscreenPass wiring to actually
-    // composite lastVideoFrameByNode_ onto the swapchain image instead of
-    // the bring-up triangle below.
+    // 3c. Phase 6: Update thermal adaptation and profiler
+    UpdateThermalAdaptation();
+    if (profiler_) {
+        profiler_->BeginFrame(timeline_->CurrentTime().frameIndex);
+        // Note: GPU timestamps are recorded in VulkanDevice::DrawFullscreenPass
+        profiler_->EndFrame();
+    }
+
+    // 4. Render using RenderGraph (Phase 3).
+    // Find the output node (first node of kind Output, or create a default)
+    static const std::string kOutputNodeId = "output";
+    const Node* outputNode = graph_.FindNode(kOutputNodeId);
+    if (!outputNode) {
+        // No output node yet - fall back to bring-up triangle for now
+        if (device_->BeginFrame()) {
+            if (auto* vulkan = dynamic_cast<VulkanDevice*>(device_.get())) {
+                vulkan->RenderBringUpTriangle();
+            }
+            device_->EndFrame();
+        }
+        return;
+    }
+
     if (device_->BeginFrame()) {
-        if (auto* vulkan = dynamic_cast<VulkanDevice*>(device_.get())) {
-            vulkan->RenderBringUpTriangle();
+        // Phase 6: Profile render
+        auto cpuScope = profiler_ ? profiler_->CpuScope("RenderGraph_Execute") : nullptr;
+        
+        auto plan = renderGraph_->Compile(graph_, kOutputNodeId);
+        if (plan.Ok()) {
+            renderGraph_->Execute(graph_, plan, timeline_->CurrentTime().seconds, mediaEngine_.get());
         }
         device_->EndFrame();
     }
+    
+    // Trigger autosave if needed
+    if (projectManager_) {
+        projectManager_->TriggerAutosave();
+    }
+}
+
+void Engine::UpdateThermalAdaptation() {
+    if (!profiler_) return;
+    
+    // Check thermal status and adapt quality
+    if (profiler_->IsThrottling()) {
+        // Could reduce resolution, lower frame rate, simplify shaders
+        // For now, just log
+        static bool logged = false;
+        if (!logged) {
+            LOGI("Thermal throttling detected - consider reducing quality");
+            logged = true;
+        }
+    } else {
+        // Reset when thermal status improves
+    }
+}
+
+void Engine::ReloadShadersFromAssets() {
+    if (!assetManager_ || !device_) {
+        LOGW("ReloadShadersFromAssets: skipped (no asset manager or device)");
+        return;
+    }
+
+    auto* vulkan = dynamic_cast<VulkanDevice*>(device_.get());
+    if (!vulkan) {
+        LOGW("ReloadShadersFromAssets: skipped (not Vulkan backend)");
+        return;
+    }
+
+    struct ShaderEntry {
+        const char* name;
+        const char* assetPath;
+    };
+    static constexpr ShaderEntry kShaders[] = {
+        {"fullscreen_vert", "shaders/fullscreen.vert.spv"},
+        {"blend_normal_frag", "shaders/blend_normal.frag.spv"},
+        {"blend_multiply_frag", "shaders/blend_multiply.frag.spv"},
+        {"blend_screen_frag", "shaders/blend_screen.frag.spv"},
+        {"blend_overlay_frag", "shaders/blend_overlay.frag.spv"},
+        {"blend_add_frag", "shaders/blend_add.frag.spv"},
+        {"blend_subtract_frag", "shaders/blend_subtract.frag.spv"},
+        {"color_correction_frag", "shaders/color_correction.frag.spv"},
+        {"blur_frag", "shaders/blur.frag.spv"},
+        {"mask_frag", "shaders/mask.frag.spv"},
+        {"composite_frag", "shaders/composite.frag.spv"},
+        {"vector_source_vert", "shaders/vector_source.vert.spv"},
+        {"vector_source_frag", "shaders/vector_source.frag.spv"},
+        {"text_source_vert", "shaders/text_source.vert.spv"},
+        {"text_source_frag", "shaders/text_source.frag.spv"},
+        {"stroke_source_vert", "shaders/stroke_source.vert.spv"},
+        {"stroke_source_frag", "shaders/stroke_source.frag.spv"},
+        {"adjustment_vert", "shaders/adjustment.vert.spv"},
+        {"adjustment_frag", "shaders/adjustment.frag.spv"},
+        {"null_layer_vert", "shaders/null_layer.vert.spv"},
+        {"null_layer_frag", "shaders/null_layer.frag.spv"},
+        {"output_vert", "shaders/output.vert.spv"},
+        {"output_frag", "shaders/output.frag.spv"},
+        {"motion_blur_vert", "shaders/motion_blur.vert.spv"},
+        {"motion_blur_frag", "shaders/motion_blur.frag.spv"},
+        {"directional_blur_vert", "shaders/directional_blur.vert.spv"},
+        {"directional_blur_frag", "shaders/directional_blur.frag.spv"},
+        {"time_remap_vert", "shaders/time_remap.vert.spv"},
+        {"time_remap_frag", "shaders/time_remap.frag.spv"},
+        {"bezier_mask_vert", "shaders/bezier_mask.vert.spv"},
+        {"bezier_mask_frag", "shaders/bezier_mask.frag.spv"},
+        {"particle_vert", "shaders/particle.vert.spv"},
+        {"particle_frag", "shaders/particle.frag.spv"},
+        {"shape2d_vert", "shaders/shape2d.vert.spv"},
+        {"shape2d_frag", "shaders/shape2d.frag.spv"},
+        {"shape_merge_frag", "shaders/shape_merge.frag.spv"},
+        {"shape_transform_vert", "shaders/shape_transform.vert.spv"},
+        {"transform3d_vert", "shaders/transform3d.vert.spv"},
+        {"transform3d_frag", "shaders/transform3d.frag.spv"},
+        {"camera3d_vert", "shaders/camera3d.vert.spv"},
+        {"camera3d_frag", "shaders/camera3d.frag.spv"},
+        {"depth_of_field_vert", "shaders/depth_of_field.vert.spv"},
+        {"depth_of_field_frag", "shaders/depth_of_field.frag.spv"},
+        {"chroma_key_vert", "shaders/chroma_key.vert.spv"},
+        {"chroma_key_frag", "shaders/chroma_key.frag.spv"},
+        {"mesh_pbr_vert", "shaders/mesh_pbr.vert.spv"},
+        {"mesh_pbr_frag", "shaders/mesh_pbr.frag.spv"},
+    };
+
+    for (const auto& entry : kShaders) {
+        auto result = vulkan->LoadShaderFromAssets(assetManager_, entry.assetPath);
+        if (result) {
+            LOGI("Reloaded shader: %s -> %s", entry.name, entry.assetPath);
+        } else {
+            LOGW("Failed to reload shader %s from %s: %s",
+                 entry.name, entry.assetPath, result.error.c_str());
+        }
+    }
+}
+
+void Engine::StartExport(ExportCommand&& cmd) {
+    if (!exportPipeline_) {
+        if (cmd.onComplete) {
+            ExportResult result;
+            result.success = false;
+            result.errorMessage = "Export pipeline not initialized";
+            cmd.onComplete(result);
+        }
+        return;
+    }
+
+    ExportConfig config;
+    config.outputPath = cmd.outputPath;
+    config.width = cmd.width;
+    config.height = cmd.height;
+    config.frameRate = cmd.frameRate;
+    config.startTime = cmd.startTime;
+    config.endTime = cmd.endTime;
+    config.bitrateMbps = cmd.bitrateMbps;
+    config.codec = cmd.codec;
+    config.useHardwareEncoder = true;
+
+    exportPipeline_->StartExport(config,
+        [](double progress, const std::string& status) {
+            LOGI("Export progress: %.1f%% - %s", progress * 100, status.c_str());
+        },
+        [callback = std::move(cmd.onComplete)](ExportResult result) {
+            if (callback) callback(result);
+        });
+}
+
+void Engine::SaveProject(SaveProjectCommand&& cmd) {
+    if (!projectManager_) {
+        if (cmd.onComplete) cmd.onComplete(false);
+        return;
+    }
+
+    // Serialize current state
+    auto projectData = ProjectSerializer::Serialize(graph_, *timeline_);
+    
+    // Update metadata
+    projectData.metadata.name = projectManager_->GetProjectName();
+    projectData.metadata.modifiedDate = ProjectSerializer::GetCurrentTimestamp();
+    
+    bool success = false;
+    if (cmd.filePath.empty()) {
+        success = projectManager_->SaveProject();
+    } else {
+        success = projectManager_->SaveProjectAs(cmd.filePath);
+    }
+
+    if (cmd.onComplete) cmd.onComplete(success);
+}
+
+void Engine::LoadProject(LoadProjectCommand&& cmd) {
+    if (!projectManager_) {
+        if (cmd.onComplete) cmd.onComplete(false);
+        return;
+    }
+
+    bool success = projectManager_->OpenProject(cmd.filePath);
+    if (success) {
+        // Deserialize into engine state
+        const auto& data = projectManager_->GetData();
+        ProjectSerializer::Deserialize(data, graph_, *timeline_);
+    }
+
+    if (cmd.onComplete) cmd.onComplete(success);
+}
+
+} // namespace vfx
+
+// Phase 7+: Node graph operations implementation
+namespace vfx {
+
+void Engine::AddNode(AddNodeCommand&& cmd) {
+    Node node;
+    node.nodeId = cmd.nodeId;
+    node.kind = cmd.kind;
+    node.debugName = cmd.name;
+    node.x = cmd.x;
+    node.y = cmd.y;
+    
+    // Set default ports based on kind
+    switch (cmd.kind) {
+        case NodeKind::VideoSource:
+        case NodeKind::ImageSource:
+        case NodeKind::AudioSource:
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Shader:
+        case NodeKind::ColorCorrection:
+        case NodeKind::Blur:
+        case NodeKind::Mask:
+            node.inputs.push_back(NodeSocket{"input"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Blend:
+        case NodeKind::Composite:
+            node.inputs.push_back(NodeSocket{"base"});
+            node.inputs.push_back(NodeSocket{"overlay"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Output:
+            node.inputs.push_back(NodeSocket{"input"});
+            break;
+        case NodeKind::Adjustment:
+            node.inputs.push_back(NodeSocket{"input"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Null:
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::VectorSource:
+        case NodeKind::TextSource:
+        case NodeKind::StrokeSource:
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Group:
+            // Group ports are dynamic
+            break;
+    }
+    
+    graph_.AddNode(std::move(node));
+    
+    // Add to group if specified
+    if (!cmd.groupId.empty()) {
+        auto* group = graph_.FindGroup(cmd.groupId);
+        if (group) {
+            // Note: group is const, need mutable access
+            // In real implementation, would use FindGroupMutable
+        }
+    }
+}
+
+void Engine::RemoveNode(RemoveNodeCommand&& cmd) {
+    graph_.RemoveNode(cmd.nodeId);
+}
+
+void Engine::ConnectNodes(ConnectNodesCommand&& cmd) {
+    Connection conn;
+    conn.fromNodeId = cmd.fromNodeId;
+    conn.fromSlot = cmd.fromSlot;
+    conn.toNodeId = cmd.toNodeId;
+    conn.toSlot = cmd.toSlot;
+    graph_.Connect(std::move(conn));
+}
+
+void Engine::SetNodeParent(SetNodeParentCommand&& cmd) {
+    if (auto* node = graph_.FindNodeMutable(cmd.nodeId)) {
+        node->parentNodeId = cmd.parentNodeId;
+    }
+}
+
+void Engine::CreateGroup(CreateGroupCommand&& cmd) {
+    graph_.CreateGroup(cmd.groupId, cmd.name, cmd.memberNodeIds);
+}
+
+void Engine::RemoveGroup(RemoveGroupCommand&& cmd) {
+    graph_.RemoveGroup(cmd.groupId);
+}
+
+void Engine::AddClip(AddClipCommand&& cmd) {
+    Timeline::Clip clip;
+    clip.clipId = cmd.clipId;
+    clip.sourceNodeId = cmd.sourceNodeId;
+    clip.type = cmd.type;
+    clip.timelineStart = cmd.timelineStart;
+    clip.sourceInPoint = cmd.sourceInPoint;
+    clip.sourceOutPoint = cmd.sourceOutPoint;
+    clip.playbackSpeed = cmd.playbackSpeed;
+    clip.layer = cmd.layer;
+    timeline_->AddClip(std::move(clip));
+}
+
+void Engine::RemoveClip(RemoveClipCommand&& cmd) {
+    timeline_->RemoveClip(cmd.clipId);
+}
+
+void Engine::UpdateClip(UpdateClipCommand&& cmd) {
+    if (auto* clip = timeline_->FindClipMutable(cmd.clipId)) {
+        if (cmd.timelineStart) clip->timelineStart = *cmd.timelineStart;
+        if (cmd.sourceInPoint) clip->sourceInPoint = *cmd.sourceInPoint;
+        if (cmd.sourceOutPoint) clip->sourceOutPoint = *cmd.sourceOutPoint;
+        if (cmd.playbackSpeed) clip->playbackSpeed = *cmd.playbackSpeed;
+        if (cmd.layer) clip->layer = *cmd.layer;
+        if (cmd.enabled) clip->enabled = *cmd.enabled;
+        if (cmd.locked) clip->locked = *cmd.locked;
+    }
+}
+
+void Engine::Undo() {
+    // Undo logic would be implemented here
+    // For now, just log
+    LOGI("Undo requested");
+}
+
+void Engine::Redo() {
+    // Redo logic would be implemented here
+    // For now, just log
+    LOGI("Redo requested");
 }
 
 } // namespace vfx

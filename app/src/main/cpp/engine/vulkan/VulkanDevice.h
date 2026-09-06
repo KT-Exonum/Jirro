@@ -10,6 +10,7 @@
 // VK_ANDROID_external_memory_android_hardware_buffer). See MediaEngine.h
 // for the producer side.
 
+#include <android/asset_manager.h>
 #include <android/hardware_buffer.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
@@ -125,10 +126,16 @@ public:
     Result<PipelineHandle> GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
                                                 TextureUsage targetUsage) override;
 
+    // Dev-only: load a pre-compiled .spv from the APK's assets/ folder and
+    // create/replace a shader module. Returns null handle on failure.
+    Result<ShaderModuleHandle> LoadShaderFromAssets(AAssetManager* assetManager,
+                                                     const std::string& assetPath);
+
     bool BeginFrame() override;
     void EndFrame() override;
     void DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
-                             TextureHandle output) override;
+                             TextureHandle output,
+                             const std::unordered_map<std::string, float>& uniformValues = {}) override;
     void Submit() override;
 
     Result<TextureHandle> ImportHardwareBuffer(HardwareBufferHandle buffer, uint32_t width,
@@ -206,6 +213,26 @@ private:
     ResourcePool<VkBufferResource, BufferTag> buffers_;
     ResourcePool<VkPipelineResource, PipelineTag> pipelines_;
     ResourcePool<VkShaderModule, ShaderModuleTag> shaderModules_;
+
+    // Phase 3: descriptor pool and set layouts for render graph passes
+    VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout uniformSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout paramSetLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayout1_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayout2_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayoutYcbcr_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout textureSetLayoutYcbcr1_ = VK_NULL_HANDLE;
+    VkPipelineLayout graphPipelineLayout_ = VK_NULL_HANDLE;
+
+    // Per-frame uniform buffers for render graph
+    struct FrameUniformBuffers {
+        BufferHandle uniformBuffer;  // Set 0: projection + resolution
+        BufferHandle paramBuffer;    // Set 1: effect params
+        VkDescriptorSet uniformSet;
+        VkDescriptorSet paramSet;
+        VkDescriptorSet textureSet;
+    };
+    std::array<FrameUniformBuffers, kMaxFramesInFlight> frameUniformBuffers_{};
 
     // Phase 2: caches so repeated frames from the same decoder (same
     // AHardwareBuffer format every time) don't recreate a

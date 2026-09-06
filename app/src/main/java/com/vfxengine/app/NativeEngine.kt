@@ -1,5 +1,6 @@
 package com.vfxengine.app
 
+import android.content.res.AssetManager
 import android.view.Surface
 
 /**
@@ -48,6 +49,124 @@ class NativeEngine {
         if (handle != 0L) nativeSetPlaying(handle, playing)
     }
 
+    // Phase 4: Timeline control
+    fun setPlaybackSpeed(speed: Double) {
+        if (handle != 0L) nativeSetPlaybackSpeed(handle, speed)
+    }
+
+    fun setScrubbing(scrubbing: Boolean) {
+        if (handle != 0L) nativeSetScrubbing(handle, scrubbing)
+    }
+
+    fun setMasterSpeed(speed: Double) {
+        if (handle != 0L) nativeSetMasterSpeed(handle, speed)
+    }
+
+    // Phase 6: Export
+    fun export(
+        outputPath: String,
+        width: Int = 1920,
+        height: Int = 1080,
+        frameRate: Double = 30.0,
+        startTime: Double = 0.0,
+        endTime: Double = 10.0,
+        bitrateMbps: Int = 20,
+        codec: String = "video/avc"
+    ) {
+        if (handle != 0L) nativeExport(handle, outputPath, width, height, frameRate, startTime, endTime, bitrateMbps, codec)
+    }
+
+    // Phase 6: Project management
+    fun saveProject(filePath: String?) {
+        if (handle != 0L) nativeSaveProject(handle, filePath ?: "")
+    }
+
+    fun loadProject(filePath: String) {
+        if (handle != 0L) nativeLoadProject(handle, filePath)
+    }
+
+    fun newProject(name: String = "Untitled Project") {
+        if (handle != 0L) nativeNewProject(handle, name)
+    }
+
+    // Phase 6: Profiling
+    fun getProfileStats(): String {
+        if (handle != 0L) return nativeGetProfileStats(handle)
+        return "{}"
+    }
+
+    // Phase 6: Dev shader hot-reload
+    fun setAssetManager(assetManager: AssetManager) {
+        if (handle != 0L) nativeSetAssetManager(handle, assetManager)
+    }
+
+    fun reloadShaders() {
+        if (handle != 0L) nativeReloadShaders(handle)
+    }
+
+    // Phase 7+: Node graph commands
+    fun addNode(kind: Int, x: Float, y: Float, name: String, groupId: String = "") {
+        if (handle != 0L) nativeAddNode(handle, kind, x, y, name, groupId)
+    }
+
+    fun removeNode(nodeId: String) {
+        if (handle != 0L) nativeRemoveNode(handle, nodeId)
+    }
+
+    fun connectNodes(fromNodeId: String, fromSlot: String, toNodeId: String, toSlot: String) {
+        if (handle != 0L) nativeConnectNodes(handle, fromNodeId, fromSlot, toNodeId, toSlot)
+    }
+
+    fun setNodeParent(nodeId: String, parentNodeId: String) {
+        if (handle != 0L) nativeSetNodeParent(handle, nodeId, parentNodeId)
+    }
+
+    fun createGroup(groupId: String, name: String, memberIds: Array<String>) {
+        if (handle != 0L) nativeCreateGroup(handle, groupId, name, memberIds)
+    }
+
+    fun removeGroup(groupId: String) {
+        if (handle != 0L) nativeRemoveGroup(handle, groupId)
+    }
+
+    // Timeline clip commands
+    fun addClip(clipId: String, sourceNodeId: String, type: Int, timelineStart: Double, sourceIn: Double, sourceOut: Double, speed: Double, layer: Int) {
+        if (handle != 0L) nativeAddClip(handle, clipId, sourceNodeId, type, timelineStart, sourceIn, sourceOut, speed, layer)
+    }
+
+    fun removeClip(clipId: String) {
+        if (handle != 0L) nativeRemoveClip(handle, clipId)
+    }
+
+    fun updateClip(
+        clipId: String,
+        timelineStart: Double? = null,
+        sourceIn: Double? = null,
+        sourceOut: Double? = null,
+        speed: Double? = null,
+        layer: Int? = null,
+        enabled: Boolean? = null,
+        locked: Boolean? = null
+    ) {
+        if (handle != 0L) {
+            nativeUpdateClip(
+                handle, clipId,
+                timelineStart ?: 0.0, sourceIn ?: 0.0, sourceOut ?: 0.0, speed ?: 0.0, layer ?: 0,
+                enabled ?: false, locked ?: false,
+                timelineStart != null, sourceIn != null, sourceOut != null, speed != null, layer != null, enabled != null, locked != null
+            )
+        }
+    }
+
+    // Undo/Redo
+    fun undo() {
+        if (handle != 0L) nativeUndo(handle)
+    }
+
+    fun redo() {
+        if (handle != 0L) nativeRedo(handle)
+    }
+
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAttachSurface(handle: Long, surface: Surface)
@@ -55,6 +174,37 @@ class NativeEngine {
     private external fun nativeUpdateUniform(handle: Long, nodeId: String, uniformName: String, value: Float)
     private external fun nativeSeek(handle: Long, seconds: Double)
     private external fun nativeSetPlaying(handle: Long, playing: Boolean)
+    private external fun nativeSetPlaybackSpeed(handle: Long, speed: Double)
+    private external fun nativeSetScrubbing(handle: Long, scrubbing: Boolean)
+    private external fun nativeSetMasterSpeed(handle: Long, speed: Double)
+    private external fun nativeExport(handle: Long, outputPath: String, width: Int, height: Int, frameRate: Double, startTime: Double, endTime: Double, bitrateMbps: Int, codec: String)
+    private external fun nativeSaveProject(handle: Long, filePath: String)
+    private external fun nativeLoadProject(handle: Long, filePath: String)
+    private external fun nativeNewProject(handle: Long, name: String)
+    private external fun nativeGetProfileStats(handle: Long): String
+
+    // Phase 6: Dev shader hot-reload
+    private external fun nativeSetAssetManager(handle: Long, assetManager: AssetManager)
+    private external fun nativeReloadShaders(handle: Long)
+
+    // Phase 7+ externals
+    private external fun nativeAddNode(handle: Long, kind: Int, x: Float, y: Float, name: String, groupId: String)
+    private external fun nativeRemoveNode(handle: Long, nodeId: String)
+    private external fun nativeConnectNodes(handle: Long, fromNodeId: String, fromSlot: String, toNodeId: String, toSlot: String)
+    private external fun nativeSetNodeParent(handle: Long, nodeId: String, parentNodeId: String)
+    private external fun nativeCreateGroup(handle: Long, groupId: String, name: String, memberIds: Array<String>)
+    private external fun nativeRemoveGroup(handle: Long, groupId: String)
+    private external fun nativeAddClip(handle: Long, clipId: String, sourceNodeId: String, type: Int, timelineStart: Double, sourceIn: Double, sourceOut: Double, speed: Double, layer: Int)
+    private external fun nativeRemoveClip(handle: Long, clipId: String)
+    private external fun nativeUpdateClip(
+        handle: Long,
+        clipId: String,
+        timelineStart: Double, sourceIn: Double, sourceOut: Double, speed: Double, layer: Int,
+        enabled: Boolean, locked: Boolean,
+        hasTimelineStart: Boolean, hasSourceIn: Boolean, hasSourceOut: Boolean, hasSpeed: Boolean, hasLayer: Boolean, hasEnabled: Boolean, hasLocked: Boolean
+    )
+    private external fun nativeUndo(handle: Long)
+    private external fun nativeRedo(handle: Long)
 
     companion object {
         init {

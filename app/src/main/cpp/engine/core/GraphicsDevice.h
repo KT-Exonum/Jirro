@@ -87,7 +87,8 @@ public:
     virtual void DrawFullscreenPass(
         PipelineHandle pipeline,
         std::span<const TextureHandle> inputs,
-        TextureHandle output) = 0;
+        TextureHandle output,
+        const std::unordered_map<std::string, float>& uniformValues = {}) = 0;
 
     virtual void Submit() = 0;
 

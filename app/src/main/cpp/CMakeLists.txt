@@ -6,17 +6,69 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(ENGINE_DEV_SHADER_HOTLOAD "Allow runtime GLSL->SPIR-V compilation (dev builds only)" OFF)
 
+# ---------------------------------------------------------------------------
+# Shader build step: compile GLSL -> SPIR-V and embed as a C++ header.
+# ---------------------------------------------------------------------------
+find_package(Python3 COMPONENTS Interpreter QUIET)
+
+# Locate glslangValidator: first from ANDROID_NDK_HOME, then PATH.
+set(NDK_GLSLANG_VALIDATOR "")
+if(DEFINED ENV{ANDROID_NDK_HOME})
+    set(NDK_GLSLANG_VALIDATOR
+        "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/glslangValidator")
+endif()
+
+find_program(GLSLANG_VALIDATOR
+    NAMES glslangValidator
+    PATHS ${NDK_GLSLANG_VALIDATOR}
+    PATH_SUFFIXES bin
+    DOC "Path to glslangValidator for offline SPIR-V compilation"
+)
+
+set(SHADER_EMBEDDED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/shaders_embedded.h")
+set(SHADER_COMPILE_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/compile_shaders.py")
+
+if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
+    add_custom_command(
+        OUTPUT  ${SHADER_EMBEDDED_HEADER}
+        COMMAND ${Python3_EXECUTABLE}
+                ${SHADER_COMPILE_SCRIPT}
+                --shader-dir "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+                --output ${SHADER_EMBEDDED_HEADER}
+                --glslang-validator ${GLSLANG_VALIDATOR}
+        DEPENDS ${SHADER_COMPILE_SCRIPT}
+                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert
+                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag
+        COMMENT "Compiling GLSL shaders to embedded SPIR-V header"
+        VERBATIM
+    )
+    message(STATUS "Shader compilation enabled: ${GLSLANG_VALIDATOR}")
+else()
+    message(STATUS "Shader compilation disabled (glslangValidator not found; shaders will be stubs)")
+    # Create an empty placeholder header so the include still resolves.
+    file(WRITE ${SHADER_EMBEDDED_HEADER} "// Shader compilation disabled: no glslangValidator found.\n")
+endif()
+
+# ---------------------------------------------------------------------------
+# Library
+# ---------------------------------------------------------------------------
+
 add_library(vfxengine SHARED
     jni/jni_bridge.cpp
     Engine.cpp
     engine/vulkan/VulkanDevice.cpp
     engine/graph/RenderGraph.cpp
     engine/media/MediaEngine.cpp
+    engine/core/Profiler.cpp
+    engine/export/ExportPipeline.cpp
+    engine/export/ProjectSerializer.cpp
+    ${SHADER_EMBEDDED_HEADER}
 )
 
 target_include_directories(vfxengine PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/engine
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 if(ENGINE_DEV_SHADER_HOTLOAD)
