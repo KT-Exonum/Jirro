@@ -86,12 +86,18 @@ find_library(vulkan-lib vulkan)
 find_library(mediandk-lib mediandk)   # AMediaCodec / AMediaExtractor / AImageReader / AImage
 find_library(nativewindow-lib nativewindow) # ANativeWindow / AHardwareBuffer
 
+# HarfBuzz and FreeType for text shaping (NDK provides these)
+find_library(harfbuzz-lib harfbuzz)
+find_library(freetype-lib freetype)
+
 target_link_libraries(vfxengine
     ${log-lib}
     ${android-lib}
     ${vulkan-lib}
     ${mediandk-lib}
     ${nativewindow-lib}
+    ${harfbuzz-lib}
+    ${freetype-lib}
 )
 
 target_compile_options(vfxengine PRIVATE

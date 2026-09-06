@@ -63,6 +63,10 @@ public:
     virtual void ReleaseBuffer(BufferHandle handle) = 0;
     virtual void FillBuffer(BufferHandle handle, uint32_t data) = 0;
 
+    // Access underlying resources (for advanced use like text rendering)
+    virtual void* GetBufferMapped(BufferHandle handle) = 0;
+    virtual void* GetTextureMapped(TextureHandle handle) = 0;
+
     // Compiled shader upload. `spirv` for VulkanDevice, ignored (or cross
     // compiled) by OpenGLDevice — see OpenGLDevice.h for that seam.
     virtual Result<ShaderModuleHandle> CreateShaderModule(std::span<const uint32_t> spirv) = 0;

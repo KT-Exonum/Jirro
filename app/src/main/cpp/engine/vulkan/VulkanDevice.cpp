@@ -918,6 +918,16 @@ void VulkanDevice::FillBuffer(BufferHandle handle, uint32_t data) {
     vkCmdFillBuffer(cmd, bufRes->buffer, 0, VK_WHOLE_SIZE, data);
 }
 
+void* VulkanDevice::GetBufferMapped(BufferHandle handle) {
+    VkBufferResource* bufRes = buffers_.Get(handle);
+    return bufRes ? bufRes->mapped : nullptr;
+}
+
+void* VulkanDevice::GetTextureMapped(TextureHandle handle) {
+    VkTextureResource* texRes = textures_.Get(handle);
+    return texRes ? texRes->mapped : nullptr;
+}
+
 Result<ShaderModuleHandle> VulkanDevice::CreateShaderModule(std::span<const uint32_t> spirv) {
     VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     info.codeSize = spirv.size_bytes();

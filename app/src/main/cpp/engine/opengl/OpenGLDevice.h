@@ -39,6 +39,9 @@ public:
     Result<PipelineHandle> GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
                                                 TextureUsage targetUsage) override;
 
+    void* GetBufferMapped(BufferHandle handle) override;
+    void* GetTextureMapped(TextureHandle handle) override;
+
     bool BeginFrame() override;
     void EndFrame() override;
     void DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,

@@ -141,11 +141,16 @@ void Engine::Tick() {
             // Phase 7+: Initialize expression engine
             expressionEngine_ = std::make_unique<ExpressionEngine>();
             ExpressionEngine::RegisterBuiltins(*expressionEngine_);
+
+            // Text rendering
+            textRenderer_ = std::make_unique<TextRenderer>(*device_);
+            textRenderer_->Initialize("/system/fonts/Roboto-Regular.ttf");
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
             if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
             if (profiler_) { profiler_->Shutdown(); profiler_.reset(); }
             expressionEngine_.reset();
+            textRenderer_.reset();
             projectManager_.reset();
             device_->Shutdown();
             device_.reset();

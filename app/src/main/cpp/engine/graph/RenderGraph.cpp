@@ -194,6 +194,16 @@ extern size_t kPolarCoordinatesFragSpirvWords;
 extern const uint32_t* kDisplacementMapFragSpirv;
 extern size_t kDisplacementMapFragSpirvWords;
 
+// Text shaders
+extern const uint32_t* kTextVertSpirv;
+extern size_t kTextVertSpirvWords;
+extern const uint32_t* kTextFragSpirv;
+extern size_t kTextFragSpirvWords;
+extern const uint32_t* kTextAnimatorVertSpirv;
+extern size_t kTextAnimatorVertSpirvWords;
+extern const uint32_t* kTextPathVertSpirv;
+extern size_t kTextPathVertSpirvWords;
+
 // ---------------------------------------------------------------------------
 // Shader registry: replaces the old 200+ line switch(pass.kind) with a
 // data-driven lookup. Each NodeKind maps to a vertex/fragment SPIR-V pair.
@@ -221,8 +231,12 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(ImageSource, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(AudioSource, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(VectorSource, kVectorSourceVertSpirv, kVectorSourceVertSpirvWords, kVectorSourceFragSpirv, kVectorSourceFragSpirvWords);
-        V(TextSource, kTextSourceVertSpirv, kTextSourceVertSpirvWords, kTextSourceFragSpirv, kTextSourceFragSpirvWords);
+        V(TextSource, kTextVertSpirv, kTextVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
         V(StrokeSource, kStrokeSourceVertSpirv, kStrokeSourceVertSpirvWords, kStrokeSourceFragSpirv, kStrokeSourceFragSpirvWords);
+        // Text animation
+        V(TextAnimator, kTextAnimatorVertSpirv, kTextAnimatorVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
+        V(TextPath, kTextPathVertSpirv, kTextPathVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
+        V(Typewriter, kTextAnimatorVertSpirv, kTextAnimatorVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
         // Effects
         V(Shader, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(ColorCorrection, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kColorCorrectionFragSpirv, kColorCorrectionFragSpirvWords);

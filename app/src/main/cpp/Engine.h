@@ -34,6 +34,7 @@
 #include "engine/graph/Node.h"
 #include "engine/graph/RenderGraph.h"
 #include "engine/media/MediaEngine.h"
+#include "engine/text/TextRenderer.h"
 #include "engine/timeline/Timeline.h"
 
 namespace vfx {
@@ -352,6 +353,9 @@ private:
 
     // Phase 7+: Expression engine for procedural animation
     std::unique_ptr<ExpressionEngine> expressionEngine_;
+
+    // Text rendering
+    std::unique_ptr<TextRenderer> textRenderer_;
 
     // Dev hot-reload: non-owning pointer to the APK's AAssetManager.
     AAssetManager* assetManager_ = nullptr;
