@@ -13,6 +13,8 @@
 //
 // Phase 6: owns Profiler, ExportPipeline, ProjectManager for optimization,
 // export, and project persistence.
+//
+// Phase 7+: owns AudioMixer, ExpressionEngine, UndoRedoManager for advanced features.
 
 #include <android/native_window.h>
 
@@ -67,6 +69,72 @@ struct LoadProjectCommand {
     std::string filePath;
     std::function<void(bool)> onComplete;
 };
+
+// Phase 7+: Node commands
+struct AddNodeCommand {
+    std::string nodeId;
+    NodeKind kind;
+    float x = 0.0f;
+    float y = 0.0f;
+    std::string name;
+    std::string groupId; // optional group to add to
+};
+
+struct RemoveNodeCommand {
+    std::string nodeId;
+};
+
+struct ConnectNodesCommand {
+    std::string fromNodeId;
+    std::string fromSlot;
+    std::string toNodeId;
+    std::string toSlot;
+};
+
+struct SetNodeParentCommand {
+    std::string nodeId;
+    std::string parentNodeId; // empty = unparent
+};
+
+struct CreateGroupCommand {
+    std::string groupId;
+    std::string name;
+    std::vector<std::string> memberNodeIds;
+};
+
+struct RemoveGroupCommand {
+    std::string groupId;
+};
+
+struct AddClipCommand {
+    std::string clipId;
+    std::string sourceNodeId;
+    Timeline::ClipType type = Timeline::ClipType::Video;
+    double timelineStart = 0.0;
+    double sourceInPoint = 0.0;
+    double sourceOutPoint = 0.0;
+    double playbackSpeed = 1.0;
+    int layer = 0;
+};
+
+struct RemoveClipCommand {
+    std::string clipId;
+};
+
+struct UpdateClipCommand {
+    std::string clipId;
+    std::optional<double> timelineStart;
+    std::optional<double> sourceInPoint;
+    std::optional<double> sourceOutPoint;
+    std::optional<double> playbackSpeed;
+    std::optional<int> layer;
+    std::optional<bool> enabled;
+    std::optional<bool> locked;
+};
+
+// Undo/Redo
+struct UndoCommand {};
+struct RedoCommand {};
 
 class Engine {
 public:
@@ -151,6 +219,71 @@ public:
         });
     }
 
+    // Phase 7+: Node graph commands
+    void QueueAddNode(AddNodeCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.AddNode(std::move(cmd));
+        });
+    }
+
+    void QueueRemoveNode(RemoveNodeCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.RemoveNode(std::move(cmd));
+        });
+    }
+
+    void QueueConnectNodes(ConnectNodesCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.ConnectNodes(std::move(cmd));
+        });
+    }
+
+    void QueueSetNodeParent(SetNodeParentCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.SetNodeParent(std::move(cmd));
+        });
+    }
+
+    void QueueCreateGroup(CreateGroupCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.CreateGroup(std::move(cmd));
+        });
+    }
+
+    void QueueRemoveGroup(RemoveGroupCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.RemoveGroup(std::move(cmd));
+        });
+    }
+
+    // Timeline clip commands
+    void QueueAddClip(AddClipCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.AddClip(std::move(cmd));
+        });
+    }
+
+    void QueueRemoveClip(RemoveClipCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.RemoveClip(std::move(cmd));
+        });
+    }
+
+    void QueueUpdateClip(UpdateClipCommand cmd) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+            engine.UpdateClip(std::move(cmd));
+        });
+    }
+
+    // Undo/Redo
+    void QueueUndo(UndoCommand) {
+        QueueCommand([](Engine& engine) { engine.Undo(); });
+    }
+
+    void QueueRedo(RedoCommand) {
+        QueueCommand([](Engine& engine) { engine.Redo(); });
+    }
+
     // Profiling access
     [[nodiscard]] Profiler* GetProfiler() { return profiler_.get(); }
     [[nodiscard]] const Profiler* GetProfiler() const { return profiler_.get(); }
@@ -172,6 +305,19 @@ private:
     void SaveProject(SaveProjectCommand&& cmd);
     void LoadProject(LoadProjectCommand&& cmd);
     void UpdateThermalAdaptation();
+
+    // Phase 7+: Node graph operations
+    void AddNode(AddNodeCommand&& cmd);
+    void RemoveNode(RemoveNodeCommand&& cmd);
+    void ConnectNodes(ConnectNodesCommand&& cmd);
+    void SetNodeParent(SetNodeParentCommand&& cmd);
+    void CreateGroup(CreateGroupCommand&& cmd);
+    void RemoveGroup(RemoveGroupCommand&& cmd);
+    void AddClip(AddClipCommand&& cmd);
+    void RemoveClip(RemoveClipCommand&& cmd);
+    void UpdateClip(UpdateClipCommand&& cmd);
+    void Undo();
+    void Redo();
 
     std::atomic<bool> running_{false};
     std::thread engineThread_;

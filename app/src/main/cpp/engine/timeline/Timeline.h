@@ -35,21 +35,31 @@ struct TimelineTime {
 
 enum class PlaybackState { Stopped, Playing, Scrubbing };
 
-// A placed instance of a source (video/image/generator) on the timeline.
+enum class ClipType { Video, Audio, Image, Vector, Text, Stroke };
+
+// A placed instance of a source (video/image/audio/generator) on the timeline.
 // Node-graph identity (`sourceNodeId`) is separate from timeline placement
 // so the same node-graph composition can be reused across multiple clips
 // (e.g. one "color grade" subgraph applied to many clips).
 struct Clip {
     std::string clipId;
     std::string sourceNodeId; // resolves into the Render Graph, see Node.h
+    ClipType type = ClipType::Video;
     double timelineStart = 0.0;  // seconds, position on the timeline
     double sourceInPoint = 0.0;  // seconds, trim in-point within the source
     double sourceOutPoint = 0.0; // seconds, trim out-point within the source
     double playbackSpeed = 1.0;  // Section 7: variable speed; negative = reverse
     int layer = 0;               // compositing order, higher draws on top
+    bool enabled = true;
+    bool locked = false;
+
+    [[nodiscard]] double Duration() const {
+        return (sourceOutPoint - sourceInPoint) / std::abs(playbackSpeed);
+    }
 
     [[nodiscard]] bool ContainsTimelineTime(double t) const {
-        const double duration = (sourceOutPoint - sourceInPoint) / std::abs(playbackSpeed);
+        if (!enabled) return false;
+        const double duration = Duration();
         return t >= timelineStart && t < timelineStart + duration;
     }
 
@@ -68,6 +78,16 @@ struct Transition {
     std::string blendShaderNodeId; // Section 10 blend-mode node used during the crossfade window
 };
 
+// Audio-specific clip data
+struct AudioClipData {
+    std::string clipId;
+    double volume = 1.0f;
+    double pan = 0.0f; // -1.0 to 1.0
+    bool mute = false;
+    bool solo = false;
+    // Audio effects (EQ, compressor, etc.) would go here
+};
+
 // Pure data + query model — does not own decoders or GPU resources. Media
 // residency (which frames are decoded/cached right now) is MediaEngine's
 // job (engine/media/MediaEngine.h), driven by whatever Timeline reports as
@@ -77,6 +97,9 @@ public:
     explicit Timeline(double frameRate) : frameRate_(frameRate) {}
 
     void AddClip(Clip clip) { clips_.push_back(std::move(clip)); }
+    void RemoveClip(const std::string& clipId) {
+        std::erase_if(clips_, [&](const Clip& c) { return c.clipId == clipId; });
+    }
     void AddTransition(Transition t) { transitions_.push_back(std::move(t)); }
 
     [[nodiscard]] double FrameRate() const { return frameRate_; }
@@ -113,11 +136,18 @@ public:
         return active;
     }
 
+    [[nodiscard]] std::vector<const Clip*> ActiveClipsOfTypeAt(double timelineT, ClipType type) const {
+        std::vector<const Clip*> active;
+        for (const auto& c : clips_) {
+            if (c.type == type && c.ContainsTimelineTime(timelineT)) active.push_back(&c);
+        }
+        std::sort(active.begin(), active.end(),
+                  [](const Clip* a, const Clip* b) { return a->layer < b->layer; });
+        return active;
+    }
+
     [[nodiscard]] const Transition* ActiveTransitionAt(double timelineT) const {
         for (const auto& t : transitions_) {
-            // A transition is active while both its clips are; exact overlap
-            // window is derived from clip placement rather than stored
-            // redundantly, so edits to clip trim automatically stay consistent.
             const Clip* from = FindClip(t.fromClipId);
             const Clip* to = FindClip(t.toClipId);
             if (!from || !to) continue;
@@ -132,6 +162,12 @@ public:
         for (const auto& c : clips_) if (c.clipId == id) return &c;
         return nullptr;
     }
+    Clip* FindClipMutable(const std::string& id) {
+        for (auto& c : clips_) if (c.clipId == id) return &c;
+        return nullptr;
+    }
+
+    [[nodiscard]] const std::vector<Clip>& AllClips() const { return clips_; }
 
 private:
     double frameRate_;

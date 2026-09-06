@@ -287,3 +287,136 @@ void Engine::LoadProject(LoadProjectCommand&& cmd) {
 }
 
 } // namespace vfx
+
+// Phase 7+: Node graph operations implementation
+namespace vfx {
+
+void Engine::AddNode(AddNodeCommand&& cmd) {
+    Node node;
+    node.nodeId = cmd.nodeId;
+    node.kind = cmd.kind;
+    node.debugName = cmd.name;
+    node.x = cmd.x;
+    node.y = cmd.y;
+    
+    // Set default ports based on kind
+    switch (cmd.kind) {
+        case NodeKind::VideoSource:
+        case NodeKind::ImageSource:
+        case NodeKind::AudioSource:
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Shader:
+        case NodeKind::ColorCorrection:
+        case NodeKind::Blur:
+        case NodeKind::Mask:
+            node.inputs.push_back(NodeSocket{"input"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Blend:
+        case NodeKind::Composite:
+            node.inputs.push_back(NodeSocket{"base"});
+            node.inputs.push_back(NodeSocket{"overlay"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Output:
+            node.inputs.push_back(NodeSocket{"input"});
+            break;
+        case NodeKind::Adjustment:
+            node.inputs.push_back(NodeSocket{"input"});
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Null:
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::VectorSource:
+        case NodeKind::TextSource:
+        case NodeKind::StrokeSource:
+            node.outputs.push_back(NodeSocket{"output"});
+            break;
+        case NodeKind::Group:
+            // Group ports are dynamic
+            break;
+    }
+    
+    graph_.AddNode(std::move(node));
+    
+    // Add to group if specified
+    if (!cmd.groupId.empty()) {
+        auto* group = graph_.FindGroup(cmd.groupId);
+        if (group) {
+            // Note: group is const, need mutable access
+            // In real implementation, would use FindGroupMutable
+        }
+    }
+}
+
+void Engine::RemoveNode(RemoveNodeCommand&& cmd) {
+    graph_.RemoveNode(cmd.nodeId);
+}
+
+void Engine::ConnectNodes(ConnectNodesCommand&& cmd) {
+    Connection conn;
+    conn.fromNodeId = cmd.fromNodeId;
+    conn.fromSlot = cmd.fromSlot;
+    conn.toNodeId = cmd.toNodeId;
+    conn.toSlot = cmd.toSlot;
+    graph_.Connect(std::move(conn));
+}
+
+void Engine::SetNodeParent(SetNodeParentCommand&& cmd) {
+    if (auto* node = graph_.FindNodeMutable(cmd.nodeId)) {
+        node->parentNodeId = cmd.parentNodeId;
+    }
+}
+
+void Engine::CreateGroup(CreateGroupCommand&& cmd) {
+    graph_.CreateGroup(cmd.groupId, cmd.name, cmd.memberNodeIds);
+}
+
+void Engine::RemoveGroup(RemoveGroupCommand&& cmd) {
+    graph_.RemoveGroup(cmd.groupId);
+}
+
+void Engine::AddClip(AddClipCommand&& cmd) {
+    Timeline::Clip clip;
+    clip.clipId = cmd.clipId;
+    clip.sourceNodeId = cmd.sourceNodeId;
+    clip.type = cmd.type;
+    clip.timelineStart = cmd.timelineStart;
+    clip.sourceInPoint = cmd.sourceInPoint;
+    clip.sourceOutPoint = cmd.sourceOutPoint;
+    clip.playbackSpeed = cmd.playbackSpeed;
+    clip.layer = cmd.layer;
+    timeline_->AddClip(std::move(clip));
+}
+
+void Engine::RemoveClip(RemoveClipCommand&& cmd) {
+    timeline_->RemoveClip(cmd.clipId);
+}
+
+void Engine::UpdateClip(UpdateClipCommand&& cmd) {
+    if (auto* clip = timeline_->FindClipMutable(cmd.clipId)) {
+        if (cmd.timelineStart) clip->timelineStart = *cmd.timelineStart;
+        if (cmd.sourceInPoint) clip->sourceInPoint = *cmd.sourceInPoint;
+        if (cmd.sourceOutPoint) clip->sourceOutPoint = *cmd.sourceOutPoint;
+        if (cmd.playbackSpeed) clip->playbackSpeed = *cmd.playbackSpeed;
+        if (cmd.layer) clip->layer = *cmd.layer;
+        if (cmd.enabled) clip->enabled = *cmd.enabled;
+        if (cmd.locked) clip->locked = *cmd.locked;
+    }
+}
+
+void Engine::Undo() {
+    // Undo logic would be implemented here
+    // For now, just log
+    LOGI("Undo requested");
+}
+
+void Engine::Redo() {
+    // Redo logic would be implemented here
+    // For now, just log
+    LOGI("Redo requested");
+}
+
+} // namespace vfx

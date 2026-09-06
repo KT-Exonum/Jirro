@@ -36,6 +36,31 @@ extern const uint32_t* kMaskFragSpirv;
 extern size_t kMaskFragSpirvWords;
 extern const uint32_t* kCompositeFragSpirv;
 extern size_t kCompositeFragSpirvWords;
+// New shaders
+extern const uint32_t* kVectorSourceVertSpirv;
+extern size_t kVectorSourceVertSpirvWords;
+extern const uint32_t* kVectorSourceFragSpirv;
+extern size_t kVectorSourceFragSpirvWords;
+extern const uint32_t* kTextSourceVertSpirv;
+extern size_t kTextSourceVertSpirvWords;
+extern const uint32_t* kTextSourceFragSpirv;
+extern size_t kTextSourceFragSpirvWords;
+extern const uint32_t* kStrokeSourceVertSpirv;
+extern size_t kStrokeSourceVertSpirvWords;
+extern const uint32_t* kStrokeSourceFragSpirv;
+extern size_t kStrokeSourceFragSpirvWords;
+extern const uint32_t* kAdjustmentVertSpirv;
+extern size_t kAdjustmentVertSpirvWords;
+extern const uint32_t* kAdjustmentFragSpirv;
+extern size_t kAdjustmentFragSpirvWords;
+extern const uint32_t* kNullLayerVertSpirv;
+extern size_t kNullLayerVertSpirvWords;
+extern const uint32_t* kNullLayerFragSpirv;
+extern size_t kNullLayerFragSpirvWords;
+extern const uint32_t* kOutputVertSpirv;
+extern size_t kOutputVertSpirvWords;
+extern const uint32_t* kOutputFragSpirv;
+extern size_t kOutputFragSpirvWords;
 
 CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) {
     CompileResult result;
@@ -207,6 +232,12 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
             break;
         }
+        case NodeKind::AudioSource: {
+            // Audio source doesn't produce visual output
+            // In a real implementation, this would feed an audio mixer
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
         case NodeKind::Shader: {
             // Custom shader node - use the node's SPIR-V
             if (!node->spirvFragment.empty()) {
@@ -244,7 +275,39 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             break;
         }
         case NodeKind::Output: {
-            // Output just passes through the input
+            // Output with onion skinning
+            vsHandle = GetOrCreateShaderModule(kOutputVertSpirv, kOutputVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kOutputFragSpirv, kOutputFragSpirvWords);
+            break;
+        }
+        case NodeKind::VectorSource: {
+            vsHandle = GetOrCreateShaderModule(kVectorSourceVertSpirv, kVectorSourceVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kVectorSourceFragSpirv, kVectorSourceFragSpirvWords);
+            break;
+        }
+        case NodeKind::TextSource: {
+            vsHandle = GetOrCreateShaderModule(kTextSourceVertSpirv, kTextSourceVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kTextSourceFragSpirv, kTextSourceFragSpirvWords);
+            break;
+        }
+        case NodeKind::StrokeSource: {
+            vsHandle = GetOrCreateShaderModule(kStrokeSourceVertSpirv, kStrokeSourceVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kStrokeSourceFragSpirv, kStrokeSourceFragSpirvWords);
+            break;
+        }
+        case NodeKind::Adjustment: {
+            vsHandle = GetOrCreateShaderModule(kAdjustmentVertSpirv, kAdjustmentVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kAdjustmentFragSpirv, kAdjustmentFragSpirvWords);
+            break;
+        }
+        case NodeKind::Null: {
+            vsHandle = GetOrCreateShaderModule(kNullLayerVertSpirv, kNullLayerVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kNullLayerFragSpirv, kNullLayerFragSpirvWords);
+            break;
+        }
+        case NodeKind::Group: {
+            // Group nodes are handled by expanding their members during compile
+            // This should not be reached if compile expands groups
             fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
             break;
         }

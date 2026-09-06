@@ -94,6 +94,69 @@ class NativeEngine {
         return "{}"
     }
 
+    // Phase 7+: Node graph commands
+    fun addNode(kind: Int, x: Float, y: Float, name: String, groupId: String = "") {
+        if (handle != 0L) nativeAddNode(handle, kind, x, y, name, groupId)
+    }
+
+    fun removeNode(nodeId: String) {
+        if (handle != 0L) nativeRemoveNode(handle, nodeId)
+    }
+
+    fun connectNodes(fromNodeId: String, fromSlot: String, toNodeId: String, toSlot: String) {
+        if (handle != 0L) nativeConnectNodes(handle, fromNodeId, fromSlot, toNodeId, toSlot)
+    }
+
+    fun setNodeParent(nodeId: String, parentNodeId: String) {
+        if (handle != 0L) nativeSetNodeParent(handle, nodeId, parentNodeId)
+    }
+
+    fun createGroup(groupId: String, name: String, memberIds: Array<String>) {
+        if (handle != 0L) nativeCreateGroup(handle, groupId, name, memberIds)
+    }
+
+    fun removeGroup(groupId: String) {
+        if (handle != 0L) nativeRemoveGroup(handle, groupId)
+    }
+
+    // Timeline clip commands
+    fun addClip(clipId: String, sourceNodeId: String, type: Int, timelineStart: Double, sourceIn: Double, sourceOut: Double, speed: Double, layer: Int) {
+        if (handle != 0L) nativeAddClip(handle, clipId, sourceNodeId, type, timelineStart, sourceIn, sourceOut, speed, layer)
+    }
+
+    fun removeClip(clipId: String) {
+        if (handle != 0L) nativeRemoveClip(handle, clipId)
+    }
+
+    fun updateClip(
+        clipId: String,
+        timelineStart: Double? = null,
+        sourceIn: Double? = null,
+        sourceOut: Double? = null,
+        speed: Double? = null,
+        layer: Int? = null,
+        enabled: Boolean? = null,
+        locked: Boolean? = null
+    ) {
+        if (handle != 0L) {
+            nativeUpdateClip(
+                handle, clipId,
+                timelineStart ?: 0.0, sourceIn ?: 0.0, sourceOut ?: 0.0, speed ?: 0.0, layer ?: 0,
+                enabled ?: false, locked ?: false,
+                timelineStart != null, sourceIn != null, sourceOut != null, speed != null, layer != null, enabled != null, locked != null
+            )
+        }
+    }
+
+    // Undo/Redo
+    fun undo() {
+        if (handle != 0L) nativeUndo(handle)
+    }
+
+    fun redo() {
+        if (handle != 0L) nativeRedo(handle)
+    }
+
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAttachSurface(handle: Long, surface: Surface)
@@ -109,6 +172,25 @@ class NativeEngine {
     private external fun nativeLoadProject(handle: Long, filePath: String)
     private external fun nativeNewProject(handle: Long, name: String)
     private external fun nativeGetProfileStats(handle: Long): String
+
+    // Phase 7+ externals
+    private external fun nativeAddNode(handle: Long, kind: Int, x: Float, y: Float, name: String, groupId: String)
+    private external fun nativeRemoveNode(handle: Long, nodeId: String)
+    private external fun nativeConnectNodes(handle: Long, fromNodeId: String, fromSlot: String, toNodeId: String, toSlot: String)
+    private external fun nativeSetNodeParent(handle: Long, nodeId: String, parentNodeId: String)
+    private external fun nativeCreateGroup(handle: Long, groupId: String, name: String, memberIds: Array<String>)
+    private external fun nativeRemoveGroup(handle: Long, groupId: String)
+    private external fun nativeAddClip(handle: Long, clipId: String, sourceNodeId: String, type: Int, timelineStart: Double, sourceIn: Double, sourceOut: Double, speed: Double, layer: Int)
+    private external fun nativeRemoveClip(handle: Long, clipId: String)
+    private external fun nativeUpdateClip(
+        handle: Long,
+        clipId: String,
+        timelineStart: Double, sourceIn: Double, sourceOut: Double, speed: Double, layer: Int,
+        enabled: Boolean, locked: Boolean,
+        hasTimelineStart: Boolean, hasSourceIn: Boolean, hasSourceOut: Boolean, hasSpeed: Boolean, hasLayer: Boolean, hasEnabled: Boolean, hasLocked: Boolean
+    )
+    private external fun nativeUndo(handle: Long)
+    private external fun nativeRedo(handle: Long)
 
     companion object {
         init {

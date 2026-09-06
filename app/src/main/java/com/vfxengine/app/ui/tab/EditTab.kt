@@ -39,13 +39,12 @@ import com.vfxengine.app.ui.common.EditorState
  */
 @Composable
 fun EditTab(state: EditorState) {
-    var selectedClip by remember { mutableStateOf<String>("Clip_01.mp4") }
-    var clipHasEffects by remember { mutableStateOf(true) }
+    var selectedClipId by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Video Preview
         VideoPreview(
-            timecode = "00:24 / 03:30",
+            timecode = "${formatTimecode(state.currentTimeSeconds)} / ${formatTimecode(state.durationSeconds)}",
             onPlayClick = { state.setPlaying(!state.isPlaying) }
         )
 
@@ -55,17 +54,22 @@ fun EditTab(state: EditorState) {
         // Timeline Tracks
         TimelineTracks(
             state = state,
-            selectedClip = selectedClip,
-            onClipClick = { name -> selectedClip = name }
+            selectedClipId = selectedClipId,
+            onClipClick = { id -> selectedClipId = id }
         )
 
         // Quick Action Toolbar
         QuickActionToolbar()
 
         // Selected Item Footer
+        val selectedClip = state.clips.value.firstOrNull { it.id == selectedClipId }
+        val hasEffects = selectedClip?.let { 
+            state.nodes.value[it.nodeId]?.animatedUniforms?.isNotEmpty() ?: false 
+        } ?: false
+        
         SelectedItemFooter(
-            clipName = selectedClip,
-            hasEffects = clipHasEffects,
+            clipName = selectedClip?.id ?: "None",
+            hasEffects = hasEffects,
             onNodeEditorClick = { /* Open node editor */ }
         )
     }
@@ -187,7 +191,7 @@ fun PlaybackControlsRow(state: EditorState) {
 @Composable
 fun TimelineTracks(
     state: EditorState,
-    selectedClip: String,
+    selectedClipId: String?,
     onClipClick: (String) -> Unit
 ) {
     Card(
@@ -202,36 +206,62 @@ fun TimelineTracks(
 
             androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
 
-            // V2 Track
-            TrackRow(
-                trackName = "V2",
-                clips = listOf(ClipItem("Overlay.png", false)),
-                selectedClip = selectedClip,
-                onClipClick = onClipClick,
-                isVideo = true
-            )
+            // Group clips by type and layer
+            val videoClips = state.clips.value.filter { it.type == EditorState.ClipType.Video }
+            val audioClips = state.clips.value.filter { it.type == EditorState.ClipType.Audio }
+            val otherClips = state.clips.value.filter { it.type != EditorState.ClipType.Video && it.type != EditorState.ClipType.Audio }
 
-            androidx.compose.foundation.layout.Box(modifier = Modifier.height(4.dp))
+            // Video tracks (V1, V2, ...)
+            val videoLayers = videoClips.groupBy { it.layer }.toSortedMap()
+            videoLayers.forEach { (layer, clips) ->
+                val trackName = "V${layer + 1}"
+                TrackRow(
+                    trackName = trackName,
+                    clips = clips.map { ClipItem(it.id, it.name, selectedClipId == it.id, true) },
+                    selectedClipId = selectedClipId,
+                    onClipClick = onClipClick,
+                    isVideo = true
+                )
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(4.dp))
+            }
 
-            // V1 Track
-            TrackRow(
-                trackName = "V1",
-                clips = listOf(ClipItem("Clip_01.mp4", true)),
-                selectedClip = selectedClip,
-                onClipClick = onClipClick,
-                isVideo = true
-            )
+            // Other visual tracks
+            val otherLayers = otherClips.groupBy { it.layer }.toSortedMap()
+            otherLayers.forEach { (layer, clips) ->
+                val trackName = "L${layer + 1}"
+                TrackRow(
+                    trackName = trackName,
+                    clips = clips.map { ClipItem(it.id, it.name, selectedClipId == it.id, true) },
+                    selectedClipId = selectedClipId,
+                    onClipClick = onClipClick,
+                    isVideo = true
+                )
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(4.dp))
+            }
 
-            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            // Audio tracks
+            val audioLayers = audioClips.groupBy { it.layer }.toSortedMap()
+            audioLayers.forEach { (layer, clips) ->
+                val trackName = "A${layer + 1}"
+                TrackRow(
+                    trackName = trackName,
+                    clips = clips.map { ClipItem(it.id, it.name, selectedClipId == it.id, false) },
+                    selectedClipId = selectedClipId,
+                    onClipClick = onClipClick,
+                    isVideo = false
+                )
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            }
 
-            // A1 Track
-            TrackRow(
-                trackName = "A1",
-                clips = listOf(ClipItem("Music_Track.mp3", false)),
-                selectedClip = selectedClip,
-                onClipClick = onClipClick,
-                isVideo = false
-            )
+            // Empty state if no clips
+            if (state.clips.value.isEmpty()) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "No clips on timeline. Add media from Media tab.", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+                }
+            }
         }
     }
 }
@@ -262,13 +292,13 @@ fun TimeRuler(state: EditorState) {
     }
 }
 
-data class ClipItem(val name: String, val isSelected: Boolean)
+data class ClipItem(val id: String, val name: String, val isSelected: Boolean, val isVideo: Boolean)
 
 @Composable
 fun TrackRow(
     trackName: String,
     clips: List<ClipItem>,
-    selectedClip: String,
+    selectedClipId: String?,
     onClipClick: (String) -> Unit,
     isVideo: Boolean
 ) {
@@ -307,8 +337,7 @@ fun TrackRow(
                 clips.forEach { clip ->
                     ClipView(
                         clip = clip,
-                        isVideo = isVideo,
-                        onClick = { onClipClick(clip.name) }
+                        onClick = { onClick(clip.id) }
                     )
                 }
             }
@@ -319,15 +348,14 @@ fun TrackRow(
 @Composable
 fun ClipView(
     clip: ClipItem,
-    isVideo: Boolean,
     onClick: () -> Unit
 ) {
-    val color = if (isVideo) Color(0xFF2196F3) else Color.Green
+    val color = if (clip.isVideo) Color(0xFF2196F3) else Color.Green
 
     Card(
         modifier = Modifier
             .width(200.dp)
-            .height(if (isVideo) 72.dp else 40.dp)
+            .height(if (clip.isVideo) 72.dp else 40.dp)
             .background(if (clip.isSelected) Color(0xFF1A3A4A) else color)
             .padding(4.dp),
         onClick = onClick
@@ -338,7 +366,7 @@ fun ClipView(
         ) {
             // Clip type icon
             Icon(
-                painter = painterResource(id = if (isVideo) android.R.drawable.ic_media_play else android.R.drawable.ic_media_play),
+                painter = painterResource(id = if (clip.isVideo) android.R.drawable.ic_media_play else android.R.drawable.ic_media_play),
                 contentDescription = "",
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
@@ -466,3 +494,12 @@ fun SelectedItemFooter(
         }
     }
 }
+private fun formatTimecode(seconds: Double): String {
+    val totalFrames = (seconds * 30).roundToInt()
+    val hours = totalFrames / (30 * 60 * 60)
+    val minutes = (totalFrames / (30 * 60)) % 60
+    val secs = (totalFrames / 30) % 60
+    val frames = totalFrames % 30
+    return String.format("%02d:%02d:%02d:%02d", hours, minutes, secs, frames)
+}
+

@@ -8,6 +8,10 @@
 // VkSamplerYcbcrConversion attached, so YUV->RGB happens for free during
 // texture sampling on the GPU.
 //
+// Audio: decoded via AMediaCodec/AAudio or OpenSL ES into a ring buffer
+// for mixing. Audio frames are pushed to an audio callback on the audio
+// thread (Phase 2+).
+//
 // Threading (Section 14): this subsystem owns its own thread
 // (MediaEngine::mediaThread_) so decode latency never stalls the engine
 // thread's render loop. The engine thread only ever calls the non-blocking
@@ -45,6 +49,23 @@ struct DecodedFrame {
     // underlying AHardwareBuffer out from under an in-flight GPU read.
     // FrameCache owns this handle's lifetime; see FrameCache::EvictOutsideWindow.
     std::shared_ptr<AImage> ownedImage;
+};
+
+// Audio frame for mixing
+struct AudioFrame {
+    std::vector<float> samples; // interleaved stereo: L,R,L,R...
+    int64_t presentationTimeUs = 0;
+    int sampleRate = 48000;
+    int channels = 2;
+};
+
+struct AudioClipData {
+    std::string clipId;
+    std::vector<float> pcmData; // decoded PCM audio
+    int sampleRate = 48000;
+    int channels = 2;
+    double duration = 0.0;
+    bool isLoaded = false;
 };
 
 // One AMediaCodec instance around one source file/track. Section 8: "do not
@@ -203,6 +224,39 @@ private:
     std::unordered_map<std::string, std::vector<Entry>> cache_;
 };
 
+// Audio cache for decoded PCM audio
+class AudioCache {
+public:
+    struct Config {
+        size_t maxBytes = 128 * 1024 * 1024; // 128MB for audio
+    };
+    
+    explicit AudioCache(Config config) : config_(config) {}
+    
+    void LoadAudio(const std::string& clipId, const std::string& filePath);
+    void UnloadAudio(const std::string& clipId);
+    
+    [[nodiscard]] std::optional<AudioClipData> GetAudio(const std::string& clipId) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = audioCache_.find(clipId);
+        if (it != audioCache_.end() && it->second.isLoaded) {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+    
+    [[nodiscard]] size_t CurrentBytes() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return currentBytes_;
+    }
+
+private:
+    Config config_;
+    mutable std::mutex mutex_;
+    size_t currentBytes_ = 0;
+    std::unordered_map<std::string, AudioClipData> audioCache_;
+};
+
 // Request describing one clip the engine thread currently wants decoded
 // frames for, refreshed every engine tick from Timeline::ActiveClipsAt().
 struct ActiveClipRequest {
@@ -211,7 +265,17 @@ struct ActiveClipRequest {
     double sourceTimeSeconds = 0.0;
 };
 
-// Facade tying DecoderPool + FrameCache together behind a dedicated media
+// Audio request for mixing
+struct ActiveAudioRequest {
+    std::string clipId;
+    std::string sourceFilePath;
+    double sourceTimeSeconds = 0.0;
+    double volume = 1.0;
+    double pan = 0.0;
+    bool mute = false;
+};
+
+// Facade tying DecoderPool + FrameCache + AudioCache together behind a dedicated media
 // thread (Section 14's "Media Thread" box). RenderGraph's VideoSource pass
 // execution (Phase 3 wiring, see RenderGraph::ExecutePass) calls
 // TryGetFrame() from the engine thread; everything else here runs on
@@ -219,7 +283,7 @@ struct ActiveClipRequest {
 class MediaEngine {
 public:
     MediaEngine(GraphicsDevice& device, DecoderPoolConfig decoderConfig, FrameCacheConfig cacheConfig)
-        : device_(device), decoderPool_(decoderConfig), frameCache_(cacheConfig) {}
+        : device_(device), decoderPool_(decoderConfig), frameCache_(cacheConfig), audioCache_({}) {}
     ~MediaEngine() { Stop(); }
 
     void Start();
@@ -229,6 +293,9 @@ public:
     // mutex). Replaces the full set of clips the media thread should be
     // servicing this frame.
     void SetActiveClips(std::vector<ActiveClipRequest> clips, double playheadTimelineSeconds);
+    
+    // Audio version
+    void SetActiveAudioClips(std::vector<ActiveAudioRequest> clips, double playheadTimelineSeconds);
 
     // Non-blocking. Returns the cached frame nearest `sourceTimeSeconds` for
     // `clipId` if one has been decoded, or std::nullopt if the media thread
@@ -238,16 +305,24 @@ public:
                                                            double sourceTimeSeconds) const {
         return frameCache_.Get(clipId, sourceTimeSeconds);
     }
+    
+    // Get audio samples for mixing
+    [[nodiscard]] std::optional<AudioClipData> TryGetAudio(const std::string& clipId) const {
+        return audioCache_.GetAudio(clipId);
+    }
 
 private:
     void MediaThreadMain();
+    void DecodeAudioFile(const std::string& clipId, const std::string& filePath);
 
     GraphicsDevice& device_;
     DecoderPool decoderPool_;
     FrameCache frameCache_;
+    AudioCache audioCache_;
 
     std::mutex requestMutex_;
     std::vector<ActiveClipRequest> pendingRequests_;
+    std::vector<ActiveAudioRequest> pendingAudioRequests_;
 
     std::thread mediaThread_;
     std::atomic<bool> running_{false};
