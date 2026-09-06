@@ -36,16 +36,14 @@ import com.vfxengine.app.ui.common.ProfilerOverlay
 import com.vfxengine.app.ui.common.ResizablePanel
 import com.vfxengine.app.ui.common.SettingsDialog
 import com.vfxengine.app.ui.common.Settings
-import com.vfxengine.app.ui.inspector.InspectorPanel
-import com.vfxengine.app.ui.keyframe.KeyframeEditor
-import com.vfxengine.app.ui.media.MediaBrowser
-import com.vfxengine.app.ui.nodeeditor.NodeEditor
-import com.vfxengine.app.ui.nodeeditor.NodeEditorToolbar
-import com.vfxengine.app.ui.playback.PlaybackControls
-import com.vfxengine.app.ui.timeline.Timeline
+import com.vfxengine.app.ui.tab.DeliverTab
+import com.vfxengine.app.ui.tab.EditTab
+import com.vfxengine.app.ui.tab.FusionTab
+import com.vfxengine.app.ui.tab.MediaTab
+import com.vfxengine.app.NativeEngine
 
 /**
- * Full editor layout with all panels - now with resizable panels
+ * DaVinci Resolve style 4-tab editor: Media, Edit, Fusion, Deliver
  */
 @Composable
 fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
@@ -53,16 +51,7 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     val settings = remember { mutableStateOf(Settings()) }
     var showSettings by remember { mutableStateOf(false) }
     var showProfiler by remember { mutableStateOf(false) }
-    
-    // Panel sizes (in dp)
-    var leftWidth by remember { mutableStateOf(400f) }
-    var centerWidth by remember { mutableStateOf(600f) }
-    var rightWidth by remember { mutableStateOf(300f) }
-    var previewHeight by remember { mutableStateOf(400f) }
-    var timelineHeight by remember { mutableStateOf(200f) }
-    
-    // Profiler stats
-    val profilerStats by remember { mutableStateOf("{}") }
+    var currentTab by remember { mutableStateOf(EditorTab.Media) }
     
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -70,95 +59,21 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top toolbar
-                EditorToolbar(state, settings.value, onSettingsClick = { showSettings = true }, onProfilerClick = { showProfiler = !showProfiler })
+                // Top tab bar (DaVinci style)
+                EditorTabBar(
+                    currentTab = currentTab,
+                    onTabClick = { currentTab = it }
+                )
                 
                 Divider(color = Color.White.copy(alpha = 0.1f))
                 
-                // Main content area with resizable panels
-                Row(modifier = Modifier.fillMaxSize().weight(1f)) {
-                    // Left panel: Node editor (resizable)
-                    ResizablePanel(
-                        modifier = Modifier.fillMaxHeight(),
-                        initialSize = leftWidth,
-                        minSize = 250f,
-                        maxSize = 800f,
-                        isHorizontal = true,
-                        onSizeChange = { leftWidth = it }
-                    ) { contentModifier ->
-                        Column(modifier = contentModifier.fillMaxSize()) {
-                            NodeEditorToolbar(state)
-                            Divider(color = Color.White.copy(alpha = 0.1f))
-                            NodeEditor(state)
-                        }
-                    }
-                    
-                    // Center: Preview + Timeline (resizable horizontally)
-                    ResizablePanel(
-                        modifier = Modifier.fillMaxHeight(),
-                        initialSize = centerWidth,
-                        minSize = 400f,
-                        maxSize = 1200f,
-                        isHorizontal = true,
-                        onSizeChange = { centerWidth = it }
-                    ) { contentModifier ->
-                        Column(modifier = contentModifier.fillMaxSize()) {
-                            // Preview surface (resizable vertically)
-                            ResizablePanel(
-                                modifier = Modifier.fillMaxWidth(),
-                                initialSize = previewHeight,
-                                minSize = 200f,
-                                maxSize = 800f,
-                                isHorizontal = false,
-                                onSizeChange = { previewHeight = it }
-                            ) { previewModifier ->
-                                Box(
-                                    modifier = previewModifier
-                                        .fillMaxWidth()
-                                        .background(Color.Black)
-                                ) {
-                                    AndroidView(
-                                        factory = { context -> EngineSurfaceView(context, engine) },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
-                            
-                            Divider(color = Color.White.copy(alpha = 0.1f))
-                            
-                            // Timeline (resizable vertically, fills remaining)
-                            ResizablePanel(
-                                modifier = Modifier.fillMaxWidth(),
-                                initialSize = timelineHeight,
-                                minSize = 120f,
-                                maxSize = 500f,
-                                isHorizontal = false,
-                                onSizeChange = { timelineHeight = it }
-                            ) { timelineModifier ->
-                                Timeline(state)
-                            }
-                        }
-                    }
-                    
-                    // Right panel: Inspector + Media + Keyframes (resizable)
-                    ResizablePanel(
-                        modifier = Modifier.fillMaxHeight(),
-                        initialSize = rightWidth,
-                        minSize = 250f,
-                        maxSize = 600f,
-                        isHorizontal = true,
-                        onSizeChange = { rightWidth = it }
-                    ) { contentModifier ->
-                        Column(modifier = contentModifier.fillMaxSize()) {
-                            TabbedRightPanel(state)
-                        }
-                    }
+                // Tab content
+                when (currentTab) {
+                    EditorTab.Media -> MediaTab(state)
+                    EditorTab.Edit -> EditTab(state)
+                    EditorTab.Fusion -> FusionTab(state)
+                    EditorTab.Deliver -> DeliverTab(state, engine)
                 }
-                
-                Divider(color = Color.White.copy(alpha = 0.1f))
-                
-                // Bottom: Playback controls
-                PlaybackControls(state)
             }
             
             // Settings dialog overlay
@@ -177,7 +92,7 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
             // Profiler overlay
             if (showProfiler) {
                 ProfilerOverlay(
-                    statsJson = profilerStats,
+                    statsJson = "{}",
                     visible = showProfiler,
                     onDismiss = { showProfiler = false }
                 )
@@ -186,75 +101,75 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     }
 }
 
-private fun applySettingsToEngine(engine: com.vfxengine.app.NativeEngine, settings: Settings) {
-    // Apply settings to native engine via JNI commands
-    // This would send commands to update native engine settings
-    // For now, we just store them in EditorState
+enum class EditorTab(val label: String, val iconRes: Int) {
+    Media("Media", android.R.drawable.ic_menu_gallery),
+    Edit("Edit", android.R.drawable.ic_media_play),
+    Fusion("Fusion", android.R.drawable.ic_menu_manage),
+    Deliver("Deliver", android.R.drawable.ic_media_next)
 }
 
 @Composable
-fun EditorToolbar(
-    state: EditorState,
-    settings: Settings,
-    onSettingsClick: () -> Unit,
-    onProfilerClick: () -> Unit
+fun EditorTabBar(
+    currentTab: EditorTab,
+    onTabClick: (EditorTab) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(48.dp)
-            .padding(horizontal = 16.dp)
-            .background(Color(0xFF121212)),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .background(Color(0xFF121212))
     ) {
-        // File menu
-        Row {
-            Text(text = "VFX Engine", color = Color.White, fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-            androidx.compose.foundation.layout.Box(modifier = Modifier.width(16.dp))
-            androidx.compose.material3.TextButton(onClick = { /* New project */ }) { Text("New", color = Color.White) }
-            androidx.compose.material3.TextButton(onClick = { /* Open project */ }) { Text("Open", color = Color.White) }
-            androidx.compose.material3.TextButton(onClick = { /* Save project */ }) { Text("Save", color = Color.White) }
-            androidx.compose.material3.TextButton(onClick = { /* Export */ }) { Text("Export", color = Color.White) }
+        EditorTab.values().forEach { tab ->
+            androidx.compose.material3.TextButton(
+                onClick = { onTabClick(tab) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = androidx.compose.material3.TextButtonDefaults.textButtonColors(
+                    containerColor = if (currentTab == tab) Color.Cyan.copy(alpha = 0.1f) else Color.Transparent
+                )
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = tab.iconRes),
+                        contentDescription = "",
+                        tint = if (currentTab == tab) Color.Cyan else Color.White.copy(alpha = 0.7f)
+                    )
+                    androidx.compose.foundation.layout.Box(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = tab.label,
+                        color = if (currentTab == tab) Color.Cyan else Color.White.copy(alpha = 0.9f),
+                        fontSize = 13.sp,
+                        fontWeight = if (currentTab == tab) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
         }
         
-        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f))
-        
-        // View toggles + Settings + Profiler
-        Row {
-            androidx.compose.material3.IconButton(onClick = { /* Toggle node editor */ }) {
-                androidx.compose.material3.Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_manage),
-                    contentDescription = "Nodes"
+        // Right side: Settings + Profiler
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.IconButton(onClick = { /* show profiler */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_report_image),
+                    contentDescription = "Profiler",
+                    tint = Color.White.copy(alpha = 0.7f)
                 )
             }
-            androidx.compose.material3.IconButton(onClick = { /* Toggle timeline */ }) {
-                androidx.compose.material3.Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_media_play),
-                    contentDescription = "Timeline"
-                )
-            }
-            androidx.compose.material3.IconButton(onClick = { /* Toggle inspector */ }) {
-                androidx.compose.material3.Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
-                    contentDescription = "Inspector"
-                )
-            }
-            androidx.compose.material3.IconButton(onClick = onProfilerClick) {
-                androidx.compose.material3.Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_report_image),
-                    contentDescription = "Profiler"
-                )
-            }
-            androidx.compose.material3.IconButton(onClick = onSettingsClick) {
-                androidx.compose.material3.Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_preferences),
-                    contentDescription = "Settings"
+            androidx.compose.material3.IconButton(onClick = { /* show settings */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_preferences),
+                    contentDescription = "Settings",
+                    tint = Color.White.copy(alpha = 0.7f)
                 )
             }
         }
     }
 }
 
-@Composable
-fun TabbedRightPanel(state: EditorState) {
+private fun applySettingsToEngine(engine: com.vfxengine.app.NativeEngine, settings: Settings) {
+    // Apply settings to native engine via JNI commands
+}
