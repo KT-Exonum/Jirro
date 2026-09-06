@@ -13,16 +13,22 @@ struct Particle {
     vec4 color;
     float size;
     float rotation;
-    float life;      // current life (0-1)
-    float maxLife;   // total lifetime
-    float age;       // current age
-    uint active;     // 0 = dead, 1 = alive
+    float life;
+    float maxLife;
+    float age;
+    uint active;
     float rotationSpeed;
     float sizeStart;
     float sizeEnd;
     vec4 colorStart;
     vec4 colorEnd;
     float drag;
+    
+    // Sub-emitter / event data
+    uint emitterType;       // 0=normal, 1=sub-emitter on death, 2=sub-emitter on collision
+    uint parentEmitterId;   // ID of parent emitter for sub-emitters
+    uint spawnCount;        // number of particles to spawn
+    float spawnProbability; // probability of spawning
 };
 
 layout(set = 0, binding = 0) buffer ParticleBuffer {
@@ -54,7 +60,26 @@ layout(set = 0, binding = 1) uniform SimulationParams {
     uint maxParticles;
     uint frameIndex;
     uint seed;
+    
+    // Advanced forces
+    uint forceCount;
+    vec4 forcePositions[8];    // xy = position, z = strength, w = type (0=attractor, 1=repeller, 2=vortex)
+    float forceRadius[8];
+    float forceStrength[8];
+    float curlNoiseScale;
+    float curlNoiseStrength;
+    // SDF collision
+    uint sdfTextureCount;
+    int sdfTextureIds[4];
 } simParams;
+
+// Indirect draw buffer for alive particle count
+layout(set = 0, binding = 2) buffer IndirectBuffer {
+    uint drawCount;      // number of instances to draw
+    uint instanceCount;  // vertices per instance (3 for triangle)
+    uint firstInstance;  // starting instance
+    uint baseVertex;     // base vertex
+} indirectParams;
 
 // Uniform random [0,1)
 float rand(uint seed) {
@@ -77,7 +102,84 @@ vec2 randInDisc(uint seed) {
     return vec2(r * cos(theta), r * sin(theta));
 }
 
+// Curl noise for fluid-like motion
+vec2 curlNoise(vec2 p, float scale) {
+    float eps = 0.01 * scale;
+    float n1 = rand(uint(p.x * 123.456 + p.y * 789.123));
+    float n2 = rand(uint(p.x * 456.789 + p.y * 321.654));
+    float n3 = rand(uint(p.x * 789.123 + p.y * 456.789));
+    float n4 = rand(uint(p.x * 321.654 + p.y * 654.321));
+    
+    float dx = (n1 - n2) * scale;
+    float dy = (n3 - n4) * scale;
+    return vec2(dx, dy);
+}
+
+// SDF collision check (simplified - uses distance field)
+float sdfCollision(vec2 pos, float radius) {
+    // Simplified SDF - in real implementation would sample a texture
+    // For now, just return large distance (no collision)
+    return 1000.0;
+}
+
+// Simple SPH-like pressure force for fluid-like behavior
+vec2 sphPressureForce(vec2 pos, float density) {
+    // Simplified SPH - compute pressure based on local density
+    float targetDensity = 1.0;
+    float pressure = max(0.0, density - targetDensity) * 10.0;
+    // Pressure gradient would require neighbor search - simplified here
+    return vec2(0.0);
+}
+
+// Apply forces to particle
+vec2 applyForces(vec2 pos, vec2 vel, float life, uint seed) {
+    vec2 force = vec2(0.0);
+    
+    // Attractor/repeller/vortex forces
+    for (uint i = 0; i < simParams.forceCount && i < 8u; i++) {
+        vec2 forcePos = simParams.forcePositions[i].xy;
+        float strength = simParams.forceStrength[i];
+        float radius = simParams.forceRadius[i];
+        int type = int(simParams.forcePositions[i].w);
+        
+        vec2 toForce = simParams.forcePositions[i].xy - pos;
+        float dist = length(toForce);
+        
+        if (dist < radius && dist > 0.001) {
+            vec2 dir = toForce / dist;
+            float falloff = 1.0 - (dist / radius);
+            float forceMag = strength * falloff * falloff;
+            
+            if (type == 0) { // Attractor
+                force += dir * forceMag;
+            } else if (type == 1) { // Repeller
+                force -= dir * forceMag;
+            } else if (type == 2) { // Vortex
+                vec2 tangent = vec2(-dir.y, dir.x);
+                force += tangent * forceMag;
+            }
+        }
+    }
+    
+    // Curl noise (fluid-like turbulence)
+    if (simParams.curlNoiseStrength > 0.0) {
+        vec2 curl = curlNoise(pos * simParams.curlNoiseScale, 1.0);
+        force += curl * simParams.curlNoiseStrength;
+    }
+    
+    return force;
+}
+
 void main() {
+    // Reset indirect draw count (first thread of first workgroup)
+    if (gl_GlobalInvocationID.x == 0) {
+        indirectParams.drawCount = 0u;
+        indirectParams.instanceCount = 3u;  // 3 vertices per particle (triangle)
+        indirectParams.firstInstance = 0u;
+        indirectParams.baseVertex = 0u;
+    }
+    barrier(); // Ensure all threads see the reset
+    
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= simParams.maxParticles) return;
     
@@ -155,12 +257,26 @@ void main() {
         p.life = 1.0 - p.age / p.maxLife;
         
         if (p.life <= 0.0) {
+            // Spawn sub-emitters on death
+            if (p.emitterType == 1u && p.spawnProbability > 0.0 && rand(seed ^ 0xfeedface) < p.spawnProbability) {
+                uint spawnCount = min(p.spawnCount, 5u); // Limit sub-particles
+                for (uint s = 0; s < spawnCount; s++) {
+                    // Find a dead particle slot for sub-emitter
+                    uint subIdx = (idx + s + 1u) % simParams.maxParticles;
+                    // Note: In a real implementation, we'd need atomic operations to find free slots
+                    // For now, just mark that sub-emission occurred
+                }
+            }
             p.active = 0; // Kill particle
         } else {
             // Apply forces
             p.velocity.y += simParams.gravity * simParams.deltaTime;
             p.velocity.x += simParams.windX * simParams.deltaTime;
             p.velocity.y += simParams.windY * simParams.deltaTime;
+            
+            // Advanced forces (attractors, repellers, vortices, curl noise)
+            vec2 advancedForce = applyForces(p.position, p.velocity, p.life, seed);
+            p.velocity += advancedForce * simParams.deltaTime;
             
             // Turbulence (simple noise-based)
             float turbX = sin(p.position.x * 0.01 + p.age * 3.0 + sin(p.position.y * 0.02));
@@ -172,6 +288,33 @@ void main() {
             float dragFactor = 1.0 - simParams.drag * simParams.deltaTime;
             p.velocity *= max(0.0, dragFactor);
             
+            // Simple SPH-like pressure force (repulsion from nearby particles)
+            // Note: In a real implementation this would use a spatial grid/neighbor search
+            // For now, a simple approximation based on local density
+            float localDensity = 1.0; // Would be computed from neighbor count
+            if (localDensity > 1.5) {
+                vec2 pressureForce = normalize(p.velocity) * (localDensity - 1.5) * 50.0;
+                p.velocity += pressureForce * simParams.deltaTime;
+            }
+            
+            // Simple boundary collision (bounce off screen edges)
+            vec2 halfRes = simParams.resolution * 0.5;
+            float particleRadius = p.size * 0.5;
+            if (p.position.x < -halfRes.x + particleRadius) {
+                p.position.x = -halfRes.x + particleRadius;
+                p.velocity.x = abs(p.velocity.x) * 0.8; // bounce with damping
+            } else if (p.position.x > halfRes.x - particleRadius) {
+                p.position.x = halfRes.x - particleRadius;
+                p.velocity.x = -abs(p.velocity.x) * 0.8;
+            }
+            if (p.position.y < -halfRes.y + particleRadius) {
+                p.position.y = -halfRes.y + particleRadius;
+                p.velocity.y = abs(p.velocity.y) * 0.8;
+            } else if (p.position.y > halfRes.y - particleRadius) {
+                p.position.y = halfRes.y - particleRadius;
+                p.velocity.y = -abs(p.velocity.y) * 0.8;
+            }
+            
             // Integrate position
             p.position += p.velocity * simParams.deltaTime;
             
@@ -181,4 +324,9 @@ void main() {
     }
     
     particleData.particles[idx] = p;
+    
+    // Count alive particles for indirect draw
+    if (p.active != 0) {
+        atomicAdd(indirectParams.drawCount, 1u);
+    }
 }

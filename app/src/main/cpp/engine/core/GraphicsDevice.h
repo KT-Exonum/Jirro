@@ -61,6 +61,7 @@ public:
     virtual void ReleaseTexture(TextureHandle handle) = 0; // returns to pool, does not necessarily free
     virtual Result<BufferHandle> CreateBuffer(size_t sizeBytes, bool hostVisible) = 0;
     virtual void ReleaseBuffer(BufferHandle handle) = 0;
+    virtual void FillBuffer(BufferHandle handle, uint32_t data) = 0;
 
     // Compiled shader upload. `spirv` for VulkanDevice, ignored (or cross
     // compiled) by OpenGLDevice — see OpenGLDevice.h for that seam.
@@ -93,6 +94,23 @@ public:
     virtual void DrawFullscreenPass(
         PipelineHandle pipeline,
         std::span<const TextureHandle> inputs,
+        TextureHandle output,
+        const std::unordered_map<std::string, float>& uniformValues = {}) = 0;
+
+    // Particle system: render from compute shader's storage buffer
+    struct ParticleDrawParams {
+        BufferHandle particleBuffer;      // storage buffer with Particle[]
+        BufferHandle simParamsBuffer;     // uniform buffer with sim params
+        BufferHandle indirectBuffer;      // buffer with VkDrawIndirectCommand for alive particle count
+        uint32_t maxParticles;
+        float pointSizeScale = 1.0f;
+        bool additiveBlending = true;
+        TextureHandle texture = {};       // optional sprite sheet
+        float feather = 0.0f;
+    };
+    virtual void DrawParticlePass(
+        PipelineHandle pipeline,
+        const ParticleDrawParams& params,
         TextureHandle output,
         const std::unordered_map<std::string, float>& uniformValues = {}) = 0;
 

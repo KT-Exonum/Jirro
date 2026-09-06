@@ -904,6 +904,13 @@ Result<BufferHandle> VulkanDevice::CreateBuffer(size_t sizeBytes, bool hostVisib
 
 void VulkanDevice::ReleaseBuffer(BufferHandle handle) { buffers_.Release(handle); }
 
+void VulkanDevice::FillBuffer(BufferHandle handle, uint32_t data) {
+    VkBufferResource* bufRes = buffers_.Get(handle);
+    if (!bufRes) return;
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+    vkCmdFillBuffer(cmd, bufRes->buffer, 0, VK_WHOLE_SIZE, data);
+}
+
 Result<ShaderModuleHandle> VulkanDevice::CreateShaderModule(std::span<const uint32_t> spirv) {
     VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     info.codeSize = spirv.size_bytes();
@@ -1418,6 +1425,179 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
 }
 
 
+}
+ 
+void VulkanDevice::DrawParticlePass(
+    PipelineHandle pipeline,
+    const ParticleDrawParams& params,
+    TextureHandle output,
+    const std::unordered_map<std::string, float>& uniformValues) {
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+ 
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+ 
+    VkTextureResource* outputRes = textures_.Get(output);
+    if (!outputRes) return;
+ 
+    VkBufferResource* particleBufRes = buffers_.Get(params.particleBuffer);
+    if (!particleBufRes) return;
+ 
+    VkBufferResource* simParamsBufRes = buffers_.Get(params.simParamsBuffer);
+    if (!simParamsBufRes) return;
+ 
+    FrameUniformBuffers& frameBuffers = frameUniformBuffers_[currentFrame_];
+ 
+    struct UniformData {
+        float projection[16];
+        float resolution[2];
+        float _pad[2];
+    } uniformData;
+ 
+    for (int i = 0; i < 16; ++i) uniformData.projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+    uniformData.resolution[0] = static_cast<float>(outputRes->width);
+    uniformData.resolution[1] = static_cast<float>(outputRes->height);
+ 
+    VkBufferResource* uniformBufRes = buffers_.Get(frameBuffers.uniformBuffer);
+    if (uniformBufRes && uniformBufRes->mapped) {
+        std::memcpy(uniformBufRes->mapped, &uniformData, sizeof(uniformData));
+    }
+ 
+    VkDescriptorBufferInfo uniformBufferInfo{};
+    uniformBufferInfo.buffer = uniformBufRes ? uniformBufRes->buffer : VK_NULL_HANDLE;
+    uniformBufferInfo.offset = 0;
+    uniformBufferInfo.range = VK_WHOLE_SIZE;
+ 
+    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    uniformWrite.dstSet = frameBuffers.uniformSet;
+    uniformWrite.dstBinding = 0;
+    uniformWrite.descriptorCount = 1;
+    uniformWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniformWrite.pBufferInfo = &uniformBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
+ 
+    // Update param buffer with particle render params
+    struct ParticleRenderParams {
+        float resolution[2];
+        float pointSizeScale;
+        int32_t additiveBlending;
+        int32_t pad;
+    } renderParams;
+    renderParams.resolution[0] = static_cast<float>(outputRes->width);
+    renderParams.resolution[1] = static_cast<float>(outputRes->height);
+    renderParams.pointSizeScale = params.pointSizeScale;
+    renderParams.additiveBlending = params.additiveBlending ? 1 : 0;
+ 
+    VkBufferResource* paramBufRes = buffers_.Get(frameBuffers.paramBuffer);
+    if (paramBufRes && paramBufRes->mapped) {
+        std::memcpy(paramBufRes->mapped, &renderParams, sizeof(renderParams));
+    }
+ 
+    VkDescriptorBufferInfo paramBufferInfo{};
+    paramBufferInfo.buffer = paramBufRes ? paramBufRes->buffer : VK_NULL_HANDLE;
+    paramBufferInfo.offset = 0;
+    paramBufferInfo.range = VK_WHOLE_SIZE;
+ 
+    VkWriteDescriptorSet paramWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    paramWrite.dstSet = frameBuffers.paramSet;
+    paramWrite.dstBinding = 0;
+    paramWrite.descriptorCount = 1;
+    paramWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    paramWrite.pBufferInfo = &paramBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &paramWrite, 0, nullptr);
+ 
+    if (!particlePipelineLayout_ || !particleDescriptorSetLayout_) {
+        LOGE("Particle pipeline layout not initialized");
+        return;
+    }
+ 
+    // Bind pipeline
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+ 
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineRes->pipeline);
+ 
+    // Bind descriptor sets (Set 0, 1, 2) - reuse existing frame sets for now
+    VkDescriptorSet sets[3] = {
+        frameBuffers.uniformSet,
+        frameBuffers.paramSet,
+        frameBuffers.textureSet
+    };
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphPipelineLayout_,
+                            0, 3, sets, 0, nullptr);
+ 
+// Bind particle storage buffer as vertex buffer (for instanced rendering)
+    VkDeviceSize offsets[1] = {0};
+    VkBuffer particleBuffer = particleBufRes ? particleBufRes->buffer : VK_NULL_HANDLE;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &particleBuffer, offsets);
+
+    // Bind indirect draw buffer
+    VkBufferResource* indirectBufRes = buffers_.Get(params.indirectBuffer);
+    if (indirectBufRes) {
+        vkCmdBindIndexBuffer(cmd, indirectBufRes->buffer, 0, VK_INDEX_TYPE_UINT32);
+    }
+
+    VkViewport viewport{0, 0, static_cast<float>(outputRes->width),
+                         static_cast<float>(outputRes->height), 0.0f, 1.0f};
+    VkRect2D scissor{{0, 0}, {outputRes->width, outputRes->height}};
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.image = outputRes->image;
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    colorAttachment.imageView = outputRes->view;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
+    renderingInfo.renderArea = {{0, 0}, {outputRes->width, outputRes->height}};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(cmd, &renderingInfo);
+
+    // Draw instanced indirectly - count comes from compute shader
+    if (params.indirectBuffer) {
+        VkBufferResource* indirectBufRes = buffers_.Get(params.indirectBuffer);
+        if (indirectBufRes) {
+            vkCmdDrawIndirect(cmd, indirectBufRes->buffer, 0, 1, sizeof(VkDrawIndirectCommand));
+        } else {
+            vkCmdDraw(cmd, 3, params.maxParticles, 0, 0);
+        }
+    } else {
+        vkCmdDraw(cmd, 3, params.maxParticles, 0, 0);
+    }
+ 
+    lastFrameStats_.drawCalls++;
+ 
+    vkCmdEndRendering(cmd);
+ 
+    VkImageMemoryBarrier barrier2{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier2.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier2.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier2.image = outputRes->image;
+    barrier2.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier2);
+}
+ 
+ 
 VkSamplerYcbcrConversion VulkanDevice::GetOrCreateYcbcrConversion(
     const VkExternalFormatANDROID& externalFormat,
     const VkAndroidHardwareBufferFormatPropertiesANDROID& formatProps) {

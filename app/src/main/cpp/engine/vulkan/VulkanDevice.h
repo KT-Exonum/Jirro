@@ -121,6 +121,7 @@ public:
     void ReleaseTexture(TextureHandle handle) override;
     Result<BufferHandle> CreateBuffer(size_t sizeBytes, bool hostVisible) override;
     void ReleaseBuffer(BufferHandle handle) override;
+    void FillBuffer(BufferHandle handle, uint32_t data) override;
 
     Result<ShaderModuleHandle> CreateShaderModule(std::span<const uint32_t> spirv) override;
     Result<PipelineHandle> GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
@@ -138,6 +139,11 @@ public:
     void DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
                              TextureHandle output,
                              const std::unordered_map<std::string, float>& uniformValues = {}) override;
+    void DrawParticlePass(
+        PipelineHandle pipeline,
+        const ParticleDrawParams& params,
+        TextureHandle output,
+        const std::unordered_map<std::string, float>& uniformValues = {}) override;
     void Submit() override;
 
     Result<TextureHandle> ImportHardwareBuffer(HardwareBufferHandle buffer, uint32_t width,

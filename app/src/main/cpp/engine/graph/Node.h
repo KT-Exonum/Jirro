@@ -197,12 +197,33 @@ struct ParticleConfig {
     float speedVariation = 0.0f;
     float emitAngle = 0.0f;             // degrees
     float angleVariation = 360.0f;
+    // Emission position/area
+    float emitterPositionX = 0.0f;
+    float emitterPositionY = 0.0f;
+    float emitRadius = 50.0f;
+    float emitLineStartX = -50.0f;
+    float emitLineStartY = 0.0f;
+    float emitLineEndX = 50.0f;
+    float emitLineEndY = 0.0f;
     // Forces (applied per frame)
     float gravity = 0.0f;
     float windX = 0.0f;
     float windY = 0.0f;
     float turbulence = 0.0f;
     float drag = 0.0f;
+    // Advanced forces
+    struct Force {
+        enum class Type { Attractor, Repeller, Vortex };
+        Type type = Type::Attractor;
+        float positionX = 0.0f;
+        float positionY = 0.0f;
+        float strength = 100.0f;
+        float radius = 200.0f;
+        bool enabled = false;
+    };
+    Force forces[8];
+    float curlNoiseScale = 0.01f;
+    float curlNoiseStrength = 0.0f;
     // Appearance
     float startSize = 10.0f;
     float endSize = 1.0f;
@@ -216,9 +237,21 @@ struct ParticleConfig {
     int maxParticles = 10000;
     // GPU simulation toggle
     bool useGpuParticles = true;
+    // Random seed for deterministic simulation
+    uint32_t seed = 12345;
     // Sub-emitters (spawn on death)
     bool enableSubEmitters = false;
     float subEmitProbability = 0.1f;
+    // Sprite sheet animation
+    bool useSpriteSheet = false;
+    int spriteSheetCols = 1;
+    int spriteSheetRows = 1;
+    float frameRate = 30.0f;
+    bool loopAnimation = true;
+    // Ribbon/trail
+    bool enableRibbons = false;
+    float ribbonWidth = 1.0f;
+    float ribbonLength = 10.0f;
 };
 
 // Shape2D configuration (DaVinci Resolve style)

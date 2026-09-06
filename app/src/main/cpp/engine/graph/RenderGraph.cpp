@@ -490,7 +490,15 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             return;
         } else if (node->kind == NodeKind::ParticleRenderer) {
             // Render particles
-            RenderParticles(pass, node->particle, outputTexture, inputTextures, animatedUniforms);
+            ParticleDrawParams drawParams{};
+            drawParams.particleBuffer = particleState_.particleBuffer;
+            drawParams.simParamsBuffer = particleState_.simParamsBuffer;
+            drawParams.indirectBuffer = particleState_.indirectBuffer;
+            drawParams.maxParticles = particleState_.maxParticles;
+            drawParams.pointSizeScale = 1.0f;
+            drawParams.additiveBlending = node->particle.additiveBlending;
+            
+            device_.DrawParticlePass(pipelineHandle, drawParams, outputTexture, animatedUniforms);
             return;
         }
     }
@@ -541,8 +549,19 @@ void RenderGraph::InitializeParticleSystem(const ParticleConfig& config) {
     particleBufferDesc.debugName = "particle_buffer";
     
     auto particleBufferResult = device_.CreateBuffer(particleBufferDesc);
-    if (particleBufferResult) {
-        particleState_.particleBuffer = particleBufferResult.value;
+    if (!particleBufferResult) {
+        LOGE("Failed to create particle storage buffer");
+        return;
+    }
+    particleState_.particleBuffer = particleBufferResult.value;
+    
+    // Zero-initialize the particle buffer (all particles start as dead)
+    VkBufferResource* particleBufRes = buffers_.Get(particleState_.particleBuffer);
+    if (particleBufRes && particleBufRes->mapped) {
+        std::memset(particleBufRes->mapped, 0, sizeof(vfx::Particle) * particleState_.maxParticles);
+    } else {
+        // Use vkCmdFillBuffer to clear device-local buffer
+        device_.FillBuffer(particleState_.particleBuffer, 0);
     }
     
     // Create simulation params uniform buffer
@@ -553,28 +572,114 @@ void RenderGraph::InitializeParticleSystem(const ParticleConfig& config) {
     simParamsDesc.debugName = "particle_sim_params";
     
     auto simParamsResult = device_.CreateBuffer(simParamsDesc);
-    if (simParamsResult) {
-        particleState_.simParamsBuffer = simParamsResult.value;
+    if (!simParamsResult) {
+        LOGE("Failed to create particle sim params buffer");
+        return;
     }
+    particleState_.simParamsBuffer = simParamsResult.value;
     
     // Create compute pipeline for particle simulation
     auto csHandle = GetOrCreateShaderModule(kParticleSimCompSpirv, kParticleSimCompSpirvWords);
-    if (csHandle.IsValid()) {
-        // Create compute pipeline layout and pipeline
-        // This would require adding compute pipeline support to VulkanDevice
-        // For now, mark as initialized
-        particleState_.initialized = true;
+    if (!csHandle.IsValid()) {
+        LOGE("Failed to create particle compute shader module");
+        return;
+    }
+    
+    auto pipelineResult = device_.CreateComputePipeline(csHandle);
+    if (!pipelineResult) {
+        LOGE("Failed to create particle compute pipeline");
+        return;
+    }
+    particleState_.computePipeline = pipelineResult.value;
+    
+    particleState_.initialized = true;
+    particleState_.frameIndex = 0;
+    particleState_.seed = config.seed ? config.seed : 12345;
+    
+    // Create indirect draw buffer (for alive particle count from compute shader)
+    BufferDesc indirectBufferDesc;
+    indirectBufferDesc.size = sizeof(VkDrawIndirectCommand);
+    indirectBufferDesc.usage = BufferUsage::StorageBuffer | BufferUsage::IndirectBuffer;
+    indirectBufferDesc.hostVisible = false;
+    indirectBufferDesc.debugName = "particle_indirect_draw";
+    
+    auto indirectBufferResult = device_.CreateBuffer(indirectBufferDesc);
+    if (indirectBufferResult) {
+        particleState_.indirectBuffer = indirectBufferResult.value;
     }
 }
 
 void RenderGraph::DispatchParticleCompute(const CompiledPass& pass, double deltaTime, const ParticleConfig& config) {
     if (!particleState_.initialized || !config.useGpuParticles) return;
     
-    // Update simulation params buffer
+    // Pack host config into GPU sim params
+    ParticleSimParams simParams = PackSimParams(config, deltaTime, particleState_.frameIndex, particleState_.seed);
+    
+    // Update sim params buffer
+    VkBufferResource* simParamsBufRes = buffers_.Get(particleState_.simParamsBuffer);
+    if (simParamsBufRes && simParamsBufRes->mapped) {
+        std::memcpy(simParamsBufRes->mapped, &simParams, sizeof(ParticleSimParams));
+    }
+    
     // Dispatch compute shader
-    // This would require compute dispatch support in VulkanDevice
-    // For now, just increment frame index
+    uint32_t groupCount = (particleState_.maxParticles + 255) / 256; // 256 threads per workgroup
+    device_.DispatchCompute(particleState_.computePipeline, groupCount, 1, 1);
+    
     particleState_.frameIndex++;
+}
+
+ParticleSimParams RenderGraph::PackSimParams(const ParticleConfig& config, double deltaTime, uint32_t frameIndex, uint32_t seed) {
+    ParticleSimParams params{};
+    params.resolution[0] = 1920.0f; // TODO: get from swapchain
+    params.resolution[1] = 1080.0f;
+    params.deltaTime = static_cast<float>(deltaTime);
+    params.emitRate = config.emitRate;
+    params.emitRateVariation = config.emitRateVariation;
+    params.emitterShape = static_cast<uint32_t>(config.emitterShape);
+    params.emitPosition[0] = config.emitterPositionX;
+    params.emitPosition[1] = config.emitterPositionY;
+    params.emitRadius = config.emitRadius;
+    params.emitLineStart[0] = config.emitLineStartX;
+    params.emitLineStart[1] = config.emitLineStartY;
+    params.emitLineEnd[0] = config.emitLineEndX;
+    params.emitLineEnd[1] = config.emitLineEndY;
+    params.initialLife = config.initialLife;
+    params.lifeVariation = config.lifeVariation;
+    params.initialSpeed = config.initialSpeed;
+    params.speedVariation = config.speedVariation;
+    params.emitAngle = config.emitAngle;
+    params.angleVariation = config.angleVariation;
+    params.gravity = config.gravity;
+    params.windX = config.windX;
+    params.windY = config.windY;
+    params.turbulence = config.turbulence;
+    params.drag = config.drag;
+    params.deltaTimeInv = (deltaTime > 0.0) ? 1.0f / static_cast<float>(deltaTime) : 60.0f;
+    params.maxParticles = particleState_.maxParticles;
+    params.frameIndex = particleState_.frameIndex;
+    params.seed = seed;
+
+    // Pack forces
+    params.forceCount = 0;
+    params.curlNoiseScale = config.curlNoiseScale;
+    params.curlNoiseStrength = config.curlNoiseStrength;
+    for (int i = 0; i < 8 && i < 8; i++) {
+        if (config.forces[i].enabled) {
+            // Pack force data into vec4: xy = position, z = strength, w = type
+            params.forcePositions[params.forceCount][0] = config.forces[i].positionX;
+            params.forcePositions[params.forceCount][1] = config.forces[i].positionY;
+            params.forcePositions[params.forceCount][2] = config.forces[i].strength;
+            params.forcePositions[params.forceCount][3] = float(config.forces[i].type);
+            params.forceRadius[params.forceCount] = config.forces[i].radius;
+            params.forceStrength[params.forceCount] = config.forces[i].strength;
+            params.forceCount++;
+        }
+    }
+    params.curlNoiseScale = config.curlNoiseScale;
+    params.curlNoiseStrength = config.curlNoiseStrength;
+    params.sdfTextureCount = 0;
+
+    return params;
 }
 
 void RenderGraph::RenderParticles(const CompiledPass& pass, const ParticleConfig& config, TextureHandle outputTexture,
