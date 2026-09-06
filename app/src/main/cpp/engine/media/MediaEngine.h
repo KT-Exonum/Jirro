@@ -249,12 +249,18 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         return currentBytes_;
     }
+    
+    // Decode audio file using MediaCodec, returns AudioClipData with decoded PCM
+    AudioClipData DecodeAudioWithMediaCodec(const std::string& filePath);
 
 private:
     Config config_;
     mutable std::mutex mutex_;
     size_t currentBytes_ = 0;
     std::unordered_map<std::string, AudioClipData> audioCache_;
+    
+    // Friend for MediaEngine to call private method
+    friend class MediaEngine;
 };
 
 // Request describing one clip the engine thread currently wants decoded

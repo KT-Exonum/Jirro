@@ -65,6 +65,7 @@ add_library(vfxengine SHARED
     engine/export/ProjectSerializer.cpp
     engine/text/TextRenderer.cpp
     engine/expression/ExpressionEngine.cpp
+    engine/shape2d/Shape2D.cpp
     ${SHADER_EMBEDDED_HEADER}
 )
 

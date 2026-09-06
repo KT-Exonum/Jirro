@@ -454,20 +454,194 @@ void AudioCache::LoadAudio(const std::string& clipId, const std::string& filePat
     std::lock_guard<std::mutex> lock(mutex_);
     if (audioCache_.find(clipId) != audioCache_.end()) return; // already loaded
 
-    // In a real implementation, this would use AMediaExtractor/AMediaCodec to decode
-    // audio to PCM. For now, we create a placeholder.
-    AudioClipData clip;
+    // Decode audio using MediaCodec
+    AudioClipData clip = DecodeAudioWithMediaCodec(filePath);
+    if (clip.pcmData.empty()) {
+        LOGE("Failed to decode audio: %s", filePath.c_str());
+        return;
+    }
+    
     clip.clipId = clipId;
-    clip.sampleRate = 48000;
-    clip.channels = 2;
-    clip.duration = 0.0; // Would be read from file
     clip.isLoaded = true;
-    // Placeholder: allocate silent audio for duration estimation
-    clip.pcmData.assign(static_cast<size_t>(clip.duration * clip.sampleRate * clip.channels), 0.0f);
     
     const size_t bytes = clip.pcmData.size() * sizeof(float);
     currentBytes_ += bytes;
     audioCache_[clipId] = std::move(clip);
+}
+
+AudioClipData AudioCache::DecodeAudioWithMediaCodec(const std::string& filePath) {
+    AudioClipData clip;
+    
+    AMediaExtractor* extractor = AMediaExtractor_new();
+    if (!extractor) {
+        LOGE("AMediaExtractor_new failed for %s", filePath.c_str());
+        return clip;
+    }
+    
+    if (AMediaExtractor_setDataSource(extractor, filePath.c_str()) != AMEDIA_OK) {
+        LOGE("AMediaExtractor_setDataSource failed");
+        AMediaExtractor_delete(extractor);
+        return clip;
+    }
+    
+    // Find audio track
+    int audioTrackIndex = -1;
+    AMediaFormat* audioFormat = nullptr;
+    const size_t trackCount = AMediaExtractor_getTrackCount(extractor);
+    for (size_t i = 0; i < trackCount; ++i) {
+        AMediaFormat* fmt = AMediaExtractor_getTrackFormat(extractor, i);
+        const char* mime = nullptr;
+        if (AMediaFormat_getString(fmt, AMEDIAFORMAT_KEY_MIME, &mime) && mime &&
+            std::string_view(mime).substr(0, 6) == "audio/") {
+            audioTrackIndex = static_cast<int>(i);
+            audioFormat = fmt;
+            break;
+        }
+        AMediaFormat_delete(fmt);
+    }
+    
+    if (audioTrackIndex < 0 || !audioFormat) {
+        LOGE("No audio track found in %s", filePath.c_str());
+        AMediaExtractor_delete(extractor);
+        return clip;
+    }
+    
+    int32_t sampleRate = 48000;
+    int32_t channels = 2;
+    AMediaFormat_getInt32(audioFormat, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sampleRate);
+    AMediaFormat_getInt32(audioFormat, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &channels);
+    
+    // Get duration
+    int64_t durationUs = 0;
+    AMediaFormat_getInt64(audioFormat, AMEDIAFORMAT_KEY_DURATION, &durationUs);
+    clip.sampleRate = sampleRate;
+    clip.channels = channels;
+    clip.duration = durationUs / 1'000'000.0;
+    
+    AMediaExtractor_selectTrack(extractor, audioTrackIndex);
+    
+    const char* mime = nullptr;
+    AMediaFormat_getString(audioFormat, AMEDIAFORMAT_KEY_MIME, &mime);
+    
+    AMediaCodec* codec = AMediaCodec_createDecoderByType(mime);
+    if (!codec) {
+        LOGE("AMediaCodec_createDecoderByType failed for %s", mime);
+        AMediaFormat_delete(audioFormat);
+        AMediaExtractor_delete(extractor);
+        return clip;
+    }
+    
+    if (AMediaCodec_configure(codec, audioFormat, nullptr, nullptr, 0) != AMEDIA_OK) {
+        LOGE("AMediaCodec_configure failed");
+        AMediaCodec_delete(codec);
+        AMediaFormat_delete(audioFormat);
+        AMediaExtractor_delete(extractor);
+        return clip;
+    }
+    AMediaFormat_delete(audioFormat);
+    
+    if (AMediaCodec_start(codec) != AMEDIA_OK) {
+        LOGE("AMediaCodec_start failed");
+        AMediaCodec_delete(codec);
+        AMediaExtractor_delete(extractor);
+        return clip;
+    }
+    
+    std::vector<float> pcmData;
+    constexpr int64_t kTimeoutUs = 10000;
+    bool inputEOS = false;
+    bool outputEOS = false;
+    
+    // For resampling to 48kHz if needed
+    const float resampleRatio = 48000.0f / sampleRate;
+    const int targetChannels = 2;
+    std::vector<float> resampleBuffer;
+    
+    while (!outputEOS) {
+        // Feed input
+        if (!inputEOS) {
+            ssize_t inIndex = AMediaCodec_dequeueInputBuffer(codec, 10000);
+            if (inIndex >= 0) {
+                size_t bufSize;
+                uint8_t* buf = AMediaCodec_getInputBuffer(codec, inIndex, &bufSize);
+                if (buf) {
+                    ssize_t sampleSize = AMediaExtractor_readSampleData(extractor, buf, bufSize);
+                    if (sampleSize < 0) {
+                        AMediaCodec_queueInputBuffer(codec, inIndex, 0, 0, 0, AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM);
+                        inputEOS = true;
+                    } else {
+                        int64_t sampleTimeUs = AMediaExtractor_getSampleTime(extractor);
+                        AMediaCodec_queueInputBuffer(codec, inIndex, 0, static_cast<size_t>(sampleSize), sampleTimeUs, 0);
+                        AMediaExtractor_advance(extractor);
+                    }
+                }
+            }
+        }
+        
+        // Drain output
+        AMediaCodecBufferInfo info{};
+        ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(codec, &info, kTimeoutUs);
+        if (outIndex >= 0) {
+            bool isEOS = (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) != 0;
+            if (info.size > 0) {
+                size_t outSize;
+                uint8_t* outData = AMediaCodec_getOutputBuffer(codec, outIndex, &outSize);
+                if (outData && outSize > 0) {
+                    // Convert to float stereo 48kHz
+                    // Output is typically interleaved 16-bit PCM or float
+                    // For simplicity, assume 16-bit interleaved
+                    int16_t* samples16 = reinterpret_cast<int16_t*>(outData);
+                    size_t sampleCount = info.size / (sizeof(int16_t) * channels);
+                    
+                    // Resample if needed
+                    if (sampleRate != 48000 || channels != 2) {
+                        // Simple linear resample to 48kHz stereo
+                        size_t targetSamples = static_cast<size_t>(sampleCount * resampleRatio);
+                        resampleBuffer.resize(targetSamples * targetChannels);
+                        
+                        for (size_t c = 0; c < targetChannels; ++c) {
+                            for (size_t i = 0; i < targetSamples; ++i) {
+                                float srcIdx = i / resampleRatio;
+                                size_t i0 = static_cast<size_t>(srcIdx);
+                                size_t i1 = std::min(i0 + 1, sampleCount - 1);
+                                float frac = srcIdx - i0;
+                                int srcChan = std::min(static_cast<int>(c), channels - 1);
+                                float v0 = samples16[i0 * channels + srcChan] / 32768.0f;
+                                float v1 = samples16[i1 * channels + srcChan] / 32768.0f;
+                                resampleBuffer[i * targetChannels + c] = v0 + (v1 - v0) * frac;
+                            }
+                        }
+                        pcmData.insert(pcmData.end(), resampleBuffer.begin(), resampleBuffer.end());
+                    } else {
+                        // Direct copy, ensure stereo
+                        for (size_t i = 0; i < sampleCount; ++i) {
+                            if (channels == 1) {
+                                // Mono to stereo
+                                float v = samples16[i] / 32768.0f;
+                                pcmData.push_back(v);
+                                pcmData.push_back(v);
+                            } else {
+                                // Already stereo
+                                pcmData.push_back(samples16[i * 2] / 32768.0f);
+                                pcmData.push_back(samples16[i * 2 + 1] / 32768.0f);
+                            }
+                        }
+                    }
+                }
+            }
+            if (isEOS) outputEOS = true;
+            AMediaCodec_releaseOutputBuffer(codec, outIndex, false);
+        } else if (outIndex == AMEDIACODEC_INFO_OUTPUT_FORMAT_CHANGED) {
+            // Handle format change
+        }
+    }
+    
+    AMediaCodec_stop(codec);
+    AMediaCodec_delete(codec);
+    AMediaExtractor_delete(extractor);
+    
+    clip.pcmData = std::move(pcmData);
+    return clip;
 }
 
 void AudioCache::UnloadAudio(const std::string& clipId) {
@@ -494,11 +668,7 @@ void MediaEngine::SetActiveProxies(std::vector<ActiveProxyRequest> clips) {
 }
 
 void MediaEngine::DecodeAudioFile(const std::string& clipId, const std::string& filePath) {
-    // Real implementation would:
-    // 1. AMediaExtractor for audio track
-    // 2. AMediaCodec decoder (or use AMediaExtractor's direct read for simple formats)
-    // 3. Resample to 48kHz stereo float
-    // 4. Store in AudioCache
+    // Real implementation: decode audio using MediaCodec via AudioCache
     audioCache_.LoadAudio(clipId, filePath);
 }
 
