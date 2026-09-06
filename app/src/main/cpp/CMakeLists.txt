@@ -39,6 +39,7 @@ if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
         DEPENDS ${SHADER_COMPILE_SCRIPT}
                 ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert
                 ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag
+                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp
         COMMENT "Compiling GLSL shaders to embedded SPIR-V header"
         VERBATIM
     )
@@ -62,6 +63,8 @@ add_library(vfxengine SHARED
     engine/core/Profiler.cpp
     engine/export/ExportPipeline.cpp
     engine/export/ProjectSerializer.cpp
+    engine/text/TextRenderer.cpp
+    engine/expression/ExpressionEngine.cpp
     ${SHADER_EMBEDDED_HEADER}
 )
 

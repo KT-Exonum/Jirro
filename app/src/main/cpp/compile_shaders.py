@@ -124,9 +124,11 @@ def main():
         sys.exit(1)
 
     # Discover shaders
-    shaders = sorted(shader_dir.glob("*.vert")) + sorted(shader_dir.glob("*.frag"))
+    shaders = (sorted(shader_dir.glob("*.vert")) + 
+               sorted(shader_dir.glob("*.frag")) + 
+               sorted(shader_dir.glob("*.comp")))
     if not shaders:
-        print(f"WARNING: no .vert/.frag files found in {shader_dir}", file=sys.stderr)
+        print(f"WARNING: no .vert/.frag/.comp files found in {shader_dir}", file=sys.stderr)
 
     # Compile to temp .spv files and collect definitions
     generated_arrays = []
@@ -157,7 +159,7 @@ def main():
         for arr in generated_arrays:
             f.write(arr + "\n\n")
 
-    print(f"\nGenerated: {output_path} ({len(declarations)} shaders)")
+    print(f"\nGenerated: {output_path} ({len(generated_arrays)} shaders)")
 
 
 if __name__ == "__main__":
