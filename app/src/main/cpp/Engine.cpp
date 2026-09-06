@@ -1,6 +1,7 @@
 #include "Engine.h"
 
 #include <android/log.h>
+#include <cstdlib>
 
 #include "engine/opengl/OpenGLDevice.h"
 #include "engine/vulkan/VulkanDevice.h"
@@ -461,7 +462,240 @@ void Engine::AddNode(AddNodeCommand&& cmd) {
             node.outputs.push_back(NodeSocket{"output"});
             break;
     }
-    
+
+    // Set default uniform values for motion effects
+    switch (cmd.kind) {
+        case NodeKind::Oscillate:
+            node.uniformFloats["mFrequency"] = 2.0f;
+            node.uniformFloats["mMagnitude"] = 25.0f;
+            node.uniformFloats["mAngle"] = 45.0f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            node.uniformFloats["mWaveType"] = 0; // 0 = Sine
+            break;
+        case NodeKind::Shake:
+            node.uniformFloats["mFrequency"] = 2.0f;
+            node.uniformFloats["mMagnitude"] = 15.0f;
+            node.uniformFloats["mDecay"] = 0.5f;
+            node.uniformFloats["mRotation"] = 0.1f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::RandomDisplacement:
+            node.uniformFloats["mAmount"] = 0.05f;
+            node.uniformFloats["mSpeed"] = 1.0f;
+            node.uniformFloats["mScale"] = 1.0f;
+            node.uniformFloats["mOctaves"] = 3;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::Pulse:
+            node.uniformFloats["mFrequency"] = 1.0f;
+            node.uniformFloats["mMagnitude"] = 0.5f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            node.uniformFloats["mAmount"] = 0.5f; // anchorX
+            node.uniformFloats["mSpeed"] = 0.5f;  // anchorY
+            break;
+        case NodeKind::Swing:
+            node.uniformFloats["mFrequency"] = 0.5f;
+            node.uniformFloats["mMagnitude"] = 30.0f;
+            node.uniformFloats["mAngle"] = 0.0f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            break;
+        case NodeKind::Bounce:
+            node.uniformFloats["mFrequency"] = 1.5f;
+            node.uniformFloats["mMagnitude"] = 50.0f;
+            node.uniformFloats["mDecay"] = 0.3f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            break;
+        case NodeKind::Elastic:
+            node.uniformFloats["mFrequency"] = 2.0f;
+            node.uniformFloats["mMagnitude"] = 20.0f;
+            node.uniformFloats["mDecay"] = 0.4f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            break;
+        case NodeKind::CameraShake:
+            node.uniformFloats["mFrequency"] = 2.0f;
+            node.uniformFloats["mAmount"] = 25.0f;
+            node.uniformFloats["mRotation"] = 0.15f;
+            node.uniformFloats["mScale"] = 0.05f;
+            node.uniformFloats["mDecay"] = 0.8f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            node.uniformFloats["mPhase"] = 0.0f;
+            break;
+        case NodeKind::ZoomBlur:
+            node.uniformFloats["mAmount"] = 0.3f;
+            node.uniformFloats["mSpeed"] = 1.0f;
+            node.uniformFloats["mScale"] = 1.0f;
+            node.uniformFloats["mOctaves"] = 1;
+            break;
+        case NodeKind::RadialBlur:
+            node.uniformFloats["mAmount"] = 0.2f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            node.uniformFloats["mOctaves"] = 1;
+            break;
+        case NodeKind::DirectionalBlur:
+            node.uniformFloats["mAmount"] = 0.5f;
+            node.uniformFloats["mAngle"] = 0.0f;
+            break;
+        case NodeKind::Ripple:
+            node.uniformFloats["mFrequency"] = 10.0f;
+            node.uniformFloats["mMagnitude"] = 0.02f;
+            node.uniformFloats["mSpeed"] = 2.0f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mOctaves"] = 1;
+            break;
+        case NodeKind::Wave:
+            node.uniformFloats["mFrequency"] = 5.0f;
+            node.uniformFloats["mMagnitude"] = 0.05f;
+            node.uniformFloats["mAngle"] = 0.0f;
+            node.uniformFloats["mSpeed"] = 1.0f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            break;
+        case NodeKind::Twist:
+            node.uniformFloats["mFrequency"] = 1.0f;
+            node.uniformFloats["mMagnitude"] = 2.0f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mSpeed"] = 1.0f;
+            break;
+        case NodeKind::Bulge:
+            node.uniformFloats["mAmount"] = 0.5f;
+            node.uniformFloats["mScale"] = 1.0f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::Vortex:
+            node.uniformFloats["mFrequency"] = 1.0f;
+            node.uniformFloats["mMagnitude"] = 1.5f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mSpeed"] = 1.0f;
+            break;
+        case NodeKind::Glitch:
+            node.uniformFloats["mIntensity"] = 0.5f;
+            node.uniformFloats["mBlockSize"] = 32.0f;
+            node.uniformFloats["mFrequency"] = 10.0f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            node.uniformFloats["mChromatic"] = 1.0f;
+            break;
+        case NodeKind::VHS:
+            node.uniformFloats["mNoiseAmount"] = 0.3f;
+            node.uniformFloats["mScanlineAmount"] = 0.5f;
+            node.uniformFloats["mDistortion"] = 0.2f;
+            node.uniformFloats["mColorBleed"] = 0.3f;
+            node.uniformFloats["mJitter"] = 0.2f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::Scanlines:
+            node.uniformFloats["mScanlineAmount"] = 0.5f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::CRT:
+            node.uniformFloats["mScanlineAmount"] = 0.7f;
+            node.uniformFloats["mDistortion"] = 0.1f;
+            node.uniformFloats["mColorBleed"] = 0.2f;
+            node.uniformFloats["mNoiseAmount"] = 0.1f;
+            break;
+        case NodeKind::ChromaticAberration:
+            node.uniformFloats["mChromatic"] = 2.0f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::RGBShift:
+            node.uniformFloats["mChromatic"] = 3.0f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::TimeStretch:
+            node.uniformFloats["mSpeed"] = 0.5f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            break;
+        case NodeKind::FrameBlend:
+            node.uniformFloats["mAmount"] = 0.5f;
+            node.uniformFloats["mSpeed"] = 1.0f;
+            break;
+        case NodeKind::StopMotion:
+            node.uniformFloats["mSpeed"] = 0.25f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            break;
+        case NodeKind::PosterizeTime:
+            node.uniformFloats["mSpeed"] = 0.1f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            break;
+        case NodeKind::Wiggle:
+            node.uniformFloats["mFrequency"] = 1.0f;
+            node.uniformFloats["mMagnitude"] = 10.0f;
+            node.uniformFloats["mOctaves"] = 1;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::Jitter:
+            node.uniformFloats["mFrequency"] = 30.0f;
+            node.uniformFloats["mMagnitude"] = 2.0f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::Drift:
+            node.uniformFloats["mFrequency"] = 0.1f;
+            node.uniformFloats["mMagnitude"] = 5.0f;
+            node.uniformFloats["mOctaves"] = 2;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::Orbit:
+            node.uniformFloats["mFrequency"] = 0.25f;
+            node.uniformFloats["mMagnitude"] = 50.0f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            break;
+        case NodeKind::CameraShakePro:
+            node.uniformFloats["mFrequency"] = 2.0f;
+            node.uniformFloats["mAmount"] = 30.0f;
+            node.uniformFloats["mRotation"] = 0.2f;
+            node.uniformFloats["mScale"] = 0.1f;
+            node.uniformFloats["mDecay"] = 1.0f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::DynamicZoom:
+            node.uniformFloats["mFrequency"] = 0.1f;
+            node.uniformFloats["mMagnitude"] = 0.3f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mPhase"] = 0.0f;
+            break;
+        case NodeKind::FilmDamage:
+            node.uniformFloats["mIntensity"] = 0.4f;
+            node.uniformFloats["mNoiseAmount"] = 0.3f;
+            node.uniformFloats["mScanlineAmount"] = 0.2f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::FilmGrain:
+            node.uniformFloats["mIntensity"] = 0.3f;
+            node.uniformFloats["mNoiseAmount"] = 0.5f;
+            node.uniformFloats["mScanlineAmount"] = 0.0f;
+            node.uniformFloats["mSeed"] = static_cast<float>((std::rand() % 10000));
+            break;
+        case NodeKind::Vignette:
+            node.uniformFloats["mIntensity"] = 0.5f;
+            node.uniformFloats["mAmount"] = 1.0f;
+            break;
+        case NodeKind::Letterbox:
+            node.uniformFloats["mAmount"] = 0.2f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::BezierWarp:
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::MeshWarp:
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::PolarCoordinates:
+            node.uniformFloats["mAmount"] = 1.0f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            break;
+        case NodeKind::DisplacementMap:
+            node.uniformFloats["mAmount"] = 0.5f;
+            node.uniformFloats["mIntensity"] = 1.0f;
+            node.uniformFloats["mScale"] = 1.0f;
+            break;
+        default:
+            break;
+    }
+
     graph_.AddNode(std::move(node));
     
     // Add to group if specified
