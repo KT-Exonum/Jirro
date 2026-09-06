@@ -9,15 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyVerticalGrid
 import androidx.compose.foundation.lazy.gridCells
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
-import androidx.compose.material3.Divider
+import androidx.compose.material3.Chip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.FilledTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,190 +28,151 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.px
 import com.vfxengine.app.ui.common.EditorState
 
 /**
- * Media Tab - DaVinci Resolve style Media Pool
- * Full-screen media browser with bins, list/grid view, metadata panel
+ * Media Tab - Simple Media Library Screen
+ * Top: Search bar + Add button
+ * Filter chips: All, Video, Audio, Graphics
+ * 2x2 grid of media assets
+ * Bottom: Asset details panel when selected
  */
 @Composable
 fun MediaTab(state: EditorState) {
-    var viewMode by remember { mutableStateOf(ViewMode.Grid) }
-    var selectedBin by remember { mutableStateOf<String>("Master") }
-    var showMetadata by remember { mutableStateOf(false) }
+    var searchText by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf(FilterType.All) }
     var selectedMedia by remember { mutableStateOf<EditorState.MediaFile?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top toolbar
-        MediaToolbar(
-            viewMode = viewMode,
-            onViewModeChange = { viewMode = it },
-            selectedBin = selectedBin,
-            onBinChange = { selectedBin = it },
-            showMetadata = showMetadata,
-            onMetadataToggle = { showMetadata = !showMetadata }
+        // Top bar: Search + Add
+        MediaTopBar(
+            searchText = searchText,
+            onSearchChange = { searchText = it },
+            onAddClick = { /* Import media */ }
         )
 
-        Divider(color = Color.White.copy(alpha = 0.1f))
+        // Filter chips
+        FilterChipsRow(
+            selectedFilter = selectedFilter,
+            onFilterChange = { selectedFilter = it }
+        )
 
-        // Main content
-        Row(modifier = Modifier.fillMaxSize().weight(1f)) {
-            // Left: Bin list
-            BinSidebar(
-                bins = listOf("Master", "Video", "Audio", "Images", "Graphics", "Favorites"),
-                selectedBin = selectedBin,
-                onBinClick = { selectedBin = it }
-            )
+        // Media grid
+        MediaGrid(
+            state = state,
+            filter = selectedFilter,
+            selectedMedia = selectedMedia,
+            onMediaClick = { selectedMedia = it }
+        )
 
-            Divider(color = Color.White.copy(alpha = 0.1f))
-
-            // Center: Media grid/list
-            MediaGrid(
-                state = state,
-                viewMode = viewMode,
-                selectedMedia = selectedMedia,
-                onMediaClick = { selectedMedia = it }
-            )
-
-            // Right: Metadata/Preview panel
-            if (showMetadata) {
-                Divider(color = Color.White.copy(alpha = 0.1f))
-                MetadataPanel(
-                    media = selectedMedia,
-                    onClose = { showMetadata = false }
-                )
-            }
-        }
-
-        // Bottom: Preview scrubber for selected media
+        // Asset details panel at bottom
         if (selectedMedia != null) {
-            Divider(color = Color.White.copy(alpha = 0.1f))
-            MediaPreviewBar(media = selectedMedia!!)
+            AssetDetailsPanel(
+                media = selectedMedia!!,
+                onClose = { selectedMedia = null },
+                onPreview = { /* Preview */ },
+                onAdd = { /* Add to timeline */ }
+            )
         }
     }
 }
 
-enum class ViewMode { Grid, List }
+enum class FilterType(val label: String) {
+    All("All"),
+    Video("Video"),
+    Audio("Audio"),
+    Graphics("Graphics")
+}
 
 @Composable
-fun MediaToolbar(
-    viewMode: ViewMode,
-    onViewModeChange: (ViewMode) -> Unit,
-    selectedBin: String,
-    onBinChange: (String) -> Unit,
-    showMetadata: Boolean,
-    onMetadataToggle: () -> Unit
+fun MediaTopBar(
+    searchText: String,
+    onSearchChange: (String) -> Unit,
+    onAddClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(56.dp)
             .padding(horizontal = 16.dp)
             .background(Color(0xFF121212)),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Bin dropdown
-        androidx.compose.material3.TextButton(onClick = { /* show bin menu */ }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_agenda),
-                    contentDescription = "Bins"
-                )
-                androidx.compose.foundation.layout.Box(modifier = Modifier.width(8.dp))
-                Text(text = selectedBin, color = Color.White, fontSize = 14.sp)
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_media_play),
-                    contentDescription = "Expand"
-                )
-            }
+        // Search field
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp)
+        ) {
+            FilledTextField(
+                value = searchText,
+                onValueChange = onSearchChange,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp),
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                colors = TextFieldDefaults.filledTextFieldColors(
+                    containerColor = Color(0xFF1E1E1E),
+                    focusedContainerColor = Color(0xFF2D2D2D),
+                    textColor = Color.White,
+                    placeholderColor = Color.White.copy(alpha = 0.4f)
+                ),
+                placeholder = { Text(text = "Search media", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp) },
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_search),
+                        contentDescription = "Search",
+                        tint = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            )
         }
 
-        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f))
+        androidx.compose.foundation.layout.Box(modifier = Modifier.width(12.dp))
 
-        // View mode toggle
-        Row {
-            IconButton(
-                onClick = { onViewModeChange(ViewMode.Grid) },
-                modifier = Modifier.padding(4.dp),
-                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                    containerColor = if (viewMode == ViewMode.Grid) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
-                )
-            ) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_grid), contentDescription = "Grid")
-            }
-            IconButton(
-                onClick = { onViewModeChange(ViewMode.List) },
-                modifier = Modifier.padding(4.dp),
-                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                    containerColor = if (viewMode == ViewMode.List) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
-                )
-            ) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_view), contentDescription = "List")
-            }
-        }
-
-        androidx.compose.foundation.layout.Box(modifier = Modifier.width(16.dp))
-
-        // Actions
-        Row {
-            IconButton(onClick = { /* Import media */ }) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_upload), contentDescription = "Import")
-            }
-            IconButton(onClick = { /* New bin */ }) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_add), contentDescription = "New Bin")
-            }
-            IconButton(onClick = onMetadataToggle) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_info_details),
-                    contentDescription = showMetadata ? "Hide Metadata" : "Show Metadata"
-                )
-            }
+        // Add button
+        IconButton(onClick = onAddClick, modifier = Modifier.size(40.dp)) {
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_menu_add),
+                contentDescription = "Import",
+                tint = Color.Cyan,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
 
 @Composable
-fun BinSidebar(bins: List<String>, selectedBin: String, onBinClick: (String) -> Unit) {
-    Column(
+fun FilterChipsRow(
+    selectedFilter: FilterType,
+    onFilterChange: (FilterType) -> Unit
+) {
+    Row(
         modifier = Modifier
-            .width(200.dp)
-            .fillMaxHeight()
-            .background(Color(0xFF0D0D0D))
-            .padding(8.dp)
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(Color(0xFF0F0F0F)),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
-        Text(text = "Bins", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(16.dp))
-        Divider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 8.dp))
-        
-        LazyColumn(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
-            items(bins) { bin ->
-                androidx.compose.material3.TextButton(
-                    onClick = { onBinClick(bin) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .padding(horizontal = 8.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                        containerColor = if (bin == selectedBin) Color.Cyan.copy(alpha = 0.15f) else Color.Transparent
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Start
-                    ) {
-                        Icon(
-                            painter = painterResource(id = android.R.drawable.ic_menu_agenda),
-                            contentDescription = "",
-                            tint = if (bin == selectedBin) Color.Cyan else Color.White.copy(alpha = 0.7f)
-                        )
-                        androidx.compose.foundation.layout.Box(modifier = Modifier.width(12.dp))
-                        Text(text = bin, color = if (bin == selectedBin) Color.Cyan else Color.White, fontSize = 13.sp)
-                    }
-                }
+        FilterType.values().forEach { filter ->
+            Chip(
+                onClick = { onFilterChange(filter) },
+                modifier = Modifier.height(32.dp),
+                colors = androidx.compose.material3.ChipDefaults.colors(
+                    containerColor = if (filter == selectedFilter) Color.Cyan.copy(alpha = 0.2f) else Color(0xFF1E1E1E),
+                    selectedContainerColor = Color.Cyan.copy(alpha = 0.2f),
+                    labelColor = if (filter == selectedFilter) Color.Cyan else Color.White
+                ),
+                selected = filter == selectedFilter,
+                onSelectedChange = { onFilterChange(filter) }
+            ) {
+                Text(text = filter.label, fontSize = 12.sp)
             }
         }
     }
@@ -219,45 +181,55 @@ fun BinSidebar(bins: List<String>, selectedBin: String, onBinClick: (String) -> 
 @Composable
 fun MediaGrid(
     state: EditorState,
-    viewMode: ViewMode,
+    filter: FilterType,
     selectedMedia: EditorState.MediaFile?,
     onMediaClick: (EditorState.MediaFile) -> Unit
 ) {
-    val mediaList = state.mediaFiles
-    
+    val filteredMedia = state.mediaFiles.filter { media ->
+        when (filter) {
+            FilterType.All -> true
+            FilterType.Video -> media.name.contains(".mp4") || media.name.contains(".mov") || media.name.contains(".avi")
+            FilterType.Audio -> media.name.contains(".mp3") || media.name.contains(".wav") || media.name.contains(".aac")
+            FilterType.Graphics -> media.name.contains(".png") || media.name.contains(".jpg") || media.name.contains(".jpeg") || media.name.contains(".svg")
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .weight(1f)
             .background(Color(0xFF0F0F0F))
             .padding(16.dp)
     ) {
-        if (mediaList.isEmpty()) {
-            CenteredText("No media in bin. Click Import to add files.")
-        } else {
-            if (viewMode == ViewMode.Grid) {
-                LazyVerticalGrid(
-                    cells = gridCells.Fixed(4),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) {
-                    items(mediaList) { media ->
-                        MediaGridItem(
-                            media = media,
-                            isSelected = selectedMedia == media,
-                            onClick = { onMediaClick(media) }
-                        )
-                    }
+        if (filteredMedia.isEmpty()) {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_gallery),
+                        contentDescription = "",
+                        tint = Color.White.copy(alpha = 0.3f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+                    Text(text = "No media found", color = Color.White.copy(alpha = 0.5f), fontSize = 16.sp)
                 }
-            } else {
-                LazyColumn(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                    items(mediaList) { media ->
-                        MediaListItem(
-                            media = media,
-                            isSelected = selectedMedia == media,
-                            onClick = { onMediaClick(media) }
-                        )
-                    }
+            }
+        } else {
+            LazyVerticalGrid(
+                cells = gridCells.Fixed(2),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+            ) {
+                items(filteredMedia) { media ->
+                    MediaGridItem(
+                        media = media,
+                        isSelected = selectedMedia == media,
+                        onClick = { onMediaClick(media) }
+                    )
                 }
             }
         }
@@ -270,6 +242,10 @@ fun MediaGridItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val isVideo = media.name.contains(".mp4") || media.name.contains(".mov") || media.name.contains(".avi")
+    val isAudio = media.name.contains(".mp3") || media.name.contains(".wav") || media.name.contains(".aac")
+    val isImage = media.name.contains(".png") || media.name.contains(".jpg") || media.name.contains(".jpeg")
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -278,31 +254,44 @@ fun MediaGridItem(
         onClick = onClick
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Thumbnail placeholder
+            // Thumbnail area
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .background(Color(0xFF121212))
             ) {
+                // Icon based on media type
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .align(Alignment.Center)
+                ) {
+                    Icon(
+                        painter = painterResource(id = when {
+                            isVideo -> android.R.drawable.ic_media_play
+                            isAudio -> android.R.drawable.ic_media_play
+                            isImage -> android.R.drawable.ic_menu_gallery
+                            else -> android.R.drawable.ic_menu_upload
+                        }),
+                        contentDescription = "Media type",
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                
+                // Selected overlay
                 if (isSelected) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .align(Alignment.Center),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(id = android.R.drawable.ic_media_play),
-                            contentDescription = "Play",
-                            tint = Color.Cyan
-                        )
-                    }
+                            .fillMaxSize()
+                            .background(Color.Cyan.copy(alpha = 0.1f))
+                    )
                 }
             }
-            
+
             // Info
-            Column(modifier = Modifier.padding(8.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = media.name,
                     color = Color.White,
@@ -322,149 +311,72 @@ fun MediaGridItem(
 }
 
 @Composable
-fun MediaListItem(
+fun AssetDetailsPanel(
     media: EditorState.MediaFile,
-    isSelected: Boolean,
-    onClick: () -> Unit
+    onClose: () -> Unit,
+    onPreview: () -> Unit,
+    onAdd: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isSelected) Color(0xFF1A3A4A) else Color(0xFF1E1E1E)),
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Thumbnail
-            Box(
-                modifier = Modifier
-                    .width(128.dp)
-                    .height(72.dp)
-                    .background(Color(0xFF121212))
-            )
-            
-            androidx.compose.foundation.layout.Box(modifier = Modifier.width(12.dp))
-            
-            // Info
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = media.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.TextOverflow.Ellipsis)
-                Text(text = "${media.width}×${media.height} · ${formatDuration(media.duration)}", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-            }
-            
-            // Duration badge
-            Text(text = formatDuration(media.duration), color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-        }
-    }
-}
-
-@Composable
-fun MetadataPanel(media: EditorState.MediaFile?, onClose: () -> Unit) {
-    media?.let { m ->
-        Card(
-            modifier = Modifier
-                .width(320.dp)
-                .fillMaxHeight()
-                .background(Color(0xFF121212))
-        ) {
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Metadata", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    IconButton(onClick = onClose) {
-                        Icon(painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel), contentDescription = "Close")
-                    }
-                }
-                
-                Divider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
-                
-                MetadataRow("Name", m.name)
-                MetadataRow("Resolution", "${m.width} × ${m.height}")
-                MetadataRow("Duration", formatDuration(m.duration))
-                MetadataRow("Frame Rate", "30 fps")
-                MetadataRow("Codec", "H.264")
-                MetadataRow("Color Space", "Rec.709")
-                MetadataRow("Audio", "AAC 48kHz Stereo")
-            }
-        }
-    }
-}
-
-@Composable
-fun MetadataRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-    ) {
-        Text(text = label, color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
-        Text(text = value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
-fun MediaPreviewBar(media: EditorState.MediaFile) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp)
+            .height(140.dp)
             .background(Color(0xFF121212))
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Title row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Preview: ${media.name}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                Text(text = formatDuration(media.duration), color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                Text(text = media.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                IconButton(onClick = onClose) {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                        contentDescription = "Close",
+                        tint = Color.White.copy(alpha = 0.7f)
+                    )
+                }
             }
-            
-            // Scrubber
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .padding(top = 8.dp)
-            ) {
-                // Timeline bar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .background(Color.White.copy(alpha = 0.2f))
-                )
-                
-                // Playhead
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(20.dp)
-                        .background(Color.Cyan)
-                        .graphicsLayer { translationX = (200f - 1f).px; translationY = -8.px }
-                )
-            }
-            
-            // Transport
+
+            // Metadata row
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(24.dp)
             ) {
-                IconButton(onClick = { }) {
-                    Icon(painter = painterResource(id = android.R.drawable.ic_media_rew), contentDescription = "Rewind")
+                MetadataItem("Resolution", "${media.width} × ${media.height}")
+                MetadataItem("Frame Rate", "59.94 fps")
+                MetadataItem("Duration", formatDuration(media.duration))
+            }
+
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+            ) {
+                // Preview button
+                androidx.compose.material3.OutlinedButton(
+                    onClick = onPreview,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.Cyan,
+                        borderColor = Color.Cyan.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Text(text = "Preview", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
-                IconButton(onClick = { }, modifier = Modifier.size(48.dp)) {
-                    Icon(painter = painterResource(id = android.R.drawable.ic_media_play), contentDescription = "Play", tint = Color.Cyan)
-                }
-                IconButton(onClick = { }) {
-                    Icon(painter = painterResource(id = android.R.drawable.ic_media_ff), contentDescription = "Forward")
+
+                // Add button
+                androidx.compose.material3.Button(
+                    onClick = onAdd,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Cyan)
+                ) {
+                    Text(text = "+ Add", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -472,12 +384,10 @@ fun MediaPreviewBar(media: EditorState.MediaFile) {
 }
 
 @Composable
-fun CenteredText(text: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = text, color = Color.White.copy(alpha = 0.5f), fontSize = 16.sp)
+fun MetadataItem(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp)
+        Text(text = value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 

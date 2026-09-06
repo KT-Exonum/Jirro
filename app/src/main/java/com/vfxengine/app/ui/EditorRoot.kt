@@ -18,6 +18,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,20 +61,12 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top tab bar (DaVinci style)
-                EditorTabBar(
-                    currentTab = currentTab,
-                    onTabClick = { currentTab = it }
-                )
-                
-                Divider(color = Color.White.copy(alpha = 0.1f))
-                
                 // Tab content
                 when (currentTab) {
                     EditorTab.Media -> MediaTab(state)
-                    EditorTab.Edit -> EditTab(state)
-                    EditorTab.Fusion -> FusionTab(state)
-                    EditorTab.Deliver -> DeliverTab(state, engine)
+                    EditorTab.Timeline -> EditTab(state)
+                    EditorTab.Effects -> FusionTab(state)
+                    EditorTab.Export -> DeliverTab(state, engine)
                 }
             }
             
@@ -97,75 +91,64 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
                     onDismiss = { showProfiler = false }
                 )
             }
+            
+            // Bottom navigation bar
+            EditorTabBar(
+                currentTab = currentTab,
+                onTabClick = { currentTab = it },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }
 
 enum class EditorTab(val label: String, val iconRes: Int) {
     Media("Media", android.R.drawable.ic_menu_gallery),
-    Edit("Edit", android.R.drawable.ic_media_play),
-    Fusion("Fusion", android.R.drawable.ic_menu_manage),
-    Deliver("Deliver", android.R.drawable.ic_media_next)
+    Timeline("Timeline", android.R.drawable.ic_media_play),
+    Effects("Effects", android.R.drawable.ic_menu_manage),
+    Export("Export", android.R.drawable.ic_media_next)
 }
 
 @Composable
 fun EditorTabBar(
     currentTab: EditorTab,
-    onTabClick: (EditorTab) -> Unit
+    onTabClick: (EditorTab) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
+    NavigationBar(
+        modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .background(Color(0xFF121212))
+            .height(64.dp)
+            .background(Color(0xFF121212)),
+        containerColor = Color(0xFF121212),
+        tonalElevation = 0.dp
     ) {
         EditorTab.values().forEach { tab ->
-            androidx.compose.material3.TextButton(
+            NavigationBarItem(
+                selected = currentTab == tab,
                 onClick = { onTabClick(tab) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = androidx.compose.material3.TextButtonDefaults.textButtonColors(
-                    containerColor = if (currentTab == tab) Color.Cyan.copy(alpha = 0.1f) else Color.Transparent
-                )
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                icon = {
                     Icon(
                         painter = painterResource(id = tab.iconRes),
-                        contentDescription = "",
+                        contentDescription = tab.label,
                         tint = if (currentTab == tab) Color.Cyan else Color.White.copy(alpha = 0.7f)
                     )
-                    androidx.compose.foundation.layout.Box(modifier = Modifier.width(8.dp))
+                },
+                label = {
                     Text(
                         text = tab.label,
-                        color = if (currentTab == tab) Color.Cyan else Color.White.copy(alpha = 0.9f),
-                        fontSize = 13.sp,
-                        fontWeight = if (currentTab == tab) FontWeight.Bold else FontWeight.Normal
+                        color = if (currentTab == tab) Color.Cyan else Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp
                     )
-                }
-            }
-        }
-        
-        // Right side: Settings + Profiler
-        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.IconButton(onClick = { /* show profiler */ }) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_report_image),
-                    contentDescription = "Profiler",
-                    tint = Color.White.copy(alpha = 0.7f)
+                },
+                colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                    selectedIconColor = Color.Cyan,
+                    selectedTextColor = Color.Cyan,
+                    unselectedIconColor = Color.White.copy(alpha = 0.7f),
+                    unselectedTextColor = Color.White.copy(alpha = 0.7f),
+                    indicatorColor = Color.Transparent
                 )
-            }
-            androidx.compose.material3.IconButton(onClick = { /* show settings */ }) {
-                Icon(
-                    painter = painterResource(id = android.R.drawable.ic_menu_preferences),
-                    contentDescription = "Settings",
-                    tint = Color.White.copy(alpha = 0.7f)
-                )
-            }
+            )
         }
     }
 }

@@ -8,16 +8,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Card
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,58 +40,37 @@ import androidx.compose.ui.unit.sp
 import com.vfxengine.app.ui.common.EditorState
 
 /**
- * Fusion Tab - DaVinci Resolve style Fusion page
- * Full-screen node editor with inspector, keyframe editor, spline editor
+ * Fusion Tab - Node Graph Screen
+ * Header: Node graph title with zoom controls
+ * Canvas: Node graph with connections
+ * Warning banner
+ * Inspector panel at bottom
  */
 @Composable
 fun FusionTab(state: EditorState) {
-    var showInspector by remember { mutableStateOf(true) }
-    var showKeyframes by remember { mutableStateOf(false) }
-    var showSpline by remember { mutableStateOf(false) }
-    var showNodes by remember { mutableStateOf(true) }
-    
+    var showWarning by remember { mutableStateOf(true) }
+
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main node editor canvas (center)
-        if (showNodes) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header with zoom controls
+            FusionHeader()
+
+            // Node canvas (main area)
             FusionNodeCanvas(state)
-        }
-        
-        // Left sidebar: Tools + Node library
-        if (showNodes) {
-            FusionLeftSidebar(state)
-        }
-        
-        // Right sidebar: Inspector / Keyframes / Spline
-        if (showInspector || showKeyframes || showSpline) {
-            FusionRightSidebar(state, showInspector, showKeyframes, showSpline)
-        }
-        
-        // Top toolbar
-        FusionToolbar(
-            state = state,
-            showInspector = showInspector,
-            onInspectorToggle = { showInspector = !showInspector },
-            onKeyframesToggle = { showKeyframes = !showKeyframes; showInspector = false },
-            onSplineToggle = { showSpline = !showSpline; showInspector = false },
-            onNodesToggle = { showNodes = !showNodes }
-        )
-        
-        // Bottom: Keyframe timeline (when keyframes open)
-        if (showKeyframes) {
-            FusionKeyframeTimeline(state)
+
+            // Warning banner
+            if (showWarning) {
+                WarningBanner(onDismiss = { showWarning = false })
+            }
+
+            // Inspector panel at bottom
+            InspectorPanel(state)
         }
     }
 }
 
 @Composable
-fun FusionToolbar(
-    state: EditorState,
-    showInspector: Boolean,
-    onInspectorToggle: () -> Unit,
-    onKeyframesToggle: () -> Unit,
-    onSplineToggle: () -> Unit,
-    onNodesToggle: () -> Unit
-) {
+fun FusionHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -103,130 +80,26 @@ fun FusionToolbar(
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Page title
-        Text(text = "Fusion", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        
-        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f))
-        
-        // Tool buttons
+        // Title
+        Text(text = "Node graph", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+
+        // Zoom controls
         Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
-            FusionTool.values().forEach { tool ->
-                androidx.compose.material3.IconButton(
-                    onClick = { /* select tool */ },
-                    colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                        containerColor = if (state.currentTool == tool) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
-                    )
-                ) {
-                    Icon(
-                        painter = painterResource(id = tool.iconRes),
-                        contentDescription = tool.label,
-                        tint = if (state.currentTool == tool) Color.Cyan else Color.White
-                    )
-                }
-            }
-        }
-        
-        androidx.compose.foundation.layout.Box(modifier = Modifier.width(16.dp))
-        
-        // View toggles
-        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
-            IconButton(
-                onClick = onNodesToggle,
-                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                    containerColor = Color.Cyan.copy(alpha = 0.2f)
+            Text(text = "Zoom", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+            IconButton(onClick = { /* zoom out */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_media_rew),
+                    contentDescription = "Zoom Out",
+                    tint = Color.White
                 )
-            ) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_manage), contentDescription = "Nodes", tint = Color.Cyan)
             }
-            IconButton(
-                onClick = onInspectorToggle,
-                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                    containerColor = if (showInspector) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
+            IconButton(onClick = { /* zoom in */ }) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_media_ff),
+                    contentDescription = "Zoom In",
+                    tint = Color.White
                 )
-            ) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_info_details), contentDescription = "Inspector", tint = if (showInspector) Color.Cyan else Color.White)
             }
-            IconButton(
-                onClick = onKeyframesToggle,
-                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                    containerColor = if (showKeyframes) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
-                )
-            ) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_media_play), contentDescription = "Keyframes", tint = if (showKeyframes) Color.Cyan else Color.White)
-            }
-            IconButton(
-                onClick = onSplineToggle,
-                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
-                    containerColor = if (showSpline) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
-                )
-            ) {
-                Icon(painter = painterResource(id = android.R.drawable.ic_menu_report_image), contentDescription = "Spline", tint = if (showSpline) Color.Cyan else Color.White)
-            }
-        }
-    }
-}
-
-enum class FusionTool(val label: String, val iconRes: Int) {
-    Select("Select", android.R.drawable.ic_menu_selectall),
-    Pan("Pan", android.R.drawable.ic_menu_mapmode),
-    Zoom("Zoom", android.R.drawable.ic_menu_zoom),
-    Connect("Connect", android.R.drawable.ic_media_ff),
-    Cut("Cut", android.R.drawable.ic_menu_crop)
-}
-
-@Composable
-fun FusionLeftSidebar(state: EditorState) {
-    Card(
-        modifier = Modifier
-            .width(280.dp)
-            .fillMaxHeight()
-            .background(Color(0xFF121212))
-            .padding(0.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Tools palette
-            Text(text = "Tools", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(16.dp))
-            
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(8.dp),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-            ) {
-                items(ToolCategory.values()) { category ->
-                    ToolCategoryItem(category = category, onClick = { /* expand category */ })
-                }
-            }
-        }
-    }
-}
-
-enum class ToolCategory(val label: String, val iconRes: Int, val color: Int) {
-    Generators("Generators", android.R.drawable.ic_menu_add, 0xFF4CAF50),
-    Filters("Filters", android.R.drawable.ic_menu_edit, 0xFF2196F3),
-    Color("Color", android.R.drawable.ic_menu_gallery, 0xFFF44336),
-    Blur("Blur", android.R.drawable.ic_menu_rotate, 0xFF9C27B0),
-    Transform("Transform", android.R.drawable.ic_menu_crop, 0xFFFF9800),
-    Composite("Composite", android.R.drawable.ic_menu_agenda, 0xFF3F51B5),
-    Channel("Channel", android.R.drawable.ic_menu_slideshow, 0xFF00BCD4),
-    Audio("Audio", android.R.drawable.ic_media_play, 0xFFE91E63)
-}
-
-@Composable
-fun ToolCategoryItem(category: ToolCategory, onClick: () -> Unit) {
-    androidx.compose.material3.TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Start
-        ) {
-            Icon(
-                painter = painterResource(id = category.iconRes),
-                contentDescription = "",
-                tint = Color(category.color)
-            )
-            androidx.compose.foundation.layout.Box(modifier = Modifier.width(12.dp))
-            Text(text = category.label, color = Color.White, fontSize = 13.sp)
         }
     }
 }
@@ -235,7 +108,8 @@ fun ToolCategoryItem(category: ToolCategory, onClick: () -> Unit) {
 fun FusionNodeCanvas(state: EditorState) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            .weight(1f)
             .background(Color(0xFF0D0D0D))
             .pointerInput(state) {
                 detectDragGestures(
@@ -263,12 +137,12 @@ fun FusionNodeCanvas(state: EditorState) {
         state.connections.value.forEach { conn ->
             ConnectionLine(state, conn)
         }
-        
+
         // Draw nodes
         state.nodes.value.values.forEach { node ->
             FusionNodeView(state, node)
         }
-        
+
         // Draw connection preview
         state.dragState?.let { drag ->
             when (drag) {
@@ -277,7 +151,7 @@ fun FusionNodeCanvas(state: EditorState) {
                     fromNode?.let { node ->
                         val fromX = node.x + 180f + state.nodePanX * state.nodeZoom
                         val fromY = node.y + 20 + node.outputs.indexOfFirst { it.name == drag.fromPort } * 36f * state.nodeZoom + state.nodePanY * state.nodeZoom
-                        
+
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val path = Path()
                             path.moveTo(fromX, fromY)
@@ -341,10 +215,10 @@ fun FusionNodeView(state: EditorState, node: EditorState.Node) {
                         .background(Color(node.type.color))
                 )
             }
-            
+
             // Type badge
             Text(text = node.type.label, color = Color(node.type.color), fontSize = 9.sp, modifier = Modifier.fillMaxWidth().padding(top = 2.dp))
-            
+
             // Ports
             val portCount = maxOf(node.inputs.size, node.outputs.size)
             repeat(portCount) { i ->
@@ -364,7 +238,7 @@ fun FusionNodeView(state: EditorState, node: EditorState.Node) {
                     } else {
                         Box(modifier = Modifier.size(16.dp))
                     }
-                    
+
                     // Output port
                     if (i < node.outputs.size) {
                         FusionPort(
@@ -395,9 +269,9 @@ fun FusionPort(
         if (isOutput) c.fromNodeId == node.id && c.fromPort == port.name
         else c.toNodeId == node.id && c.toPort == port.name
     }
-    
+
     val portColor = if (isConnected) Color.Cyan else Color.Gray
-    
+
     Box(
         modifier = Modifier
             .size(16.dp)
@@ -407,11 +281,11 @@ fun FusionPort(
             }
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = { 
+                    onDragStart = {
                         state.dragState = EditorState.DragState.Connecting(
-                            node.id, 
-                            port.name, 
-                            0f, 
+                            node.id,
+                            port.name,
+                            0f,
                             0f
                         )
                     },
@@ -433,14 +307,14 @@ fun FusionPort(
 fun ConnectionLine(state: EditorState, connection: EditorState.Connection) {
     val fromNode = state.nodes.value[connection.fromNodeId]
     val toNode = state.nodes.value[connection.toNodeId]
-    
+
     fromNode?.let { from ->
         toNode?.let { to ->
             val fromX = from.x + 180f
             val fromY = from.y + 20 + from.outputs.indexOfFirst { it.name == connection.fromPort } * 36f
             val toX = to.x
             val toY = to.y + 20 + to.inputs.indexOfFirst { it.name == connection.toPort } * 36f
-            
+
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val path = Path()
                 path.moveTo(fromX, fromY)
@@ -458,205 +332,45 @@ fun ConnectionLine(state: EditorState, connection: EditorState.Connection) {
 }
 
 @Composable
-fun FusionRightSidebar(
-    state: EditorState,
-    showInspector: Boolean,
-    showKeyframes: Boolean,
-    showSpline: Boolean
-) {
+fun WarningBanner(onDismiss: () -> Unit) {
     Card(
         modifier = Modifier
-            .width(320.dp)
-            .fillMaxHeight()
-            .background(Color(0xFF121212))
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(Color(0xFF3A2A0D))
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Tabs
-            Row(
-                modifier = Modifier.fillMaxWidth().height(40.dp).background(Color(0xFF0D0D0D))
-            ) {
-                listOf("Inspector", "Keyframes", "Spline").forEachIndexed { index, title ->
-                    val isSelected = when (index) {
-                        0 -> showInspector
-                        1 -> showKeyframes
-                        2 -> showSpline
-                        else -> false
-                    }
-                    androidx.compose.material3.TextButton(
-                        onClick = { /* handled by parent */ },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(40.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            color = if (isSelected) Color.Cyan else Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-            
-            Divider(color = Color.White.copy(alpha = 0.1f))
-            
-            // Content
-            if (showInspector) {
-                FusionInspectorPanel(state)
-            } else if (showKeyframes) {
-                FusionKeyframeEditor(state)
-            } else if (showSpline) {
-                FusionSplineEditor(state)
-            }
-        }
-    }
-}
-
-@Composable
-fun FusionInspectorPanel(state: EditorState) {
-    val selectedNode = state.selectedNodeId?.let { state.nodes.value[it] }
-    
-    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        if (selectedNode == null) {
-            CenteredText("Select a node")
-        } else {
-            androidx.compose.foundation.lazy.LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Text(text = selectedNode.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(text = selectedNode.type.label, color = Color(selectedNode.type.color), fontSize = 12.sp)
-                }
-                
-                item {
-                    Divider(color = Color.White.copy(alpha = 0.2f))
-                    Text(text = "Controls", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-                
-                selectedNode.uniforms.forEach { (name, value) ->
-                    item {
-                        FusionUniformField(
-                            label = name,
-                            value = value,
-                            onValueChange = { newValue ->
-                                state.updateNodeUniform(selectedNode.id, name, newValue)
-                            }
-                        )
-                    }
-                }
-                
-                if (selectedNode.animatedUniforms.isNotEmpty()) {
-                    item {
-                        Divider(color = Color.White.copy(alpha = 0.2f))
-                        Text(text = "Animated", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    }
-                    
-                    selectedNode.animatedUniforms.forEach { (name, track) ->
-                        item {
-                            FusionAnimatedField(state = state, nodeId = selectedNode.id, uniformName = name, track = track)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun FusionUniformField(
-    label: String,
-    value: Float,
-    onValueChange: (Float) -> Unit
-) {
-    var textValue by remember { mutableStateOf(value.toString()) }
-    
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(text = label, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-        androidx.compose.material3.FilledTextField(
-            value = textValue,
-            onValueChange = { 
-                textValue = it
-                it.toFloatOrNull()?.let { onValueChange(it) }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
-            colors = androidx.compose.material3.TextFieldDefaults.filledTextFieldColors(
-                containerColor = Color(0xFF2D2D2D),
-                focusedContainerColor = Color(0xFF3D3D3D),
-                textColor = Color.White,
-                placeholderColor = Color.White.copy(alpha = 0.4f)
-            )
-        )
-    }
-}
-
-@Composable
-fun FusionAnimatedField(
-    state: EditorState,
-    nodeId: String,
-    uniformName: String,
-    track: EditorState.KeyframeTrack
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = uniformName, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-            Text(text = "${track.keyframes.size} keys", color = Color.Green, fontSize = 10.sp)
-        }
-        
-        track.keyframes.forEachIndexed { index, kf ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-            ) {
-                Text(text = "${formatTimecode(kf.time)}: ${kf.value}", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                Text(text = kf.interpolation.name, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp)
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_dialog_alert),
+                contentDescription = "Warning",
+                tint = Color.Yellow
+            )
+            androidx.compose.foundation.layout.Box(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Ports sit ~10px apart at this zoom — dragging a new connection between them is unreliable with a finger. Pinch to zoom in before connecting.",
+                color = Color.White,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                    contentDescription = "Dismiss",
+                    tint = Color.White.copy(alpha = 0.7f)
+                )
             }
         }
     }
 }
 
 @Composable
-fun FusionKeyframeEditor(state: EditorState) {
-    val target = state.keyframeEditorTarget
-    
-    if (target == null) {
-        CenteredText("Select an animated property in Inspector")
-    } else {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Text(text = "${target.nodeId} > ${target.uniformName}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            
-            // Curve view
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF0D0D0D))
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { offset ->
-                                // Add keyframe
-                            }
-                        )
-                    }
-            ) {
-                // Grid and curve drawing would go here
-                CenteredText("Curve Editor - ${target.track.keyframes.size} keyframes")
-            }
-        }
-    }
-}
+fun InspectorPanel(state: EditorState) {
+    val selectedNode = state.selectedNodeId?.let { state.nodes.value[it] }
 
-@Composable
-fun FusionSplineEditor(state: EditorState) {
-    CenteredText("Spline Editor - Bezier handles for keyframe interpolation")
-}
-
-@Composable
-fun FusionKeyframeTimeline(state: EditorState) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -664,19 +378,100 @@ fun FusionKeyframeTimeline(state: EditorState) {
             .background(Color(0xFF121212))
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Text(text = "Keyframe Timeline", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            
-            // Would show keyframe tracks here
-            CenteredText("Keyframe tracks for selected node")
+            // Inspector header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Inspector — ${selectedNode?.name ?: "No selection"}",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (selectedNode != null) {
+                    Text(
+                        text = selectedNode.type.label,
+                        color = Color(selectedNode.type.color),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+
+            if (selectedNode == null) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "Select a node to inspect", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+                }
+            } else {
+                // Uniform controls
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+                ) {
+                    // Gain slider
+                    UniformSlider(
+                        label = "Gain",
+                        value = selectedNode.uniforms["gain"] ?: 1.0f,
+                        min = 0f,
+                        max = 3f,
+                        onValueChange = { value ->
+                            state.updateNodeUniform(selectedNode.id, "gain", value)
+                        }
+                    )
+
+                    // Lift slider
+                    UniformSlider(
+                        label = "Lift",
+                        value = selectedNode.uniforms["lift"] ?: 0f,
+                        min = -1f,
+                        max = 1f,
+                        onValueChange = { value ->
+                            state.updateNodeUniform(selectedNode.id, "lift", value)
+                        }
+                    )
+                }
+            }
         }
     }
 }
 
-private fun formatTimecode(seconds: Double): String {
-    val totalFrames = (seconds * 30).roundToInt()
-    val hours = totalFrames / (30 * 60 * 60)
-    val minutes = (totalFrames / (30 * 60)) % 60
-    val secs = (totalFrames / 30) % 60
-    val frames = totalFrames % 30
-    return String.format("%02d:%02d:%02d:%02d", hours, minutes, secs, frames)
+@Composable
+fun UniformSlider(
+    label: String,
+    value: Float,
+    min: Float,
+    max: Float,
+    onValueChange: (Float) -> Unit
+) {
+    var currentValue by remember { mutableStateOf(value) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+        ) {
+            Text(text = label, color = Color.White, fontSize = 13.sp)
+            Text(text = "%.2f".format(currentValue), color = Color.Cyan, fontSize = 13.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+        }
+
+        Slider(
+            modifier = Modifier.fillMaxWidth(),
+            value = (currentValue - min) / (max - min),
+            onValueChange = { ratio ->
+                val newValue = min + ratio * (max - min)
+                currentValue = newValue
+                onValueChange(newValue)
+            },
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color.Cyan,
+                activeTrackColor = Color.Cyan,
+                inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+            )
+        )
+    }
 }
