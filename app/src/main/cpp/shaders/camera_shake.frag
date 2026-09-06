@@ -11,17 +11,32 @@ layout(set = 0, binding = 0) uniform Uniforms {
 layout(set = 0, binding = 1) uniform sampler2D uInputTexture;
 layout(set = 0, binding = 2) uniform sampler2D uInputTexture2;
 
-layout(location = 0) in vec2 vTexCoord;
+layout(location = 0) in vec2 fTexCoord;
+layout(location = 1) in vec2 fCenterDist;
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants {
+    float uTransform[9];
     float uFrequency;
-    float uPositionAmount;
-    float uRotationAmount;
-    float uScaleAmount;
-    float uDecay;
-    int uSeed;
+    float uMagnitude;
+    float uAngle;
     float uPhase;
+    int uWaveType;
+    float uDecay;
+    float uRotation;
+    float uSeed;
+    float uAmount;
+    float uSpeed;
+    float uScale;
+    float uOctaves;
+    float uIntensity;
+    float uBlockSize;
+    float uChromatic;
+    float uNoiseAmount;
+    float uScanlineAmount;
+    float uDistortion;
+    float uColorBleed;
+    float uJitter;
 } pc;
 
 float hash11(float p) {
@@ -53,7 +68,7 @@ float fbm(vec2 p, int octaves) {
 }
 
 void main() {
-    vec4 color = texture(uInputTexture, vTexCoord);
+    vec4 color = texture(uInputTexture, fTexCoord);
     
     float time = ubo.uTime * pc.uFrequency + pc.uPhase;
     float decay = exp(-ubo.uTime * pc.uDecay);
@@ -62,16 +77,16 @@ void main() {
     vec2 posOffset = vec2(
         (fbm(vec2(time, float(pc.uSeed) * 0.1), 3) - 0.5) * 2.0,
         (fbm(vec2(time + 100.0, float(pc.uSeed) * 0.1), 3) - 0.5) * 2.0
-    ) * pc.uPositionAmount * decay * 0.02;
+    ) * pc.uAmount * decay * 0.02;
     
     // Rotation shake
-    float rotOffset = (fbm(vec2(time + 200.0, float(pc.uSeed) * 0.1), 3) - 0.5) * 2.0 * pc.uRotationAmount * decay;
+    float rotOffset = (fbm(vec2(time + 200.0, float(pc.uSeed) * 0.1), 3) - 0.5) * 2.0 * pc.uRotation * decay;
     
     // Scale shake
-    float scaleOffset = (fbm(vec2(time + 300.0, float(pc.uSeed) * 0.1), 3) - 0.5) * 2.0 * pc.uScaleAmount * decay;
+    float scaleOffset = (fbm(vec2(time + 300.0, float(pc.uSeed) * 0.1), 3) - 0.5) * 2.0 * pc.uScale * decay;
     
     vec2 center = vec2(0.5);
-    vec2 uv = vTexCoord - center;
+    vec2 uv = fTexCoord - center;
     
     // Apply rotation
     float c = cos(rotOffset);

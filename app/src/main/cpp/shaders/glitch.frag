@@ -11,15 +11,32 @@ layout(set = 0, binding = 0) uniform Uniforms {
 layout(set = 0, binding = 1) uniform sampler2D uInputTexture;
 layout(set = 0, binding = 2) uniform sampler2D uInputTexture2;
 
-layout(location = 0) in vec2 vTexCoord;
+layout(location = 0) in vec2 fTexCoord;
+layout(location = 1) in vec2 fCenterDist;
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants {
+    float uTransform[9];
+    float uFrequency;
+    float uMagnitude;
+    float uAngle;
+    float uPhase;
+    int uWaveType;
+    float uDecay;
+    float uRotation;
+    float uSeed;
+    float uAmount;
+    float uSpeed;
+    float uScale;
+    float uOctaves;
     float uIntensity;
     float uBlockSize;
-    float uFrequency;
-    float uSeed;
     float uChromatic;
+    float uNoiseAmount;
+    float uScanlineAmount;
+    float uDistortion;
+    float uColorBleed;
+    float uJitter;
 } pc;
 
 float hash11(float p) {
@@ -39,7 +56,7 @@ float noise(vec2 p) {
 }
 
 void main() {
-    vec2 uv = vTexCoord;
+    vec2 uv = fTexCoord;
     vec4 color = vec4(0.0);
     
     // Random displacement for glitch blocks

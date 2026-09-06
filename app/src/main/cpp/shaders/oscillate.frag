@@ -11,15 +11,32 @@ layout(set = 0, binding = 0) uniform Uniforms {
 layout(set = 0, binding = 1) uniform sampler2D uInputTexture;
 layout(set = 0, binding = 2) uniform sampler2D uInputTexture2;
 
-layout(location = 0) in vec2 vTexCoord;
+layout(location = 0) in vec2 fTexCoord;
+layout(location = 1) in vec2 fCenterDist;
 layout(location = 0) out vec4 outColor;
 
 layout(push_constant) uniform PushConstants {
+    float uTransform[9];
     float uFrequency;
     float uMagnitude;
     float uAngle;
     float uPhase;
-    int uWaveType;  // 0 = Sine, 1 = Triangle
+    int uWaveType;        // 0=Sine, 1=Triangle
+    float uDecay;
+    float uRotation;
+    float uSeed;
+    float uAmount;
+    float uSpeed;
+    float uScale;
+    float uOctaves;
+    float uIntensity;
+    float uBlockSize;
+    float uChromatic;
+    float uNoiseAmount;
+    float uScanlineAmount;
+    float uDistortion;
+    float uColorBleed;
+    float uJitter;
 } pc;
 
 float triangleWave(float x) {
@@ -35,19 +52,16 @@ float waveFunc(float x) {
 }
 
 void main() {
-    vec4 color = texture(uInputTexture, vTexCoord);
+    vec2 uv = fTexCoord;
     
-    // Calculate oscillation offset
+    // Oscillate: add sine/triangle wave displacement
     float angleRad = radians(pc.uAngle);
     vec2 dir = vec2(cos(angleRad), sin(angleRad));
     float phase = ubo.uTime * pc.uFrequency * 6.2831853 + pc.uPhase * 0.01;
     float offset = waveFunc(phase) * pc.uMagnitude;
     
-    // Apply offset to texture coordinates
-    vec2 offsetUV = vTexCoord + dir * offset * 0.001;
+    uv += dir * offset * 0.001;
+    uv = clamp(uv, vec2(0.0), vec2(1.0));
     
-    // Clamp to valid range
-    offsetUV = clamp(offsetUV, vec2(0.0), vec2(1.0));
-    
-    outColor = texture(uInputTexture, offsetUV);
+    outColor = texture(uInputTexture, uv);
 }

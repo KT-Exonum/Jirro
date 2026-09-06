@@ -110,7 +110,11 @@ extern size_t kMeshPBRVertSpirvWords;
 extern const uint32_t* kMeshPBRFragSpirv;
 extern size_t kMeshPBRFragSpirvWords;
 
-// Motion Effects shaders (fallback to existing for now)
+// Motion transform vertex shader (shared by all motion effects)
+extern const uint32_t* kMotionTransformVertSpirv;
+extern size_t kMotionTransformVertSpirvWords;
+
+// Motion Effects shaders
 extern const uint32_t* kOscillateFragSpirv;
 extern size_t kOscillateFragSpirvWords;
 extern const uint32_t* kShakeFragSpirv;
@@ -270,54 +274,54 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(MeshSource, kMeshPBRVertSpirv, kMeshPBRVertSpirvWords, kMeshPBRFragSpirv, kMeshPBRFragSpirvWords);
         V(Group, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         // Motion Effects - Transform Motion
-        V(Oscillate, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kOscillateFragSpirv, kOscillateFragSpirvWords);
-        V(Shake, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kShakeFragSpirv, kShakeFragSpirvWords);
-        V(RandomDisplacement, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kRandomDisplacementFragSpirv, kRandomDisplacementFragSpirvWords);
-        V(Pulse, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kPulseFragSpirv, kPulseFragSpirvWords);
-        V(Swing, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kSwingFragSpirv, kSwingFragSpirvWords);
-        V(Bounce, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBounceFragSpirv, kBounceFragSpirvWords);
-        V(Elastic, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kElasticFragSpirv, kElasticFragSpirvWords);
+        V(Oscillate, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kOscillateFragSpirv, kOscillateFragSpirvWords);
+        V(Shake, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kShakeFragSpirv, kShakeFragSpirvWords);
+        V(RandomDisplacement, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRandomDisplacementFragSpirv, kRandomDisplacementFragSpirvWords);
+        V(Pulse, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPulseFragSpirv, kPulseFragSpirvWords);
+        V(Swing, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kSwingFragSpirv, kSwingFragSpirvWords);
+        V(Bounce, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kBounceFragSpirv, kBounceFragSpirvWords);
+        V(Elastic, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kElasticFragSpirv, kElasticFragSpirvWords);
         // Motion Effects - Camera Motion
-        V(CameraShake, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kCameraShakeFragSpirv, kCameraShakeFragSpirvWords);
-        V(ZoomBlur, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kZoomBlurFragSpirv, kZoomBlurFragSpirvWords);
-        V(RadialBlur, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kRadialBlurFragSpirv, kRadialBlurFragSpirvWords);
-        V(MotionBlur, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kMotionBlurFragSpirv, kMotionBlurFragSpirvWords);
-        V(DirectionalBlur, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kDirectionalBlurFragSpirv, kDirectionalBlurFragSpirvWords);
+        V(CameraShake, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCameraShakeFragSpirv, kCameraShakeFragSpirvWords);
+        V(ZoomBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kZoomBlurFragSpirv, kZoomBlurFragSpirvWords);
+        V(RadialBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRadialBlurFragSpirv, kRadialBlurFragSpirvWords);
+        V(MotionBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kMotionBlurFragSpirv, kMotionBlurFragSpirvWords);
+        V(DirectionalBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDirectionalBlurFragSpirv, kDirectionalBlurFragSpirvWords);
         // Motion Effects - Distortion Motion
-        V(Ripple, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kRippleFragSpirv, kRippleFragSpirvWords);
-        V(Wave, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kWaveFragSpirv, kWaveFragSpirvWords);
-        V(Twist, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kTwistFragSpirv, kTwistFragSpirvWords);
-        V(Bulge, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBulgeFragSpirv, kBulgeFragSpirvWords);
-        V(Vortex, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kVortexFragSpirv, kVortexFragSpirvWords);
+        V(Ripple, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRippleFragSpirv, kRippleFragSpirvWords);
+        V(Wave, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kWaveFragSpirv, kWaveFragSpirvWords);
+        V(Twist, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kTwistFragSpirv, kTwistFragSpirvWords);
+        V(Bulge, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kBulgeFragSpirv, kBulgeFragSpirvWords);
+        V(Vortex, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVortexFragSpirv, kVortexFragSpirvWords);
         // Motion Effects - Stylize Motion
-        V(Glitch, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kGlitchFragSpirv, kGlitchFragSpirvWords);
-        V(VHS, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kVHSFragSpirv, kVHSFragSpirvWords);
-        V(Scanlines, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kScanlinesFragSpirv, kScanlinesFragSpirvWords);
-        V(CRT, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kCRTFragSpirv, kCRTFragSpirvWords);
-        V(ChromaticAberration, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kChromaticAberrationFragSpirv, kChromaticAberrationFragSpirvWords);
-        V(RGBShift, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kRGBShiftFragSpirv, kRGBShiftFragSpirvWords);
+        V(Glitch, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kGlitchFragSpirv, kGlitchFragSpirvWords);
+        V(VHS, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVHSFragSpirv, kVHSFragSpirvWords);
+        V(Scanlines, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kScanlinesFragSpirv, kScanlinesFragSpirvWords);
+        V(CRT, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCRTFragSpirv, kCRTFragSpirvWords);
+        V(ChromaticAberration, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kChromaticAberrationFragSpirv, kChromaticAberrationFragSpirvWords);
+        V(RGBShift, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRGBShiftFragSpirv, kRGBShiftFragSpirvWords);
         // Motion Effects - Time Motion
-        V(TimeStretch, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kTimeStretchFragSpirv, kTimeStretchFragSpirvWords);
-        V(FrameBlend, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kFrameBlendFragSpirv, kFrameBlendFragSpirvWords);
-        V(StopMotion, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kStopMotionFragSpirv, kStopMotionFragSpirvWords);
-        V(PosterizeTime, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kPosterizeTimeFragSpirv, kPosterizeTimeFragSpirvWords);
+        V(TimeStretch, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kTimeStretchFragSpirv, kTimeStretchFragSpirvWords);
+        V(FrameBlend, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFrameBlendFragSpirv, kFrameBlendFragSpirvWords);
+        V(StopMotion, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kStopMotionFragSpirv, kStopMotionFragSpirvWords);
+        V(PosterizeTime, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPosterizeTimeFragSpirv, kPosterizeTimeFragSpirvWords);
         // Motion Effects - Utility Motion
-        V(Wiggle, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kWiggleFragSpirv, kWiggleFragSpirvWords);
-        V(Jitter, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kJitterFragSpirv, kJitterFragSpirvWords);
-        V(Drift, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kDriftFragSpirv, kDriftFragSpirvWords);
-        V(Orbit, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kOrbitFragSpirv, kOrbitFragSpirvWords);
+        V(Wiggle, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kWiggleFragSpirv, kWiggleFragSpirvWords);
+        V(Jitter, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kJitterFragSpirv, kJitterFragSpirvWords);
+        V(Drift, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDriftFragSpirv, kDriftFragSpirvWords);
+        V(Orbit, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kOrbitFragSpirv, kOrbitFragSpirvWords);
         // Resolve FX inspired
-        V(CameraShakePro, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kCameraShakeProFragSpirv, kCameraShakeProFragSpirvWords);
-        V(DynamicZoom, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kDynamicZoomFragSpirv, kDynamicZoomFragSpirvWords);
-        V(FilmDamage, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kFilmDamageFragSpirv, kFilmDamageFragSpirvWords);
-        V(FilmGrain, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kFilmGrainFragSpirv, kFilmGrainFragSpirvWords);
-        V(Vignette, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kVignetteFragSpirv, kVignetteFragSpirvWords);
-        V(Letterbox, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kLetterboxFragSpirv, kLetterboxFragSpirvWords);
+        V(CameraShakePro, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCameraShakeProFragSpirv, kCameraShakeProFragSpirvWords);
+        V(DynamicZoom, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDynamicZoomFragSpirv, kDynamicZoomFragSpirvWords);
+        V(FilmDamage, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFilmDamageFragSpirv, kFilmDamageFragSpirvWords);
+        V(FilmGrain, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFilmGrainFragSpirv, kFilmGrainFragSpirvWords);
+        V(Vignette, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVignetteFragSpirv, kVignetteFragSpirvWords);
+        V(Letterbox, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kLetterboxFragSpirv, kLetterboxFragSpirvWords);
         // Advanced
-        V(BezierWarp, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBezierWarpFragSpirv, kBezierWarpFragSpirvWords);
-        V(MeshWarp, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kMeshWarpFragSpirv, kMeshWarpFragSpirvWords);
-        V(PolarCoordinates, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kPolarCoordinatesFragSpirv, kPolarCoordinatesFragSpirvWords);
-        V(DisplacementMap, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kDisplacementMapFragSpirv, kDisplacementMapFragSpirvWords);
+        V(BezierWarp, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kBezierWarpFragSpirv, kBezierWarpFragSpirvWords);
+        V(MeshWarp, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kMeshWarpFragSpirv, kMeshWarpFragSpirvWords);
+        V(PolarCoordinates, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPolarCoordinatesFragSpirv, kPolarCoordinatesFragSpirvWords);
+        V(DisplacementMap, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDisplacementMapFragSpirv, kDisplacementMapFragSpirvWords);
         #undef V
         return m;
     }();
