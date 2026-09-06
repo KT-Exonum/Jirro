@@ -393,6 +393,64 @@ fun FusionToolPalette(state: EditorState) {
                     onItemClick = { type -> addNodeOfType(state, type) }
                 )
 
+                // Motion Effects (Alight Motion + DaVinci Resolve)
+                ToolCategorySection(
+                    title = "Motion",
+                    color = 0xFFE91E63.toInt(),
+                    items = listOf(
+                        // Transform Motion
+                        ToolItem("Oscillate", EditorState.NodeType.Oscillate, android.R.drawable.ic_media_ff),
+                        ToolItem("Shake", EditorState.NodeType.Shake, android.R.drawable.ic_media_ff),
+                        ToolItem("Random Displace", EditorState.NodeType.RandomDisplacement, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Pulse", EditorState.NodeType.Pulse, android.R.drawable.ic_media_play),
+                        ToolItem("Swing", EditorState.NodeType.Swing, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Bounce", EditorState.NodeType.Bounce, android.R.drawable.ic_media_ff),
+                        ToolItem("Elastic", EditorState.NodeType.Elastic, android.R.drawable.ic_menu_rotate),
+                        // Camera Motion
+                        ToolItem("Camera Shake", EditorState.NodeType.CameraShake, android.R.drawable.ic_media_ff),
+                        ToolItem("Camera Shake Pro", EditorState.NodeType.CameraShakePro, android.R.drawable.ic_media_play),
+                        ToolItem("Dynamic Zoom", EditorState.NodeType.DynamicZoom, android.R.drawable.ic_menu_zoom),
+                        ToolItem("Zoom Blur", EditorState.NodeType.ZoomBlur, android.R.drawable.ic_menu_zoom),
+                        ToolItem("Radial Blur", EditorState.NodeType.RadialBlur, android.R.drawable.ic_menu_zoom),
+                        ToolItem("Motion Blur", EditorState.NodeType.MotionBlur, android.R.drawable.ic_media_ff),
+                        ToolItem("Directional Blur", EditorState.NodeType.DirectionalBlur, android.R.drawable.ic_media_ff),
+                        // Distortion Motion
+                        ToolItem("Ripple", EditorState.NodeType.Ripple, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Wave", EditorState.NodeType.Wave, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Twist", EditorState.NodeType.Twist, android.R.drawable.ic_menu_crop),
+                        ToolItem("Bulge/Pinch", EditorState.NodeType.Bulge, android.R.drawable.ic_menu_crop),
+                        ToolItem("Vortex", EditorState.NodeType.Vortex, android.R.drawable.ic_menu_rotate),
+                        // Stylize Motion
+                        ToolItem("Glitch", EditorState.NodeType.Glitch, android.R.drawable.ic_media_next),
+                        ToolItem("VHS", EditorState.NodeType.VHS, android.R.drawable.ic_media_rew),
+                        ToolItem("Scanlines", EditorState.NodeType.Scanlines, android.R.drawable.ic_menu_gallery),
+                        ToolItem("CRT", EditorState.NodeType.CRT, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Chromatic Aberration", EditorState.NodeType.ChromaticAberration, android.R.drawable.ic_menu_gallery),
+                        ToolItem("RGB Shift", EditorState.NodeType.RGBShift, android.R.drawable.ic_menu_gallery),
+                        // Time Motion
+                        ToolItem("Time Stretch", EditorState.NodeType.TimeStretch, android.R.drawable.ic_media_ff),
+                        ToolItem("Frame Blend", EditorState.NodeType.FrameBlend, android.R.drawable.ic_media_play),
+                        ToolItem("Stop Motion", EditorState.NodeType.StopMotion, android.R.drawable.ic_media_pause),
+                        ToolItem("Posterize Time", EditorState.NodeType.PosterizeTime, android.R.drawable.ic_media_pause),
+                        // Utility Motion
+                        ToolItem("Wiggle", EditorState.NodeType.Wiggle, android.R.drawable.ic_media_ff),
+                        ToolItem("Jitter", EditorState.NodeType.Jitter, android.R.drawable.ic_media_ff),
+                        ToolItem("Drift", EditorState.NodeType.Drift, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Orbit", EditorState.NodeType.Orbit, android.R.drawable.ic_menu_rotate),
+                        // Resolve FX
+                        ToolItem("Film Damage", EditorState.NodeType.FilmDamage, android.R.drawable.ic_media_rew),
+                        ToolItem("Film Grain", EditorState.NodeType.FilmGrain, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Vignette", EditorState.NodeType.Vignette, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Letterbox", EditorState.NodeType.Letterbox, android.R.drawable.ic_menu_crop),
+                        // Advanced
+                        ToolItem("Bezier Warp", EditorState.NodeType.BezierWarp, android.R.drawable.ic_menu_crop),
+                        ToolItem("Mesh Warp", EditorState.NodeType.MeshWarpAdvanced, android.R.drawable.ic_menu_agenda),
+                        ToolItem("Polar Coordinates", EditorState.NodeType.PolarCoordinates, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Displacement Map", EditorState.NodeType.DisplacementMap, android.R.drawable.ic_menu_gallery),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
                 // Masking/Rotoscoping
                 ToolCategorySection(
                     title = "Masking & Roto",

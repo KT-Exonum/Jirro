@@ -190,6 +190,56 @@ class EditorState(
         Stabilize("Stabilize", 0xFF9C27B0.toInt(), 86),
         CornerPin("Corner Pin", 0xFF9C27B0.toInt(), 87),
         PlanarTracker("Planar Tracker", 0xFF9C27B0.toInt(), 88),
+        // Motion Effects (Alight Motion + DaVinci Resolve inspired)
+        // Transform Motion
+        Oscillate("Oscillate", 0xFFE91E63.toInt(), 89),
+        Shake("Shake", 0xFFE91E63.toInt(), 90),
+        RandomDisplacement("Random Displacement", 0xFFE91E63.toInt(), 91),
+        Pulse("Pulse", 0xFFE91E63.toInt(), 92),
+        Swing("Swing", 0xFFE91E63.toInt(), 93),
+        Bounce("Bounce", 0xFFE91E63.toInt(), 94),
+        Elastic("Elastic", 0xFFE91E63.toInt(), 95),
+        // Camera Motion
+        CameraShake("Camera Shake", 0xFF673AB7.toInt(), 96),
+        ZoomBlur("Zoom Blur", 0xFF673AB7.toInt(), 97),
+        RadialBlur("Radial Blur", 0xFF673AB7.toInt(), 98),
+        MotionBlur("Motion Blur", 0xFF673AB7.toInt(), 99),
+        DirectionalBlur("Directional Blur", 0xFF673AB7.toInt(), 100),
+        // Distortion Motion
+        Ripple("Ripple", 0xFF9C27B0.toInt(), 101),
+        Wave("Wave", 0xFF9C27B0.toInt(), 102),
+        Twist("Twist", 0xFF9C27B0.toInt(), 103),
+        Bulge("Bulge/Pinch", 0xFF9C27B0.toInt(), 104),
+        Vortex("Vortex", 0xFF9C27B0.toInt(), 105),
+        // Stylize Motion
+        Glitch("Glitch", 0xFFFF9800.toInt(), 106),
+        VHS("VHS", 0xFFFF9800.toInt(), 107),
+        Scanlines("Scanlines", 0xFFFF9800.toInt(), 108),
+        CRT("CRT", 0xFFFF9800.toInt(), 109),
+        ChromaticAberration("Chromatic Aberration", 0xFFFF9800.toInt(), 110),
+        RGBShift("RGB Shift", 0xFFFF9800.toInt(), 111),
+        // Time Motion
+        TimeStretch("Time Stretch", 0xFF00BCD4.toInt(), 112),
+        FrameBlend("Frame Blend", 0xFF00BCD4.toInt(), 113),
+        StopMotion("Stop Motion", 0xFF00BCD4.toInt(), 114),
+        PosterizeTime("Posterize Time", 0xFF00BCD4.toInt(), 115),
+        // Utility Motion
+        Wiggle("Wiggle", 0xFF9E9E9E.toInt(), 116),
+        Jitter("Jitter", 0xFF9E9E9E.toInt(), 117),
+        Drift("Drift", 0xFF9E9E9E.toInt(), 118),
+        Orbit("Orbit", 0xFF9E9E9E.toInt(), 119),
+        // Resolve FX inspired
+        CameraShakePro("Camera Shake Pro", 0xFF673AB7.toInt(), 120),
+        DynamicZoom("Dynamic Zoom", 0xFF673AB7.toInt(), 121),
+        FilmDamage("Film Damage", 0xFFFF9800.toInt(), 122),
+        FilmGrain("Film Grain", 0xFFFF9800.toInt(), 123),
+        Vignette("Vignette", 0xFFFF9800.toInt(), 124),
+        Letterbox("Letterbox", 0xFF9E9E9E.toInt(), 125),
+        // Advanced
+        BezierWarp("Bezier Warp", 0xFF9C27B0.toInt(), 126),
+        MeshWarpAdvanced("Mesh Warp", 0xFF9C27B0.toInt(), 127),
+        PolarCoordinates("Polar Coordinates", 0xFF9C27B0.toInt(), 128),
+        DisplacementMap("Displacement Map", 0xFF9C27B0.toInt(), 129),
     }
 
     data class Port(val name: String, val type: PortType) {
@@ -837,6 +887,54 @@ class EditorState(
                 node.inputs.add(Port("input", Port.PortType.Input))
                 node.outputs.add(Port("cornerPin", Port.PortType.Output))
                 node.outputs.add(Port("transform", Port.PortType.Output))
+            }
+            // Motion Effects - Transform Motion
+            NodeType.Oscillate, NodeType.Shake, NodeType.RandomDisplacement, NodeType.Pulse,
+            NodeType.Swing, NodeType.Bounce, NodeType.Elastic -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Camera Motion
+            NodeType.CameraShake, NodeType.ZoomBlur, NodeType.RadialBlur,
+            NodeType.MotionBlur, NodeType.DirectionalBlur -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Distortion Motion
+            NodeType.Ripple, NodeType.Wave, NodeType.Twist, NodeType.Bulge, NodeType.Vortex -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Stylize Motion
+            NodeType.Glitch, NodeType.VHS, NodeType.Scanlines, NodeType.CRT,
+            NodeType.ChromaticAberration, NodeType.RGBShift -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Time Motion
+            NodeType.TimeStretch, NodeType.FrameBlend, NodeType.StopMotion, NodeType.PosterizeTime -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Utility Motion
+            NodeType.Wiggle, NodeType.Jitter, NodeType.Drift, NodeType.Orbit -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Resolve FX inspired
+            NodeType.CameraShakePro, NodeType.DynamicZoom -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.FilmDamage, NodeType.FilmGrain, NodeType.Vignette, NodeType.Letterbox -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Advanced
+            NodeType.BezierWarp, NodeType.MeshWarpAdvanced, NodeType.PolarCoordinates, NodeType.DisplacementMap -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+                node.inputs.add(Port("map", Port.PortType.Input))
             }
         }
         nodes.value[id] = node
