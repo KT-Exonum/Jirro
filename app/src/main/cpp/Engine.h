@@ -28,6 +28,7 @@
 #include "engine/core/CommandQueue.h"
 #include "engine/core/GraphicsDevice.h"
 #include "engine/core/Profiler.h"
+#include "engine/core/RuntimeShaderCompiler.h"
 #include "engine/export/ExportPipeline.h"
 #include "engine/export/ProjectSerializer.h"
 #include "engine/expression/ExpressionEngine.h"
@@ -227,6 +228,18 @@ public:
     // load .spv shaders from the APK's assets/ folder at runtime.
     void SetAssetManager(AAssetManager* mgr) { assetManager_ = mgr; }
 
+    // Runtime shader compilation: set the directory where compiled SPIR-V is cached.
+    void SetShaderCacheDirectory(std::string_view cacheDir) {
+        if (shaderCompiler_) shaderCompiler_->SetCacheDirectory(cacheDir);
+    }
+
+    // Trigger compilation of all shaders (compile-on-first-run).
+    void CompileShadersIfNeeded() {
+        if (shaderCompiler_ && assetManager_) {
+            shaderCompiler_->CompileAllShaders([](const std::string&, ShaderCompileResult) {});
+        }
+    }
+
     // Reload all shaders from assets (dev builds only, guarded by
     // ENGINE_DEV_SHADER_HOTLOAD). Falls back to embedded bytecode when
     // asset loading fails for any individual shader.
@@ -368,6 +381,9 @@ private:
 
     // Dev hot-reload: non-owning pointer to the APK's AAssetManager.
     AAssetManager* assetManager_ = nullptr;
+
+    // Runtime shader compilation (compile-on-first-run, cache for later)
+    std::unique_ptr<RuntimeShaderCompiler> shaderCompiler_;
 
     std::mutex windowMutex_;
     ANativeWindow* pendingWindow_ = nullptr;

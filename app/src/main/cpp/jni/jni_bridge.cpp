@@ -57,11 +57,32 @@ Java_com_vfxengine_app_NativeEngine_nativeDetachSurface(JNIEnv*, jobject, jlong 
 // pre-compiled .spv shaders from assets/ at runtime.
 JNIEXPORT void JNICALL
 Java_com_vfxengine_app_NativeEngine_nativeSetAssetManager(JNIEnv*, jobject, jlong handle,
-                                                           jobject javaAssetManager) {
+                                                            jobject javaAssetManager) {
     auto* engine = GetEngine(handle);
     if (!engine) return;
     AAssetManager* mgr = AAssetManager_fromJava(env, javaAssetManager);
     engine->SetAssetManager(mgr);
+}
+
+// Runtime shader compilation: set the cache directory for compiled SPIR-V.
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetShaderCacheDir(JNIEnv* env, jobject, jlong handle,
+                                                              jstring cacheDir) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    const char* dirChars = env->GetStringUTFChars(cacheDir, nullptr);
+    engine->SetShaderCacheDirectory(dirChars);
+    env->ReleaseStringUTFChars(cacheDir, dirChars);
+}
+
+// Trigger compile-on-first-run if cache is missing/stale.
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeCompileShadersIfNeeded(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->QueueCommand([](vfx::Engine& eng) {
+        eng.CompileShadersIfNeeded();
+    });
 }
 
 // Dev hot-reload: trigger re-compilation/reload of all shaders from assets.

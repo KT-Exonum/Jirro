@@ -150,6 +150,12 @@ void Engine::Tick() {
             // Phase 7+: Audio engine
             audioEngine_ = std::make_unique<AudioEngine>();
             audioEngine_->Initialize(device_.get());
+
+            // Runtime shader compilation: compile-on-first-run, cache for later
+            shaderCompiler_ = std::make_unique<RuntimeShaderCompiler>();
+            shaderCompiler_->SetAssetManager(assetManager_);
+            // Cache directory is set via SetShaderCacheDirectory() from JNI
+            // Default: no cache (falls back to embedded .spv assets)
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
             if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
@@ -157,6 +163,7 @@ void Engine::Tick() {
             expressionEngine_.reset();
             if (audioEngine_) { audioEngine_->Shutdown(); audioEngine_.reset(); }
             textRenderer_.reset();
+            if (shaderCompiler_) { shaderCompiler_->Shutdown(); shaderCompiler_.reset(); }
             projectManager_.reset();
             device_->Shutdown();
             device_.reset();
@@ -246,6 +253,83 @@ void Engine::ReloadShadersFromAssets() {
         return;
     }
 
+    // If a runtime shader compiler is configured, prefer compiled/ cached shaders.
+    if (shaderCompiler_) {
+        LOGI("ReloadShadersFromAssets: using runtime compiler cache");
+        struct CompiledEntry {
+            const char* name;
+            const char* assetPath; // GLSL source path
+        };
+        static constexpr CompiledEntry kCompiledShaders[] = {
+            {"fullscreen_vert", "shaders/fullscreen.vert"},
+            {"blend_normal_frag", "shaders/blend_normal.frag"},
+            {"blend_multiply_frag", "shaders/blend_multiply.frag"},
+            {"blend_screen_frag", "shaders/blend_screen.frag"},
+            {"blend_overlay_frag", "shaders/blend_overlay.frag"},
+            {"blend_add_frag", "shaders/blend_add.frag"},
+            {"blend_subtract_frag", "shaders/blend_subtract.frag"},
+            {"color_correction_frag", "shaders/color_correction.frag"},
+            {"blur_frag", "shaders/blur.frag"},
+            {"mask_frag", "shaders/mask.frag"},
+            {"composite_frag", "shaders/composite.frag"},
+            {"vector_source_vert", "shaders/vector_source.vert"},
+            {"vector_source_frag", "shaders/vector_source.frag"},
+            {"text_source_vert", "shaders/text_source.vert"},
+            {"text_source_frag", "shaders/text_source.frag"},
+            {"stroke_source_vert", "shaders/stroke_source.vert"},
+            {"stroke_source_frag", "shaders/stroke_source.frag"},
+            {"adjustment_vert", "shaders/adjustment.vert"},
+            {"adjustment_frag", "shaders/adjustment.frag"},
+            {"null_layer_vert", "shaders/null_layer.vert"},
+            {"null_layer_frag", "shaders/null_layer.frag"},
+            {"output_vert", "shaders/output.vert"},
+            {"output_frag", "shaders/output.frag"},
+            {"motion_blur_vert", "shaders/motion_blur.vert"},
+            {"motion_blur_frag", "shaders/motion_blur.frag"},
+            {"directional_blur_vert", "shaders/directional_blur.vert"},
+            {"directional_blur_frag", "shaders/directional_blur.frag"},
+            {"time_remap_vert", "shaders/time_remap.vert"},
+            {"time_remap_frag", "shaders/time_remap.frag"},
+            {"bezier_mask_vert", "shaders/bezier_mask.vert"},
+            {"bezier_mask_frag", "shaders/bezier_mask.frag"},
+            {"particle_vert", "shaders/particle.vert"},
+            {"particle_frag", "shaders/particle.frag"},
+            {"shape2d_vert", "shaders/shape2d.vert"},
+            {"shape2d_frag", "shaders/shape2d.frag"},
+            {"shape_merge_frag", "shaders/shape_merge.frag"},
+            {"shape_transform_vert", "shaders/shape_transform.vert"},
+            {"transform3d_vert", "shaders/transform3d.vert"},
+            {"transform3d_frag", "shaders/transform3d.frag"},
+            {"camera3d_vert", "shaders/camera3d.vert"},
+            {"camera3d_frag", "shaders/camera3d.frag"},
+            {"depth_of_field_vert", "shaders/depth_of_field.vert"},
+            {"depth_of_field_frag", "shaders/depth_of_field.frag"},
+            {"chroma_key_vert", "shaders/chroma_key.vert"},
+            {"chroma_key_frag", "shaders/chroma_key.frag"},
+            {"mesh_pbr_vert", "shaders/mesh_pbr.vert"},
+            {"mesh_pbr_frag", "shaders/mesh_pbr.frag"},
+            {"audio_reactive_frag", "shaders/audio_reactive.frag"},
+            {"audio_waveform_frag", "shaders/audio_waveform.frag"},
+            {"audio_spectrum_frag", "shaders/audio_spectrum.frag"},
+        };
+
+        for (const auto& entry : kCompiledShaders) {
+            auto result = shaderCompiler_->GetOrCompileShader(entry.assetPath);
+            if (result.success && !result.spirv.empty()) {
+                auto moduleResult = vulkan->CreateShaderModule(std::span<const uint32_t>{result.spirv.data(), result.spirv.size()});
+                if (moduleResult) {
+                    LOGI("Reloaded shader (runtime compiled): %s", entry.name);
+                } else {
+                    LOGW("Failed to create shader module for %s: %s", entry.name, moduleResult.error.c_str());
+                }
+            } else {
+                LOGW("Runtime compile failed for %s: %s", entry.name, result.errorMessage.c_str());
+            }
+        }
+        return;
+    }
+
+    // Fallback: load pre-compiled .spv from assets
     struct ShaderEntry {
         const char* name;
         const char* assetPath;

@@ -61,6 +61,7 @@ endif()
 add_library(vfxengine SHARED
     jni/jni_bridge.cpp
     Engine.cpp
+    engine/core/RuntimeShaderCompiler.cpp
     engine/vulkan/VulkanDevice.cpp
     engine/graph/RenderGraph.cpp
     engine/media/MediaEngine.cpp
