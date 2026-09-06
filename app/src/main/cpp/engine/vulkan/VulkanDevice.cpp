@@ -1161,93 +1161,12 @@ Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, 
         return Result<PipelineHandle>::Fail("Invalid shader module handle");
     }
 
-    // Descriptor set layouts:
-    // Set 0: Uniforms (projection, resolution) - shared across all pipelines
-    // Set 1: Params (effect-specific uniforms) - varies per effect type
-    // Set 2: Textures (input samplers) - varies by input count
-
-    // We'll create descriptor set layouts on first use and cache them
-    static VkDescriptorSetLayout uniformSetLayout = VK_NULL_HANDLE;
-    static VkDescriptorSetLayout paramSetLayout = VK_NULL_HANDLE;
-    static VkDescriptorSetLayout textureSetLayout1 = VK_NULL_HANDLE; // 1 texture
-    static VkDescriptorSetLayout textureSetLayout2 = VK_NULL_HANDLE; // 2 textures
-    static VkDescriptorSetLayout textureSetLayoutYcbcr = VK_NULL_HANDLE; // 1 YCbCr texture (immutable sampler)
-    static VkDescriptorSetLayout textureSetLayoutYcbcr1 = VK_NULL_HANDLE; // 1 YCbCr + 1 regular
-    static VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
-
-    if (uniformSetLayout == VK_NULL_HANDLE) {
-        // Set 0: Uniforms (projection matrix + resolution)
-        VkDescriptorSetLayoutBinding uniformBinding{};
-        uniformBinding.binding = 0;
-        uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uniformBinding.descriptorCount = 1;
-        uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutCreateInfo uniformLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        uniformLayoutInfo.bindingCount = 1;
-        uniformLayoutInfo.pBindings = &uniformBinding;
-        vkCreateDescriptorSetLayout(device_, &uniformLayoutInfo, nullptr, &uniformSetLayout);
-
-        // Set 1: Params (effect-specific uniform buffer)
-        VkDescriptorSetLayoutBinding paramBinding{};
-        paramBinding.binding = 0;
-        paramBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        paramBinding.descriptorCount = 1;
-        paramBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutCreateInfo paramLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        paramLayoutInfo.bindingCount = 1;
-        paramLayoutInfo.pBindings = &paramBinding;
-        vkCreateDescriptorSetLayout(device_, &paramLayoutInfo, nullptr, &paramSetLayout);
-
-        // Set 2: 1 regular texture (combined image sampler)
-        VkDescriptorSetLayoutBinding texBinding1{};
-        texBinding1.binding = 0;
-        texBinding1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        texBinding1.descriptorCount = 1;
-        texBinding1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutCreateInfo texLayoutInfo1{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        texLayoutInfo1.bindingCount = 1;
-        texLayoutInfo1.pBindings = &texBinding1;
-        vkCreateDescriptorSetLayout(device_, &texLayoutInfo1, nullptr, &textureSetLayout1);
-
-        // Set 2: 2 regular textures
-        VkDescriptorSetLayoutBinding texBindings2[2] = {texBinding1, texBinding1};
-        texBindings2[1].binding = 1;
-        VkDescriptorSetLayoutCreateInfo texLayoutInfo2{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        texLayoutInfo2.bindingCount = 2;
-        texLayoutInfo2.pBindings = texBindings2;
-        vkCreateDescriptorSetLayout(device_, &texLayoutInfo2, nullptr, &textureSetLayout2);
-
-        // Set 2: 1 YCbCr texture (with immutable sampler)
-        // We need a dummy YCbCr sampler for layout creation - real one comes at bind time
-        VkDescriptorSetLayoutBinding ycbcrBinding{};
-        ycbcrBinding.binding = 0;
-        ycbcrBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        ycbcrBinding.descriptorCount = 1;
-        ycbcrBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        ycbcrBinding.pImmutableSamplers = nullptr; // Will be set per-pipeline for YCbCr
-
-        VkDescriptorSetLayoutCreateInfo ycbcrLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        ycbcrLayoutInfo.bindingCount = 1;
-        ycbcrLayoutInfo.pBindings = &ycbcrBinding;
-        vkCreateDescriptorSetLayout(device_, &ycbcrLayoutInfo, nullptr, &textureSetLayoutYcbcr);
-
-        // Set 2: 1 YCbCr + 1 regular
-        VkDescriptorSetLayoutBinding mixedBindings[2] = {ycbcrBinding, texBinding1};
-        mixedBindings[1].binding = 1;
-        VkDescriptorSetLayoutCreateInfo mixedLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        mixedLayoutInfo.bindingCount = 2;
-        mixedLayoutInfo.pBindings = mixedBindings;
-        vkCreateDescriptorSetLayout(device_, &mixedLayoutInfo, nullptr, &textureSetLayoutYcbcr1);
-
-        // Pipeline layout with all 3 descriptor sets
-        VkDescriptorSetLayout layouts[3] = {uniformSetLayout, paramSetLayout, textureSetLayout2};
-        VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-        layoutInfo.setLayoutCount = 3;
-        layoutInfo.pSetLayouts = layouts;
-        vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &pipelineLayout);
+    // Descriptor set layouts and pipeline layout are created once during
+    // Initialize() in CreateDescriptorPoolAndLayouts(). Reuse those member
+    // handles here so pipelines share the same layouts that DrawFullscreenPass
+    // binds with.
+    if (!uniformSetLayout_ || !paramSetLayout_ || !graphPipelineLayout_) {
+        return Result<PipelineHandle>::Fail("Descriptor set layouts not initialized — call CreateDescriptorPoolAndLayouts first");
     }
 
     // Shader stages
@@ -1317,7 +1236,7 @@ Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, 
     pipelineInfo.pMultisampleState = &multisample;
     pipelineInfo.pColorBlendState = &colorBlend;
     pipelineInfo.pDynamicState = &dynamicState;
-    pipelineInfo.layout = pipelineLayout;
+    pipelineInfo.layout = graphPipelineLayout_;
     pipelineInfo.renderPass = VK_NULL_HANDLE; // Using dynamic rendering
     pipelineInfo.subpass = 0;
 
@@ -1326,7 +1245,7 @@ Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, 
         return Result<PipelineHandle>::Fail("vkCreateGraphicsPipelines failed");
     }
 
-    VkPipelineResource resource{pipeline, pipelineLayout};
+    VkPipelineResource resource{pipeline, graphPipelineLayout_};
     PipelineHandle handle = pipelines_.Insert(resource);
     pipelineCache[key] = handle;
 
@@ -1382,20 +1301,146 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
     uniformWrite.pBufferInfo = &uniformBufferInfo;
     vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
 
-    // Update param buffer (Set 1) with animated uniform values
+namespace {
+
+// ---------------------------------------------------------------------------
+// Structured param block for DrawFullscreenPass. Replaces the old flat
+// float[32] packing with std140-aligned named offsets so fragment shaders
+// can declare uniforms with non-array types (vec3, vec4, etc.) and get
+// deterministic layout regardless of unordered_map iteration order.
+// ---------------------------------------------------------------------------
+
+struct alignas(16) ParamBlock {
+    // Named slots — shader authors should match these names in GLSL.
+    // Unused slots are zeroed.
+    float opacity = 0.0f;
+    float exposure = 1.0f;
+    float contrast = 1.0f;
+    float saturation = 1.0f;
+    float rotation = 0.0f;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+    float translateX = 0.0f;
+    float translateY = 0.0f;
+    float blurRadius = 0.0f;
+    float blurAngle = 0.0f;
+    float brightness = 0.0f;
+    float hue = 0.0f;
+    float gamma = 1.0f;
+    float vignette = 0.0f;
+    float chromaAmount = 0.0f;
+    float time = 0.0f;
+    float speed = 1.0f;
+    float seed = 0.0f;
+    float particleSize = 1.0f;
+    float softness = 0.0f;
+    float intensity = 1.0f;
+    float threshold = 0.5f;
+    float feather = 0.0f;
+    float expand = 0.0f;
+    float choke = 0.0f;
+    float _pad[6] = {0};
+};
+
+static_assert(sizeof(ParamBlock) <= 256, "ParamBlock must fit in per-frame param uniform buffer");
+
+struct ParamWriter {
+    ParamBlock block = {};
+
+    void SetFloat(const std::string& name, float value) {
+        if (name == "opacity") block.opacity = value;
+        else if (name == "exposure") block.exposure = value;
+        else if (name == "contrast") block.contrast = value;
+        else if (name == "saturation") block.saturation = value;
+        else if (name == "rotation") block.rotation = value;
+        else if (name == "scaleX" || name == "scale_x") block.scaleX = value;
+        else if (name == "scaleY" || name == "scale_y") block.scaleY = value;
+        else if (name == "translateX" || name == "translate_x") block.translateX = value;
+        else if (name == "translateY" || name == "translate_y") block.translateY = value;
+        else if (name == "blurRadius" || name == "blur_radius") block.blurRadius = value;
+        else if (name == "blurAngle" || name == "blur_angle") block.blurAngle = value;
+        else if (name == "brightness") block.brightness = value;
+        else if (name == "hue") block.hue = value;
+        else if (name == "gamma") block.gamma = value;
+        else if (name == "vignette") block.vignette = value;
+        else if (name == "chromaAmount" || name == "chroma_amount") block.chromaAmount = value;
+        else if (name == "time") block.time = value;
+        else if (name == "speed") block.speed = value;
+        else if (name == "seed") block.seed = value;
+        else if (name == "particleSize" || name == "particle_size") block.particleSize = value;
+        else if (name == "softness") block.softness = value;
+        else if (name == "intensity") block.intensity = value;
+        else if (name == "threshold") block.threshold = value;
+        else if (name == "feather") block.feather = value;
+        else if (name == "expand") block.expand = value;
+        else if (name == "choke") block.choke = value;
+    }
+
+    void Pack(const std::unordered_map<std::string, float>& values) {
+        for (const auto& [name, value] : values) {
+            SetFloat(name, value);
+        }
+    }
+
+    const ParamBlock& Data() const { return block; }
+};
+
+} // namespace
+
+void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
+                                       TextureHandle output,
+                                       const std::unordered_map<std::string, float>& uniformValues) {
+    // Record into current command buffer
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+
+    // Get pipeline resource
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+
+    // Get output texture
+    VkTextureResource* outputRes = textures_.Get(output);
+    if (!outputRes) return;
+
+    // Get per-frame uniform buffers and descriptor sets
+    FrameUniformBuffers& frameBuffers = frameUniformBuffers_[currentFrame_];
+
+    // Update uniform buffer (Set 0): projection matrix + resolution
+    struct UniformData {
+        float projection[16];
+        float resolution[2];
+        float _pad[2];
+    } uniformData;
+
+    for (int i = 0; i < 16; ++i) uniformData.projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+    uniformData.resolution[0] = static_cast<float>(outputRes->width);
+    uniformData.resolution[1] = static_cast<float>(outputRes->height);
+
+    VkBufferResource* uniformBufRes = buffers_.Get(frameBuffers.uniformBuffer);
+    if (uniformBufRes && uniformBufRes->mapped) {
+        std::memcpy(uniformBufRes->mapped, &uniformData, sizeof(uniformData));
+    }
+
+    // Update descriptor set 0 (uniforms)
+    VkDescriptorBufferInfo uniformBufferInfo{};
+    uniformBufferInfo.buffer = uniformBufRes ? uniformBufRes->buffer : VK_NULL_HANDLE;
+    uniformBufferInfo.offset = 0;
+    uniformBufferInfo.range = VK_WHOLE_SIZE;
+
+    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    uniformWrite.dstSet = frameBuffers.uniformSet;
+    uniformWrite.dstBinding = 0;
+    uniformWrite.descriptorCount = 1;
+    uniformWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniformWrite.pBufferInfo = &uniformBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
+
+    // Update param buffer (Set 1) with structured, named uniform packing
     VkBufferResource* paramBufRes = buffers_.Get(frameBuffers.paramBuffer);
     if (paramBufRes && paramBufRes->mapped) {
-        // Write uniform values to param buffer
-        // We'll pack them as a simple array of floats, with a name-to-offset mapping
-        // For simplicity, use a fixed layout: up to 32 floats (128 bytes)
-        float paramData[32] = {0};
-        int idx = 0;
-        for (const auto& [name, value] : uniformValues) {
-            if (idx < 32) {
-                paramData[idx++] = value;
-            }
-        }
-        std::memcpy(paramBufRes->mapped, paramData, sizeof(paramData));
+        ParamWriter writer;
+        writer.Pack(uniformValues);
+        const ParamBlock& params = writer.Data();
+        std::memcpy(paramBufRes->mapped, &params, sizeof(params));
     }
 
     VkDescriptorBufferInfo paramBufferInfo{};
@@ -1412,8 +1457,6 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
     vkUpdateDescriptorSets(device_, 1, &paramWrite, 0, nullptr);
 
     // Update descriptor set 2 (textures) - bind input textures
-    // For simplicity, we'll bind up to 2 textures to the pre-allocated texture set
-    // (which uses textureSetLayout2_ - 2 combined image samplers)
     VkDescriptorImageInfo imageInfos[2] = {};
     uint32_t boundCount = 0;
     for (uint32_t i = 0; i < inputs.size() && i < 2; ++i) {

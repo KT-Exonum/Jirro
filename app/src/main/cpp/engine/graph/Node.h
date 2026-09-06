@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <variant>
 #include <vector>
 
 #include "engine/core/Types.h"

@@ -183,6 +183,7 @@ std::string ProjectSerializer::NodeKindToString(NodeKind kind) {
     switch (kind) {
         case NodeKind::VideoSource: return "VideoSource";
         case NodeKind::ImageSource: return "ImageSource";
+        case NodeKind::AudioSource: return "AudioSource";
         case NodeKind::Shader: return "Shader";
         case NodeKind::Blend: return "Blend";
         case NodeKind::ColorCorrection: return "ColorCorrection";
@@ -190,6 +191,42 @@ std::string ProjectSerializer::NodeKindToString(NodeKind kind) {
         case NodeKind::Mask: return "Mask";
         case NodeKind::Composite: return "Composite";
         case NodeKind::Output: return "Output";
+        case NodeKind::Adjustment: return "Adjustment";
+        case NodeKind::Null: return "Null";
+        case NodeKind::Group: return "Group";
+        case NodeKind::VectorSource: return "VectorSource";
+        case NodeKind::TextSource: return "TextSource";
+        case NodeKind::StrokeSource: return "StrokeSource";
+        case NodeKind::MotionBlur: return "MotionBlur";
+        case NodeKind::DirectionalBlur: return "DirectionalBlur";
+        case NodeKind::TransformBlur: return "TransformBlur";
+        case NodeKind::VelocityGraph: return "VelocityGraph";
+        case NodeKind::TimeRemap: return "TimeRemap";
+        case NodeKind::OpticalFlow: return "OpticalFlow";
+        case NodeKind::BezierMask: return "BezierMask";
+        case NodeKind::Rotoscoping: return "Rotoscoping";
+        case NodeKind::RotoBrush: return "RotoBrush";
+        case NodeKind::Tracker: return "Tracker";
+        case NodeKind::ParticleEmitter: return "ParticleEmitter";
+        case NodeKind::ParticleForces: return "ParticleForces";
+        case NodeKind::ParticleRenderer: return "ParticleRenderer";
+        case NodeKind::ShapeRectangle: return "ShapeRectangle";
+        case NodeKind::ShapeEllipse: return "ShapeEllipse";
+        case NodeKind::ShapePolygon: return "ShapePolygon";
+        case NodeKind::ShapeStar: return "ShapeStar";
+        case NodeKind::ShapePath: return "ShapePath";
+        case NodeKind::ShapeRender: return "ShapeRender";
+        case NodeKind::ShapeMerge: return "ShapeMerge";
+        case NodeKind::ShapeTransform: return "ShapeTransform";
+        case NodeKind::ShapeStroke: return "ShapeStroke";
+        case NodeKind::ShapeFill: return "ShapeFill";
+        case NodeKind::ShapeRepeater: return "ShapeRepeater";
+        case NodeKind::ShapeBoolean: return "ShapeBoolean";
+        case NodeKind::Transform3D: return "Transform3D";
+        case NodeKind::Camera3D: return "Camera3D";
+        case NodeKind::DepthOfField: return "DepthOfField";
+        case NodeKind::ChromaKey: return "ChromaKey";
+        case NodeKind::MeshSource: return "MeshSource";
         default: return "Unknown";
     }
 }
@@ -197,6 +234,7 @@ std::string ProjectSerializer::NodeKindToString(NodeKind kind) {
 NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "VideoSource") return NodeKind::VideoSource;
     if (str == "ImageSource") return NodeKind::ImageSource;
+    if (str == "AudioSource") return NodeKind::AudioSource;
     if (str == "Shader") return NodeKind::Shader;
     if (str == "Blend") return NodeKind::Blend;
     if (str == "ColorCorrection") return NodeKind::ColorCorrection;
@@ -204,6 +242,42 @@ NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "Mask") return NodeKind::Mask;
     if (str == "Composite") return NodeKind::Composite;
     if (str == "Output") return NodeKind::Output;
+    if (str == "Adjustment") return NodeKind::Adjustment;
+    if (str == "Null") return NodeKind::Null;
+    if (str == "Group") return NodeKind::Group;
+    if (str == "VectorSource") return NodeKind::VectorSource;
+    if (str == "TextSource") return NodeKind::TextSource;
+    if (str == "StrokeSource") return NodeKind::StrokeSource;
+    if (str == "MotionBlur") return NodeKind::MotionBlur;
+    if (str == "DirectionalBlur") return NodeKind::DirectionalBlur;
+    if (str == "TransformBlur") return NodeKind::TransformBlur;
+    if (str == "VelocityGraph") return NodeKind::VelocityGraph;
+    if (str == "TimeRemap") return NodeKind::TimeRemap;
+    if (str == "OpticalFlow") return NodeKind::OpticalFlow;
+    if (str == "BezierMask") return NodeKind::BezierMask;
+    if (str == "Rotoscoping") return NodeKind::Rotoscoping;
+    if (str == "RotoBrush") return NodeKind::RotoBrush;
+    if (str == "Tracker") return NodeKind::Tracker;
+    if (str == "ParticleEmitter") return NodeKind::ParticleEmitter;
+    if (str == "ParticleForces") return NodeKind::ParticleForces;
+    if (str == "ParticleRenderer") return NodeKind::ParticleRenderer;
+    if (str == "ShapeRectangle") return NodeKind::ShapeRectangle;
+    if (str == "ShapeEllipse") return NodeKind::ShapeEllipse;
+    if (str == "ShapePolygon") return NodeKind::ShapePolygon;
+    if (str == "ShapeStar") return NodeKind::ShapeStar;
+    if (str == "ShapePath") return NodeKind::ShapePath;
+    if (str == "ShapeRender") return NodeKind::ShapeRender;
+    if (str == "ShapeMerge") return NodeKind::ShapeMerge;
+    if (str == "ShapeTransform") return NodeKind::ShapeTransform;
+    if (str == "ShapeStroke") return NodeKind::ShapeStroke;
+    if (str == "ShapeFill") return NodeKind::ShapeFill;
+    if (str == "ShapeRepeater") return NodeKind::ShapeRepeater;
+    if (str == "ShapeBoolean") return NodeKind::ShapeBoolean;
+    if (str == "Transform3D") return NodeKind::Transform3D;
+    if (str == "Camera3D") return NodeKind::Camera3D;
+    if (str == "DepthOfField") return NodeKind::DepthOfField;
+    if (str == "ChromaKey") return NodeKind::ChromaKey;
+    if (str == "MeshSource") return NodeKind::MeshSource;
     return NodeKind::Shader;
 }
 
