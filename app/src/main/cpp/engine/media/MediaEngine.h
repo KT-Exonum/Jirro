@@ -275,6 +275,116 @@ struct ActiveAudioRequest {
     bool mute = false;
 };
 
+// Proxy request for proxy generation
+struct ActiveProxyRequest {
+    std::string clipId;
+    std::string sourceFilePath;
+    std::string proxyFilePath;
+    uint32_t proxyWidth = 960;   // 1080p -> 540p, 4K -> 1080p
+    uint32_t proxyHeight = 540;
+    int bitrateMbps = 5;         // Low bitrate for proxy
+};
+
+struct ProxyConfig {
+    uint32_t targetWidth = 960;     // Proxy resolution
+    uint32_t targetHeight = 540;
+    int bitrateMbps = 5;            // Low bitrate
+    std::string codec = "video/avc"; // Proxy codec
+    std::string proxyDir;           // Directory to store proxies
+    bool autoGenerate = false;      // Auto-generate on import
+};
+
+// Proxy frame for playback
+struct ProxyFrame {
+    TextureHandle texture;
+    int64_t presentationTimeUs = 0;
+    uint32_t width = 0, height = 0;
+    std::shared_ptr<AImage> ownedImage;
+};
+
+// Proxy cache for decoded proxy frames
+class ProxyCache {
+public:
+    struct Config {
+        size_t maxBytes = 64 * 1024 * 1024; // 64MB for proxies
+        int framesAhead = 3;
+        int framesBehind = 3;
+    };
+    
+    explicit ProxyCache(Config config) : config_(config) {}
+    
+    void SetPlayheadHint(double timelineSeconds) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        playheadHint_ = timelineSeconds;
+    }
+    
+    std::optional<ProxyFrame> Get(const std::string& clipId, double sourceTimeSeconds) const;
+    void Put(const std::string& clipId, ProxyFrame frame);
+    void EvictOutsideWindow();
+    
+    [[nodiscard]] size_t CurrentBytes() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return currentBytes_;
+    }
+    
+private:
+    mutable std::mutex mutex_;
+    Config config_;
+    double playheadHint_ = 0.0;
+    size_t currentBytes_ = 0;
+    struct Entry {
+        ProxyFrame frame;
+        double sourceTimeSeconds = 0.0;
+    };
+    std::unordered_map<std::string, std::vector<Entry>> cache_;
+};
+
+// Request describing one clip the engine thread currently wants decoded
+// frames for, refreshed every engine tick from Timeline::ActiveClipsAt().
+struct ActiveClipRequest {
+    std::string clipId;       // matches Node::nodeId for the VideoSource node
+    std::string sourceFilePath;
+    double sourceTimeSeconds = 0.0;
+    bool useProxy = false;    // If true, use proxy instead of full-res
+};
+
+// Audio request for mixing
+struct ActiveAudioRequest {
+    std::string clipId;
+    std::string sourceFilePath;
+    double sourceTimeSeconds = 0.0;
+    double volume = 1.0;
+    double pan = 0.0;
+    bool mute = false;
+};
+
+// Proxy request for proxy generation
+struct ActiveProxyRequest {
+    std::string clipId;
+    std::string sourceFilePath;
+    std::string proxyFilePath;
+    uint32_t proxyWidth = 960;   // 1080p -> 540p, 4K -> 1080p
+    uint32_t proxyHeight = 540;
+    int bitrateMbps = 5;         // Low bitrate for proxy
+};
+
+struct ProxyConfig {
+    uint32_t targetWidth = 960;     // Proxy resolution
+    uint32_t targetHeight = 540;
+    int bitrateMbps = 5;            // Low bitrate
+    std::string codec = "video/avc"; // Proxy codec
+    std::string proxyDir;           // Directory to store proxies
+    bool autoGenerate = false;      // Auto-generate on import
+};
+
+// Proxy frame for playback
+struct ProxyFrame {
+    TextureHandle texture;
+    int64_t presentationTimeUs = 0;
+    uint32_t width = 0, height = 0;
+    std::shared_ptr<AImage> ownedImage;
+};
+
 // Facade tying DecoderPool + FrameCache + AudioCache together behind a dedicated media
 // thread (Section 14's "Media Thread" box). RenderGraph's VideoSource pass
 // execution (Phase 3 wiring, see RenderGraph::ExecutePass) calls
@@ -283,7 +393,7 @@ struct ActiveAudioRequest {
 class MediaEngine {
 public:
     MediaEngine(GraphicsDevice& device, DecoderPoolConfig decoderConfig, FrameCacheConfig cacheConfig)
-        : device_(device), decoderPool_(decoderConfig), frameCache_(cacheConfig), audioCache_({}) {}
+        : device_(device), decoderPool_(decoderConfig), frameCache_(cacheConfig), audioCache_({}), proxyCache_({}) {}
     ~MediaEngine() { Stop(); }
 
     void Start();
@@ -296,6 +406,9 @@ public:
     
     // Audio version
     void SetActiveAudioClips(std::vector<ActiveAudioRequest> clips, double playheadTimelineSeconds);
+    
+    // Proxy version
+    void SetActiveProxies(std::vector<ActiveProxyRequest> clips);
 
     // Non-blocking. Returns the cached frame nearest `sourceTimeSeconds` for
     // `clipId` if one has been decoded, or std::nullopt if the media thread
@@ -306,6 +419,12 @@ public:
         return frameCache_.Get(clipId, sourceTimeSeconds);
     }
     
+    // Get proxy frame
+    [[nodiscard]] std::optional<ProxyFrame> TryGetProxyFrame(const std::string& clipId,
+                                                              double sourceTimeSeconds) const {
+        return proxyCache_.Get(clipId, sourceTimeSeconds);
+    }
+    
     // Get audio samples for mixing
     [[nodiscard]] std::optional<AudioClipData> TryGetAudio(const std::string& clipId) const {
         return audioCache_.GetAudio(clipId);
@@ -314,15 +433,18 @@ public:
 private:
     void MediaThreadMain();
     void DecodeAudioFile(const std::string& clipId, const std::string& filePath);
+    void GenerateProxy(const ActiveProxyRequest& request);
 
     GraphicsDevice& device_;
     DecoderPool decoderPool_;
     FrameCache frameCache_;
     AudioCache audioCache_;
+    ProxyCache proxyCache_;
 
     std::mutex requestMutex_;
     std::vector<ActiveClipRequest> pendingRequests_;
     std::vector<ActiveAudioRequest> pendingAudioRequests_;
+    std::vector<ActiveProxyRequest> pendingProxyRequests_;
 
     std::thread mediaThread_;
     std::atomic<bool> running_{false};

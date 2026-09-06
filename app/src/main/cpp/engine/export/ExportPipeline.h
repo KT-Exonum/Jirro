@@ -20,7 +20,7 @@ namespace vfx {
 
 // Export configuration
 struct ExportConfig {
-    std::string outputPath;           // Output file path (.mp4)
+    std::string outputPath;           // Output file path
     uint32_t width = 1920;            // Output resolution
     uint32_t height = 1080;
     double frameRate = 30.0;          // Output frame rate
@@ -32,6 +32,32 @@ struct ExportConfig {
     int quality = 23;                 // CRF-like quality (lower = better)
     bool includeAudio = false;        // Not implemented yet
     int maxConcurrentFrames = 2;      // Parallel frame rendering
+    
+    // Extended format support
+    enum class Format {
+        MP4,           // H.264/HEVC in MP4
+        MOV,           // ProRes in MOV
+        WEBM,          // VP9/AV1 in WebM
+        GIF,           // Animated GIF
+        PNG_SEQUENCE,  // PNG image sequence
+        EXR_SEQUENCE,  // EXR image sequence (HDR)
+    };
+    Format format = Format::MP4;
+    
+    // ProRes specific
+    enum class ProResProfile { Proxy, LT, Standard, HQ, HQ444 };
+    ProResProfile proresProfile = ProResProfile::Standard;
+    
+    // GIF specific
+    int gifColors = 256;
+    bool gifDither = true;
+    int gifLoopCount = 0; // 0 = infinite
+    
+    // PNG/EXR sequence
+    std::string sequencePattern = "frame_%04d.png"; // printf-style pattern
+    
+    // WebM specific
+    bool webmAlpha = false; // Transparent WebM
 };
 
 // Export progress callback

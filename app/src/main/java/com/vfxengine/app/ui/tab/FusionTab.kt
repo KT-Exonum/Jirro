@@ -284,6 +284,16 @@ fun FusionToolPalette(state: EditorState) {
                     onItemClick = { type -> addNodeOfType(state, type) }
                 )
 
+                // Keying
+                ToolCategorySection(
+                    title = "Keying",
+                    color = 0xFFE91E63.toInt(),
+                    items = listOf(
+                        ToolItem("Chroma Key", EditorState.NodeType.ChromaKey, android.R.drawable.ic_menu_crop),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
                 // Time/Velocity
                 ToolCategorySection(
                     title = "Time & Velocity",
@@ -305,6 +315,16 @@ fun FusionToolPalette(state: EditorState) {
                         ToolItem("Rotoscoping", EditorState.NodeType.Rotoscoping, android.R.drawable.ic_menu_edit),
                         ToolItem("Roto Brush", EditorState.NodeType.RotoBrush, android.R.drawable.ic_menu_edit),
                         ToolItem("Tracker", EditorState.NodeType.Tracker, android.R.drawable.ic_menu_mapmode),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // 3D Models
+                ToolCategorySection(
+                    title = "3D Models",
+                    color = 0xFF9C27B0.toInt(),
+                    items = listOf(
+                        ToolItem("Mesh Source", EditorState.NodeType.MeshSource, android.R.drawable.ic_menu_gallery),
                     ),
                     onItemClick = { type -> addNodeOfType(state, type) }
                 )
@@ -819,33 +839,42 @@ fun InspectorPanel(state: EditorState) {
                 ) {
                     Text(text = "Select a node to inspect", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
                 }
-            } else {
+} else {
                 // Uniform controls
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
                 ) {
-                    // Gain slider
-                    UniformSlider(
-                        label = "Gain",
-                        value = selectedNode.uniforms["gain"] ?: 1.0f,
-                        min = 0f,
-                        max = 3f,
-                        onValueChange = { value ->
-                            state.updateNodeUniform(selectedNode.id, "gain", value)
-                        }
-                    )
-
-                    // Lift slider
-                    UniformSlider(
-                        label = "Lift",
-                        value = selectedNode.uniforms["lift"] ?: 0f,
-                        min = -1f,
-                        max = 1f,
-                        onValueChange = { value ->
-                            state.updateNodeUniform(selectedNode.id, "lift", value)
-                        }
-                    )
+                    // Color wheels for color correction nodes
+                    LiftGammaGainOffsetWheels(state, selectedNode)
+                    
+                    // Fallback sliders for non-color nodes or additional controls
+                    val isColorNode = selectedNode.type == EditorState.NodeType.ColorCorrection || 
+                                      selectedNode.type == EditorState.NodeType.Adjustment
+                    
+                    if (!isColorNode) {
+                        // Gain slider
+                        UniformSlider(
+                            label = "Gain",
+                            value = selectedNode.uniforms["gain"] ?: 1.0f,
+                            min = 0f,
+                            max = 3f,
+                            onValueChange = { value ->
+                                state.updateNodeUniform(selectedNode.id, "gain", value)
+                            }
+                        )
+        
+                        // Lift slider
+                        UniformSlider(
+                            label = "Lift",
+                            value = selectedNode.uniforms["lift"] ?: 0f,
+                            min = -1f,
+                            max = 1f,
+                            onValueChange = { value ->
+                                state.updateNodeUniform(selectedNode.id, "lift", value)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -885,5 +914,303 @@ fun UniformSlider(
                 inactiveTrackColor = Color.White.copy(alpha = 0.2f)
             )
         )
+    }
+}
+
+/**
+ * Professional color wheel component for lift/gamma/gain/offset grading
+ */
+@Composable
+fun ColorWheel(
+    label: String,
+    color: androidx.compose.ui.graphics.Color,
+    onColorChange: (androidx.compose.ui.graphics.Color) -> Unit,
+    modifier: Modifier = Modifier,
+    wheelSize: Dp = 150.dp
+) {
+    var currentColor by remember { mutableStateOf(color) }
+    var hue by remember { mutableStateOf(0f) }
+    var saturation by remember { mutableStateOf(0f) }
+    var value by remember { mutableStateOf(1f) }
+    
+    // Convert color to HSV
+    val hsv = remember { mutableStateOf(Color.RGBToHSV(currentColor)) }
+    hue = hsv.value[0] * 360f
+    saturation = hsv.value[1]
+    value = hsv.value[2]
+    
+    val wheelRadius = wheelSize / 2
+    
+    Box(
+        modifier = modifier
+            .width(wheelSize)
+            .height(wheelSize + 40.dp)
+            .padding(8.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+        ) {
+            Text(text = label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            
+            // Color wheel canvas
+            Box(
+                modifier = Modifier
+                    .size(wheelSize)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDrag = { change, dragAmount ->
+                                val center = Offset(wheelRadius.value.toFloat(), wheelRadius.value.toFloat())
+                                val touchPos = Offset(change.position.x, change.position.y)
+                                val vector = touchPos - center
+                                val distance = sqrt(vector.x * vector.x + vector.y * vector.y)
+                                
+                                if (distance <= wheelRadius.value.toFloat()) {
+                                    val angle = atan2(vector.y, vector.x)
+                                    val newHue = (angle + PI) / (2 * PI) * 360f
+                                    val newSaturation = min(distance / wheelRadius.value.toFloat(), 1f)
+                                    
+                                    hue = newHue
+                                    saturation = newSaturation
+                                    
+                                    val newColor = Color.HSVToColor(hue, saturation, value)
+                                    currentColor = newColor
+                                    onColorChange(newColor)
+                                }
+                            }
+                        )
+                    }
+            ) {
+                // Color wheel gradient
+                Canvas(modifier = Modifier.size(wheelSize)) {
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val radius = size.width / 2f
+                    
+                    // Draw hue ring
+                    for (i in 0..360 step 2) {
+                        val angle = (i * PI / 180f) - PI / 2
+                        val nextAngle = ((i + 2) * PI / 180f) - PI / 2
+                        val color = Color.HSVToColor(i.toFloat(), 1f, 1f)
+                        
+                        val path = Path()
+                        path.moveTo(center.x, center.y)
+                        path.lineTo(
+                            center.x + cos(angle) * radius,
+                            center.y + sin(angle) * radius
+                        )
+                        path.lineTo(
+                            center.x + cos(nextAngle) * radius,
+                            center.y + sin(nextAngle) * radius
+                        )
+                        path.close()
+                        
+                        drawPath(
+                            path = path,
+                            color = color
+                        )
+                    }
+                    
+                    // Draw saturation overlay (white to transparent radial gradient)
+                    for (i in 0..radius step 2) {
+                        val alpha = 1f - (i / radius)
+                        drawCircle(
+                            color = Color.White.copy(alpha = alpha * 0.3f),
+                            radius = i.toFloat(),
+                            center = center
+                        )
+                    }
+                    
+                    // Value overlay (black to transparent radial gradient from center)
+                    for (i in 0..radius step 2) {
+                        val alpha = (1f - value) * (1f - i / radius)
+                        if (alpha > 0) {
+                            drawCircle(
+                                color = Color.Black.copy(alpha = alpha * 0.5f),
+                                radius = i.toFloat(),
+                                center = center
+                            )
+                        }
+                    }
+                    
+                    // Indicator dot
+                    val indicatorAngle = (hue / 360f) * 2 * PI - PI / 2
+                    val indicatorRadius = saturation * radius
+                    val indicatorX = center.x + cos(indicatorAngle) * indicatorRadius
+                    val indicatorY = center.y + sin(indicatorAngle) * indicatorRadius
+                    
+                    drawCircle(
+                        color = if (value > 0.5) Color.Black else Color.White,
+                        radius = 8.dp.toPx(),
+                        center = Offset(indicatorX, indicatorY)
+                    )
+                    drawCircle(
+                        color = if (value > 0.5) Color.White else Color.Black,
+                        radius = 6.dp.toPx(),
+                        center = Offset(indicatorX, indicatorY)
+                    )
+                }
+            }
+            
+            // Value slider
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                Text(text = "Value", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+                Slider(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = value,
+                    onValueChange = { v ->
+                        value = v
+                        val newColor = Color.HSVToColor(hue, saturation, value)
+                        currentColor = newColor
+                        onColorChange(newColor)
+                    },
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color.Cyan,
+                        activeTrackColor = Color.Cyan
+                    )
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Lift/Gamma/Gain/Offset color wheels panel
+ */
+@Composable
+fun LiftGammaGainOffsetWheels(
+    state: EditorState,
+    node: EditorState.Node
+) {
+    val isColorNode = node.type == EditorState.NodeType.ColorCorrection || 
+                      node.type == EditorState.NodeType.Adjustment
+    
+    if (!isColorNode) return
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        backgroundColor = Color(0xFF1E1E1E)
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text(text = "Lift / Gamma / Gain / Offset", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            
+            // Wheels row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ColorWheel(
+                    label = "Lift",
+                    color = Color.HSVToColor(
+                        (node.uniforms["liftHue"] ?: 0f),
+                        (node.uniforms["liftSat"] ?: 0f),
+                        (node.uniforms["liftVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "liftHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "liftSat", hsv[1])
+                        state.updateNodeUniform(node.id, "liftVal", hsv[2])
+                        // Also update lift as single float for compatibility
+                        state.updateNodeUniform(node.id, "lift", hsv[2] - 1f)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                ColorWheel(
+                    label = "Gamma",
+                    color = Color.HSVToColor(
+                        (node.uniforms["gammaHue"] ?: 0f),
+                        (node.uniforms["gammaSat"] ?: 0f),
+                        (node.uniforms["gammaVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "gammaHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "gammaSat", hsv[1])
+                        state.updateNodeUniform(node.id, "gammaVal", hsv[2])
+                        state.updateNodeUniform(node.id, "gamma", hsv[2])
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                ColorWheel(
+                    label = "Gain",
+                    color = Color.HSVToColor(
+                        (node.uniforms["gainHue"] ?: 0f),
+                        (node.uniforms["gainSat"] ?: 0f),
+                        (node.uniforms["gainVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "gainHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "gainSat", hsv[1])
+                        state.updateNodeUniform(node.id, "gainVal", hsv[2])
+                        state.updateNodeUniform(node.id, "gain", hsv[2])
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                ColorWheel(
+                    label = "Offset",
+                    color = Color.HSVToColor(
+                        (node.uniforms["offsetHue"] ?: 0f),
+                        (node.uniforms["offsetSat"] ?: 0f),
+                        (node.uniforms["offsetVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "offsetHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "offsetSat", hsv[1])
+                        state.updateNodeUniform(node.id, "offsetVal", hsv[2])
+                        state.updateNodeUniform(node.id, "offset", hsv[2] - 1f)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
+            // Master controls
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+            ) {
+                MasterSlider("Contrast", "contrast", 0.5f, 2f, state, node)
+                MasterSlider("Pivot", "pivot", 0f, 1f, state, node)
+                MasterSlider("Saturation", "saturation", 0f, 2f, state, node)
+                MasterSlider("Temp", "temperature", -1f, 1f, state, node)
+                MasterSlider("Tint", "tint", -1f, 1f, state, node)
+            }
+        }
+    }
+}
+
+@Composable
+fun MasterSlider(
+    label: String,
+    uniformName: String,
+    min: Float,
+    max: Float,
+    state: EditorState,
+    node: EditorState.Node
+) {
+    Column(modifier = Modifier.weight(1f)) {
+        Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+        var currentValue by remember { mutableStateOf(node.uniforms[uniformName] ?: 1f) }
+        
+        Slider(
+            modifier = Modifier.fillMaxWidth(),
+            value = (currentValue - min) / (max - min),
+            onValueChange = { ratio ->
+                val newValue = min + ratio * (max - min)
+                currentValue = newValue
+                state.updateNodeUniform(node.id, uniformName, newValue)
+            },
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color.Cyan,
+                activeTrackColor = Color.Cyan,
+                inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+            )
+        )
+        Text(text = "%.2f".format(currentValue), color = Color.Cyan, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
     }
 }

@@ -132,6 +132,10 @@ class EditorState(
         Transform3D("Transform 3D", 0xFF673AB7.toInt(), 41),
         Camera3D("Camera 3D", 0xFF673AB7.toInt(), 42),
         DepthOfField("Depth of Field", 0xFF673AB7.toInt(), 43),
+        // Keying/Compositing
+        ChromaKey("Chroma Key", 0xFFE91E63.toInt(), 44),
+        // 3D Models
+        MeshSource("Mesh Source", 0xFF9C27B0.toInt(), 45),
     }
 
     data class Port(val name: String, val type: PortType) {
@@ -192,7 +196,12 @@ class EditorState(
         var layer: Int = 0,
         var enabled: Boolean = true,
         var locked: Boolean = false,
-        val color: Int = 0xFF2196F3
+        val color: Int = 0xFF2196F3,
+        // Proxy support
+        var proxyPath: String = "",
+        var useProxy: Boolean = false,
+        var proxyResolution: String = "540p",
+        var proxyGenerated: Boolean = false
     )
 
     val clips = remember { mutableStateOf(mutableListOf<Clip>()) }
@@ -548,6 +557,16 @@ class EditorState(
                 node.inputs.add(Port("depth", Port.PortType.Input))
                 node.outputs.add(Port("output", Port.PortType.Output))
             }
+            // Keying/Compositing
+            NodeType.ChromaKey -> {
+                node.inputs.add(Port("foreground", Port.PortType.Input))
+                node.inputs.add(Port("background", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // 3D Models
+            NodeType.MeshSource -> {
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
         }
         nodes.value[id] = node
         
@@ -707,6 +726,28 @@ class EditorState(
             "mute" -> audioClip.mute = newValue as Boolean
             "solo" -> audioClip.solo = newValue as Boolean
         }
+    }
+
+    // Proxy workflow
+    fun generateProxy(clipId: String, resolution: String = "540p") {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        // In a real implementation, this would call native engine to generate proxy
+        clip.proxyPath = "proxy_${clip.id}.mp4"
+        clip.proxyResolution = resolution
+        clip.proxyGenerated = true
+        // nativeEngine.generateProxy(clipId, resolution)
+    }
+
+    fun toggleProxy(clipId: String) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        if (!clip.proxyGenerated) {
+            generateProxy(clipId)
+        }
+        clip.useProxy = !clip.useProxy
+    }
+
+    fun getProxyResolutionOptions(): List<String> {
+        return listOf("270p", "360p", "540p", "720p", "1080p")
     }
 
     fun loadMediaFiles() {

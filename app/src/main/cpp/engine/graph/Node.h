@@ -66,6 +66,10 @@ enum class NodeKind {
     Transform3D,      // 3D transform on 2D layer
     Camera3D,         // 3D camera with DOF
     DepthOfField,     // Depth of field post-process
+    // Keying/Compositing
+    ChromaKey,        // Green/blue screen keying
+    // 3D Models
+    MeshSource,       // GLTF/OBJ mesh with PBR materials
 };
 
 enum class BlendMode { Normal, Multiply, Screen, Overlay, Add, Subtract };
@@ -351,6 +355,45 @@ struct DepthOfFieldConfig {
     float bokehRotation = 0.0f;     // rotation of bokeh shape
 };
 
+// Chroma Key configuration
+struct ChromaKeyConfig {
+    // Key color (in HSV for picker, converted to RGB for shader)
+    float keyHue = 120.0f;          // 120 = green, 240 = blue
+    float keySaturation = 1.0f;
+    float keyValue = 1.0f;
+    
+    // Tolerance/threshold
+    float similarity = 0.3f;        // How close to key color (0-1)
+    float smoothness = 0.1f;        // Edge softness (0-1)
+    
+    // Spill suppression
+    float spillReduction = 0.5f;    // Desaturate spill color
+    bool advancedSpill = false;     // Use color difference method
+    float spillThreshold = 0.5f;    // Threshold for spill detection
+    
+    // Edge refinement
+    float edgeFeather = 0.0f;       // Feather edges
+    float edgeExpand = 0.0f;        // Expand/contract matte
+    float edgeBlur = 0.0f;          // Blur matte edges
+    
+    // Light wrap
+    float lightWrap = 0.0f;         // Wrap background light onto foreground
+    float lightWrapSize = 0.1f;
+    
+    // Color correction on result
+    float foregroundGain = 1.0f;
+    float foregroundGamma = 1.0f;
+    float foregroundSaturation = 1.0f;
+    
+    // View mode
+    enum class ViewMode { Composite, Matte, Foreground, Background, Spill };
+    ViewMode viewMode = ViewMode::Composite;
+    
+    // Key method
+    enum class KeyMethod { ColorDifference, HSV, Luminance };
+    KeyMethod keyMethod = KeyMethod::ColorDifference;
+};
+
 struct Node {
     std::string nodeId;
     NodeKind kind;
@@ -426,6 +469,12 @@ struct Node {
 
     // Only meaningful for kind == DepthOfField.
     DepthOfFieldConfig depthOfField;
+
+    // Only meaningful for kind == ChromaKey.
+    ChromaKeyConfig chromaKey;
+
+    // Only meaningful for kind == MeshSource.
+    MeshConfig mesh;
 
     [[nodiscard]] float EvaluateUniform(const std::string& name, double timelineSeconds) const {
         // Check animated uniforms first
@@ -563,7 +612,39 @@ public:
         std::string propertyName;
         std::string oldValue; // serialized
         std::string newValue; // serialized
+};
+// 3D Mesh configuration
+struct MeshConfig {
+    std::string filePath;           // Path to GLTF/OBJ file
+    std::string meshName;           // Specific mesh name (if multiple in file)
+    
+    // Material override
+    struct MaterialOverride {
+        vec3 baseColor = {1.0f, 1.0f, 1.0f};
+        float metallic = 0.0f;
+        float roughness = 0.5f;
+        float emissive = 0.0f;
+        float alpha = 1.0f;
+        bool useVertexColors = false;
     };
+    std::unordered_map<std::string, MaterialOverride> materialOverrides; // by material name
+    
+    // Animation
+    bool playAnimation = true;
+    float animationSpeed = 1.0f;
+    int currentAnimation = 0;       // Animation index
+    float animationTime = 0.0f;     // Manual time override
+    
+    // Render settings
+    bool castShadows = true;
+    bool receiveShadows = true;
+    bool doubleSided = false;
+    int renderLayer = 0;
+    
+    // LOD
+    bool useLOD = false;
+    float lodDistance = 100.0f;
+};
     
     std::vector<HistoryEntry> history_;
     size_t historyIndex_ = 0;

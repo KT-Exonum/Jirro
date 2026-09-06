@@ -59,18 +59,24 @@ fun EditTab(state: EditorState) {
         )
 
         // Quick Action Toolbar
-        QuickActionToolbar()
+        QuickActionToolbar(state, selectedClipId)
 
         // Selected Item Footer
         val selectedClip = state.clips.value.firstOrNull { it.id == selectedClipId }
         val hasEffects = selectedClip?.let { 
             state.nodes.value[it.nodeId]?.animatedUniforms?.isNotEmpty() ?: false 
         } ?: false
+        val hasProxy = selectedClip?.proxyGenerated ?: false
+        val useProxy = selectedClip?.useProxy ?: false
         
         SelectedItemFooter(
             clipName = selectedClip?.id ?: "None",
             hasEffects = hasEffects,
-            onNodeEditorClick = { /* Open node editor */ }
+            hasProxy = hasProxy,
+            useProxy = useProxy,
+            onNodeEditorClick = { /* Open node editor */ },
+            onProxyToggle = { if (selectedClip != null) state.toggleProxy(selectedClip.id) },
+            onProxyGenerate = { if (selectedClip != null) state.generateProxy(selectedClip.id) }
         )
     }
 }
@@ -398,7 +404,11 @@ fun ClipView(
 }
 
 @Composable
-fun QuickActionToolbar() {
+fun QuickActionToolbar(state: EditorState, selectedClipId: String?) {
+    val selectedClip = selectedClipId?.let { state.clips.value.firstOrNull { it.id == it } }
+    val hasProxy = selectedClip?.proxyGenerated ?: false
+    val useProxy = selectedClip?.useProxy ?: false
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -414,6 +424,30 @@ fun QuickActionToolbar() {
             ActionButton("Split", android.R.drawable.ic_menu_crop)
             ActionButton("Trim", android.R.drawable.ic_media_pause)
             ActionButton("Delete", android.R.drawable.ic_menu_delete)
+            
+            // Proxy button
+            if (hasProxy) {
+                androidx.compose.material3.IconButton(
+                    onClick = { if (selectedClipId != null) state.toggleProxy(selectedClipId) },
+                    modifier = Modifier.size(40.dp),
+                    colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
+                        containerColor = if (useProxy) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
+                    )
+                ) {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_menu_zoom),
+                        contentDescription = if (useProxy) "Disable Proxy" else "Enable Proxy",
+                        tint = if (useProxy) Color.Cyan else Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            } else {
+                androidx.compose.material3.TextButton(
+                    onClick = { if (selectedClipId != null) state.generateProxy(selectedClipId) },
+                    modifier = Modifier.height(40.dp).padding(horizontal = 16.dp)
+                ) {
+                    Text(text = "Generate Proxy", color = Color.Cyan, fontSize = 13.sp)
+                }
+            }
         }
     }
 }
@@ -451,7 +485,11 @@ fun ActionButton(label: String, iconRes: Int) {
 fun SelectedItemFooter(
     clipName: String,
     hasEffects: Boolean,
-    onNodeEditorClick: () -> Unit
+    hasProxy: Boolean = false,
+    useProxy: Boolean = false,
+    onNodeEditorClick: () -> Unit,
+    onProxyToggle: () -> Unit,
+    onProxyGenerate: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -467,28 +505,58 @@ fun SelectedItemFooter(
         ) {
             // Info
             Text(
-                text = "Selected: $clipName${if (hasEffects) ", 1 effect applied" else ""}",
+                text = "Selected: $clipName${if (hasEffects) ", 1 effect applied" else ""}${if (hasProxy) " • Proxy: ${if (useProxy) "ON" else "OFF"}" else ""}",
                 color = Color.White.copy(alpha = 0.8f),
                 fontSize = 13.sp
             )
 
-            // Open in node editor button
-            androidx.compose.material3.Button(
-                onClick = onNodeEditorClick,
-                modifier = Modifier.height(40.dp).padding(horizontal = 16.dp),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Cyan)
+            // Buttons
+            Row(
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Proxy toggle/generate
+                if (hasProxy) {
+                    androidx.compose.material3.IconButton(
+                        onClick = onProxyToggle,
+                        modifier = Modifier.size(40.dp),
+                        colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
+                            containerColor = if (useProxy) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
+                        )
+                    ) {
+                        Icon(
+                            painter = painterResource(id = android.R.drawable.ic_menu_zoom),
+                            contentDescription = if (useProxy) "Disable Proxy" else "Enable Proxy",
+                            tint = if (useProxy) Color.Cyan else Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                } else {
+                    androidx.compose.material3.TextButton(
+                        onClick = onProxyGenerate,
+                        modifier = Modifier.height(40.dp).padding(horizontal = 16.dp)
+                    ) {
+                        Text(text = "Generate Proxy", color = Color.Cyan, fontSize = 12.sp)
+                    }
+                }
+
+                // Open in node editor button
+                androidx.compose.material3.Button(
+                    onClick = onNodeEditorClick,
+                    modifier = Modifier.height(40.dp).padding(horizontal = 16.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Cyan)
                 ) {
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.ic_menu_manage),
-                        contentDescription = "Node",
-                        tint = Color.Black,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(text = "Open in node editor", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Row(
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = android.R.drawable.ic_menu_manage),
+                            contentDescription = "Node",
+                            tint = Color.Black,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(text = "Open in node editor", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }

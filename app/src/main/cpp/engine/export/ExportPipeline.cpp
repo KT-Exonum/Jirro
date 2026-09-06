@@ -222,34 +222,64 @@ struct ExportPipeline::Impl {
             uint64_t totalFrames = static_cast<uint64_t>(duration * config.frameRate);
             if (totalFrames == 0) throw std::runtime_error("Zero frames to export");
             
-            // Initialize muxer
-            muxer = std::make_unique<MediaMuxer>();
-            if (!muxer->Initialize(config.outputPath)) {
-                throw std::runtime_error("Failed to initialize muxer");
-            }
-            
             // Initialize encoder
             encoder = std::make_unique<VideoEncoder>();
-            if (!encoder->Initialize(config.width, config.height, config.frameRate,
-                                     config.bitrateMbps * 1'000'000, config.codec)) {
-                throw std::runtime_error("Failed to initialize encoder");
+            std::string mime;
+            std::string muxerFormat;
+            
+            switch (config.format) {
+                case ExportConfig::Format::MP4:
+                    mime = config.codec;
+                    muxerFormat = "mp4";
+                    break;
+                case ExportConfig::Format::MOV:
+                    mime = "video/prores"; // ProRes
+                    muxerFormat = "mov";
+                    break;
+                case ExportConfig::Format::WEBM:
+                    mime = config.codec; // video/vp9 or video/av1
+                    muxerFormat = "webm";
+                    break;
+                default:
+                    mime = config.codec;
+                    muxerFormat = "mp4";
             }
             
-            // Add video track to muxer
-            // Note: In real implementation, we'd get format from encoder
-            // For now, create format manually
-            AMediaFormat* format = AMediaFormat_new();
-            AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, config.codec.c_str());
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<int32_t>(config.width));
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<int32_t>(config.height));
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_FRAME_RATE, static_cast<int32_t>(config.frameRate));
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_BIT_RATE, config.bitrateMbps * 1'000'000);
+            // For non-video formats (GIF, PNG sequence), we don't use MediaCodec
+            bool useVideoEncoder = (config.format != ExportConfig::Format::GIF &&
+                                   config.format != ExportConfig::Format::PNG_SEQUENCE &&
+                                   config.format != ExportConfig::Format::EXR_SEQUENCE);
             
-            videoTrackIndex = muxer->AddVideoTrack(format);
-            AMediaFormat_delete(format);
+            if (useVideoEncoder) {
+                encoder = std::make_unique<VideoEncoder>();
+                if (!encoder->Initialize(config.width, config.height, config.frameRate,
+                                         config.bitrateMbps * 1'000'000, mime)) {
+                    throw std::runtime_error("Failed to initialize encoder");
+                }
+            }
             
-            if (videoTrackIndex < 0) {
-                throw std::runtime_error("Failed to add video track to muxer");
+            // Initialize muxer for video formats
+            if (config.format == ExportConfig::Format::MP4 ||
+                config.format == ExportConfig::Format::MOV ||
+                config.format == ExportConfig::Format::WEBM) {
+                muxer = std::make_unique<MediaMuxer>();
+                if (!muxer->Initialize(config.outputPath)) {
+                    throw std::runtime_error("Failed to initialize muxer");
+                }
+                
+                AMediaFormat* format = AMediaFormat_new();
+                AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, mime.c_str());
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<int32_t>(config.width));
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<int32_t>(config.height));
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_FRAME_RATE, static_cast<int32_t>(config.frameRate));
+                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_BIT_RATE, config.bitrateMbps * 1'000'000);
+                
+                videoTrackIndex = muxer->AddVideoTrack(format);
+                AMediaFormat_delete(format);
+                
+                if (videoTrackIndex < 0) {
+                    throw std::runtime_error("Failed to add video track to muxer");
+                }
             }
             
             // Find output node
@@ -294,13 +324,17 @@ struct ExportPipeline::Impl {
             }
             
             if (!cancelled) {
-                // Flush encoder
-                encoder->Flush();
-                while (encoder->DrainOutput(muxer->muxer_, videoTrackIndex)) {}
-                
-                // Finalize muxer
-                if (!muxer->Finalize()) {
-                    throw std::runtime_error("Failed to finalize muxer");
+                // Flush encoder for video formats
+                if (config.format == ExportConfig::Format::MP4 ||
+                    config.format == ExportConfig::Format::MOV ||
+                    config.format == ExportConfig::Format::WEBM) {
+                    encoder->Flush();
+                    while (encoder->DrainOutput(muxer->muxer_, videoTrackIndex)) {}
+                    
+                    // Finalize muxer
+                    if (!muxer->Finalize()) {
+                        throw std::runtime_error("Failed to finalize muxer");
+                    }
                 }
                 
                 result.success = true;

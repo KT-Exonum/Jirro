@@ -130,6 +130,18 @@ const uint32_t kDepthOfFieldVert[] = {0};
 const size_t kDepthOfFieldVertWords = 0;
 const uint32_t kDepthOfFieldFrag[] = {0};
 const size_t kDepthOfFieldFragWords = 0;
+
+// Chroma Key shaders
+const uint32_t kChromaKeyVert[] = {0};
+const size_t kChromaKeyVertWords = 0;
+const uint32_t kChromaKeyFrag[] = {0};
+const size_t kChromaKeyFragWords = 0;
+
+// 3D Mesh shaders
+const uint32_t kMeshPBRVert[] = {0};
+const size_t kMeshPBRVertWords = 0;
+const uint32_t kMeshPBRFrag[] = {0};
+const size_t kMeshPBRFragWords = 0;
 } // namespace generated_shader_bytecode
 
 // SPIR-V bytecode pointers for RenderGraph access (defined in vfx namespace)
@@ -235,6 +247,18 @@ constexpr const uint32_t* kDepthOfFieldVertSpirv = generated_shader_bytecode::kD
 constexpr size_t kDepthOfFieldVertSpirvWords = generated_shader_bytecode::kDepthOfFieldVertWords;
 constexpr const uint32_t* kDepthOfFieldFragSpirv = generated_shader_bytecode::kDepthOfFieldFrag;
 constexpr size_t kDepthOfFieldFragSpirvWords = generated_shader_bytecode::kDepthOfFieldFragWords;
+
+// Chroma Key shaders
+constexpr const uint32_t* kChromaKeyVertSpirv = generated_shader_bytecode::kChromaKeyVert;
+constexpr size_t kChromaKeyVertSpirvWords = generated_shader_bytecode::kChromaKeyVertWords;
+constexpr const uint32_t* kChromaKeyFragSpirv = generated_shader_bytecode::kChromaKeyFrag;
+constexpr size_t kChromaKeyFragSpirvWords = generated_shader_bytecode::kChromaKeyFragWords;
+
+// 3D Mesh shaders
+constexpr const uint32_t* kMeshPBRVertSpirv = generated_shader_bytecode::kMeshPBRVert;
+constexpr size_t kMeshPBRVertSpirvWords = generated_shader_bytecode::kMeshPBRVertWords;
+constexpr const uint32_t* kMeshPBRFragSpirv = generated_shader_bytecode::kMeshPBRFrag;
+constexpr size_t kMeshPBRFragSpirvWords = generated_shader_bytecode::kMeshPBRFragWords;
 
 namespace {
 

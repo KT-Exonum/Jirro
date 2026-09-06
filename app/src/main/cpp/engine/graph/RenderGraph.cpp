@@ -104,6 +104,18 @@ extern size_t kCamera3DVertSpirvWords;
 extern const uint32_t* kDepthOfFieldFragSpirv;
 extern size_t kDepthOfFieldFragSpirvWords;
 
+// Chroma Key shaders
+extern const uint32_t* kChromaKeyVertSpirv;
+extern size_t kChromaKeyVertSpirvWords;
+extern const uint32_t* kChromaKeyFragSpirv;
+extern size_t kChromaKeyFragSpirvWords;
+
+// 3D Mesh shaders
+extern const uint32_t* kMeshPBRVertSpirv;
+extern size_t kMeshPBRVertSpirvWords;
+extern const uint32_t* kMeshPBRFragSpirv;
+extern size_t kMeshPBRFragSpirvWords;
+
 CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) {
     CompileResult result;
 
@@ -476,6 +488,16 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
         case NodeKind::DepthOfField: {
             vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
             fsHandle = GetOrCreateShaderModule(kDepthOfFieldFragSpirv, kDepthOfFieldFragSpirvWords);
+            break;
+        }
+        case NodeKind::ChromaKey: {
+            vsHandle = GetOrCreateShaderModule(kChromaKeyVertSpirv, kChromaKeyVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kChromaKeyFragSpirv, kChromaKeyFragSpirvWords);
+            break;
+        }
+        case NodeKind::MeshSource: {
+            vsHandle = GetOrCreateShaderModule(kMeshPBRVertSpirv, kMeshPBRVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kMeshPBRFragSpirv, kMeshPBRFragSpirvWords);
             break;
         }
         default: {
