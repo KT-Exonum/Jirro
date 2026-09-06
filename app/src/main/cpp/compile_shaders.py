@@ -52,9 +52,11 @@ def find_glslang_validator(explicit_path=None):
 
 
 def compile_shader(glslang, input_path, output_path):
+    suffix = input_path.suffix
+    stage_flag = "-V" if suffix in [".vert", ".frag"] else "-C"  # -C for compute
     cmd = [
         glslang,
-        "-V",                  # Vulkan mode -> SPIR-V
+        stage_flag,
         "--source-entrypoint", "main",
         "-o", str(output_path),
         str(input_path),
@@ -131,9 +133,9 @@ def main():
 
     for shader_path in shaders:
         stem = shader_path.stem  # e.g. "blend_normal"
-        suffix = shader_path.suffix  # ".vert" or ".frag"
+        suffix = shader_path.suffix  # ".vert", ".frag", or ".comp"
         spv_path = shader_path.with_suffix(".spv")
-        var_suffix = "Vert" if suffix == ".vert" else "Frag"
+        var_suffix = "Vert" if suffix == ".vert" else ("Frag" if suffix == ".frag" else "Comp")
         var_name = f"k{to_camel_case(stem)}{var_suffix}"
         words_var = f"k{to_camel_case(stem)}{var_suffix}Words"
 

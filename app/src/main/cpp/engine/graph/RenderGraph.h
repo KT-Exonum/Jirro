@@ -18,12 +18,20 @@
 
 namespace vfx {
 
+// Forward declaration
+struct Particle;
+
 struct CompiledPass {
     std::string nodeId;
     NodeKind kind;
     std::vector<std::string> inputNodeIds; // already topo-resolved
     TextureHandle output; // assigned during Compile() from the pool
     bool isFinalOutput = false;
+    
+    // Particle system fields
+    bool isParticleNode = false;
+    bool isParticleCompute = false; // true for compute pass (ParticleEmitter/Forces)
+    uint32_t particleBufferHandle = 0; // storage buffer handle for particles
 };
 
 struct CompileResult {
@@ -75,6 +83,12 @@ public:
 private:
     void ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
                       MediaEngine* mediaEngine);
+    
+    // Particle system
+    void InitializeParticleSystem(const ParticleConfig& config);
+    void DispatchParticleCompute(const CompiledPass& pass, double deltaTime, const ParticleConfig& config);
+    void RenderParticles(const CompiledPass& pass, const ParticleConfig& config, TextureHandle outputTexture,
+                         const std::vector<TextureHandle>& inputTextures, const std::unordered_map<std::string, float>& uniforms);
 
     // Load or create shader module from SPIR-V bytecode (cached by bytecode content)
     ShaderModuleHandle GetOrCreateShaderModule(const uint32_t* spirv, size_t wordCount);
@@ -95,6 +109,19 @@ private:
     // rendering nothing on ticks where MediaEngine::TryGetFrame misses
     // (decode is asynchronous — see MediaEngine.h's threading note).
     std::unordered_map<std::string, TextureHandle> lastVideoFrameByNode_;
+
+    // Particle system state
+    struct ParticleSystemState {
+        BufferHandle particleBuffer = 0;          // storage buffer for particle data
+        BufferHandle simParamsBuffer = 0;         // uniform buffer for simulation params
+        PipelineHandle computePipeline = 0;       // particle simulation compute pipeline
+        uint32_t maxParticles = 10000;
+        uint32_t frameIndex = 0;
+        uint32_t seed = 12345;
+        bool initialized = false;
+    } particleState_;
+
+    double lastTimelineSeconds_ = 0.0;
 };
 
 } // namespace vfx

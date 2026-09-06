@@ -125,6 +125,8 @@ public:
     Result<ShaderModuleHandle> CreateShaderModule(std::span<const uint32_t> spirv) override;
     Result<PipelineHandle> GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
                                                 TextureUsage targetUsage) override;
+    Result<PipelineHandle> CreateComputePipeline(ShaderModuleHandle cs) override;
+    void DispatchCompute(PipelineHandle pipeline, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) override;
 
     // Dev-only: load a pre-compiled .spv from the APK's assets/ folder and
     // create/replace a shader module. Returns null handle on failure.
@@ -223,6 +225,11 @@ private:
     VkDescriptorSetLayout textureSetLayoutYcbcr_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout textureSetLayoutYcbcr1_ = VK_NULL_HANDLE;
     VkPipelineLayout graphPipelineLayout_ = VK_NULL_HANDLE;
+    VkPipelineLayout computePipelineLayout_ = VK_NULL_HANDLE;
+    VkDescriptorSetLayout computeDescriptorSetLayout_ = VK_NULL_HANDLE;
+
+    // Compute pipeline cache (key = compute shader module index)
+    std::unordered_map<uint32_t, PipelineHandle> computePipelineCache_;
 
     // Per-frame uniform buffers for render graph
     struct FrameUniformBuffers {

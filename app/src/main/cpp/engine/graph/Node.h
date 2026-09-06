@@ -214,6 +214,8 @@ struct ParticleConfig {
     bool additiveBlending = true;
     bool sortByDepth = false;
     int maxParticles = 10000;
+    // GPU simulation toggle
+    bool useGpuParticles = true;
     // Sub-emitters (spawn on death)
     bool enableSubEmitters = false;
     float subEmitProbability = 0.1f;

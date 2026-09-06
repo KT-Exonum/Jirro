@@ -491,6 +491,36 @@ bool VulkanDevice::CreateDescriptorPoolAndLayouts() {
         return false;
     }
 
+    // Compute pipeline layout: uses storage buffer for particles + uniform buffer for sim params
+    VkDescriptorSetLayoutBinding storageBinding{};
+    storageBinding.binding = 0;
+    storageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    storageBinding.descriptorCount = 1;
+    storageBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutBinding simParamsBinding{};
+    simParamsBinding.binding = 1;
+    simParamsBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    simParamsBinding.descriptorCount = 1;
+    simParamsBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutBinding computeBindings[2] = {storageBinding, simParamsBinding};
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    computeLayoutInfo.bindingCount = 2;
+    computeLayoutInfo.pBindings = computeBindings;
+    if (vkCreateDescriptorSetLayout(device_, &computeLayoutInfo, nullptr, &computeDescriptorSetLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Compute pipeline layout
+    VkDescriptorSetLayout computeLayouts[1] = {computeDescriptorSetLayout_};
+    VkPipelineLayoutCreateInfo computeLayoutInfo2{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    computeLayoutInfo2.setLayoutCount = 1;
+    computeLayoutInfo2.pSetLayouts = computeLayouts;
+    if (vkCreatePipelineLayout(device_, &computeLayoutInfo2, nullptr, &computePipelineLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
     return true;
 }
 
@@ -1041,6 +1071,56 @@ Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, 
     pipelineCache[key] = handle;
 
     return Result<PipelineHandle>::Ok(handle);
+}
+
+Result<PipelineHandle> VulkanDevice::CreateComputePipeline(ShaderModuleHandle cs) {
+    // Cache key: compute shader module handle
+    auto it = computePipelineCache_.find(cs.index);
+    if (it != computePipelineCache_.end()) {
+        return Result<PipelineHandle>::Ok(it->second);
+    }
+
+    VkShaderModuleResource* csRes = shaderModules_.Get(cs);
+    if (!csRes) {
+        return Result<PipelineHandle>::Fail("Invalid compute shader module handle");
+    }
+
+    VkPipelineShaderStageCreateInfo stageInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageInfo.module = csRes->module;
+    stageInfo.pName = "main";
+
+    // Use the compute pipeline layout (created in CreateDescriptorPoolAndLayouts)
+    if (!computePipelineLayout_) {
+        return Result<PipelineHandle>::Fail("Compute pipeline layout not initialized");
+    }
+
+    VkComputePipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+    pipelineInfo.stage = stageInfo;
+    pipelineInfo.layout = computePipelineLayout_;
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex = -1;
+
+    VkPipeline pipeline;
+    if (vkCreateComputePipelines(device_, pipelineCache_, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+        return Result<PipelineHandle>::Fail("vkCreateComputePipelines failed");
+    }
+
+    VkPipelineResource resource{pipeline, computePipelineLayout_};
+    PipelineHandle handle = pipelines_.Insert(resource);
+    computePipelineCache_[cs.index] = handle;
+
+    return Result<PipelineHandle>::Ok(handle);
+}
+
+void VulkanDevice::DispatchCompute(PipelineHandle pipeline, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) {
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+    
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+    
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineRes->pipeline);
+    vkCmdDispatch(cmd, groupCountX, groupCountY, groupCountZ);
 }
 
 void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,

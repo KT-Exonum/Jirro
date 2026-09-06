@@ -74,6 +74,12 @@ public:
         ShaderModuleHandle fragmentShader,
         TextureUsage targetUsage) = 0;
 
+    // Compute pipeline support for GPU particle simulation and other GPGPU work
+    virtual Result<PipelineHandle> CreateComputePipeline(ShaderModuleHandle computeShader) = 0;
+
+    // Dispatch compute shader (workgroup count)
+    virtual void DispatchCompute(PipelineHandle pipeline, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) = 0;
+
     // Frame bracket. BeginFrame acquires the swapchain image (or, for an
     // off-screen export pass — Section 6 export pipeline — a headless
     // target); EndFrame presents (or, headless, is a no-op besides sync).
