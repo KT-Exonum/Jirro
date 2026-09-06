@@ -50,6 +50,72 @@ const uint32_t kMaskFrag[] = {0};
 const size_t kMaskFragWords = 0;
 const uint32_t kCompositeFrag[] = {0};
 const size_t kCompositeFragWords = 0;
+
+// Phase 4-5: Vector, Text, Stroke sources
+const uint32_t kVectorSourceVert[] = {0};
+const size_t kVectorSourceVertWords = 0;
+const uint32_t kVectorSourceFrag[] = {0};
+const size_t kVectorSourceFragWords = 0;
+const uint32_t kTextSourceVert[] = {0};
+const size_t kTextSourceVertWords = 0;
+const uint32_t kTextSourceFrag[] = {0};
+const size_t kTextSourceFragWords = 0;
+const uint32_t kStrokeSourceVert[] = {0};
+const size_t kStrokeSourceVertWords = 0;
+const uint32_t kStrokeSourceFrag[] = {0};
+const size_t kStrokeSourceFragWords = 0;
+
+// Phase 5-6: Adjustment, Null, Output
+const uint32_t kAdjustmentVert[] = {0};
+const size_t kAdjustmentVertWords = 0;
+const uint32_t kAdjustmentFrag[] = {0};
+const size_t kAdjustmentFragWords = 0;
+const uint32_t kNullLayerVert[] = {0};
+const size_t kNullLayerVertWords = 0;
+const uint32_t kNullLayerFrag[] = {0};
+const size_t kNullLayerFragWords = 0;
+const uint32_t kOutputVert[] = {0};
+const size_t kOutputVertWords = 0;
+const uint32_t kOutputFrag[] = {0};
+const size_t kOutputFragWords = 0;
+
+// Motion blur shaders
+const uint32_t kMotionBlurVert[] = {0};
+const size_t kMotionBlurVertWords = 0;
+const uint32_t kMotionBlurFrag[] = {0};
+const size_t kMotionBlurFragWords = 0;
+const uint32_t kDirectionalBlurVert[] = {0};
+const size_t kDirectionalBlurVertWords = 0;
+const uint32_t kDirectionalBlurFrag[] = {0};
+const size_t kDirectionalBlurFragWords = 0;
+
+// Time remap shaders
+const uint32_t kTimeRemapVert[] = {0};
+const size_t kTimeRemapVertWords = 0;
+const uint32_t kTimeRemapFrag[] = {0};
+const size_t kTimeRemapFragWords = 0;
+
+// Mask/roto shaders
+const uint32_t kBezierMaskVert[] = {0};
+const size_t kBezierMaskVertWords = 0;
+const uint32_t kBezierMaskFrag[] = {0};
+const size_t kBezierMaskFragWords = 0;
+
+// Particle shaders
+const uint32_t kParticleVert[] = {0};
+const size_t kParticleVertWords = 0;
+const uint32_t kParticleFrag[] = {0};
+const size_t kParticleFragWords = 0;
+
+// Shape2D shaders
+const uint32_t kShape2DVert[] = {0};
+const size_t kShape2DVertWords = 0;
+const uint32_t kShape2DFrag[] = {0};
+const size_t kShape2DFragWords = 0;
+const uint32_t kShapeMergeFrag[] = {0};
+const size_t kShapeMergeFragWords = 0;
+const uint32_t kShapeTransformVert[] = {0};
+const size_t kShapeTransformVertWords = 0;
 } // namespace generated_shader_bytecode
 
 // SPIR-V bytecode pointers for RenderGraph access (defined in vfx namespace)
@@ -75,6 +141,72 @@ constexpr const uint32_t* kMaskFragSpirv = generated_shader_bytecode::kMaskFrag;
 constexpr size_t kMaskFragSpirvWords = generated_shader_bytecode::kMaskFragWords;
 constexpr const uint32_t* kCompositeFragSpirv = generated_shader_bytecode::kCompositeFrag;
 constexpr size_t kCompositeFragSpirvWords = generated_shader_bytecode::kCompositeFragWords;
+
+// Phase 4-5: Vector, Text, Stroke sources
+constexpr const uint32_t* kVectorSourceVertSpirv = generated_shader_bytecode::kVectorSourceVert;
+constexpr size_t kVectorSourceVertSpirvWords = generated_shader_bytecode::kVectorSourceVertWords;
+constexpr const uint32_t* kVectorSourceFragSpirv = generated_shader_bytecode::kVectorSourceFrag;
+constexpr size_t kVectorSourceFragSpirvWords = generated_shader_bytecode::kVectorSourceFragWords;
+constexpr const uint32_t* kTextSourceVertSpirv = generated_shader_bytecode::kTextSourceVert;
+constexpr size_t kTextSourceVertSpirvWords = generated_shader_bytecode::kTextSourceVertWords;
+constexpr const uint32_t* kTextSourceFragSpirv = generated_shader_bytecode::kTextSourceFrag;
+constexpr size_t kTextSourceFragSpirvWords = generated_shader_bytecode::kTextSourceFragWords;
+constexpr const uint32_t* kStrokeSourceVertSpirv = generated_shader_bytecode::kStrokeSourceVert;
+constexpr size_t kStrokeSourceVertSpirvWords = generated_shader_bytecode::kStrokeSourceVertWords;
+constexpr const uint32_t* kStrokeSourceFragSpirv = generated_shader_bytecode::kStrokeSourceFrag;
+constexpr size_t kStrokeSourceFragSpirvWords = generated_shader_bytecode::kStrokeSourceFragWords;
+
+// Phase 5-6: Adjustment, Null, Output
+constexpr const uint32_t* kAdjustmentVertSpirv = generated_shader_bytecode::kAdjustmentVert;
+constexpr size_t kAdjustmentVertSpirvWords = generated_shader_bytecode::kAdjustmentVertWords;
+constexpr const uint32_t* kAdjustmentFragSpirv = generated_shader_bytecode::kAdjustmentFrag;
+constexpr size_t kAdjustmentFragSpirvWords = generated_shader_bytecode::kAdjustmentFragWords;
+constexpr const uint32_t* kNullLayerVertSpirv = generated_shader_bytecode::kNullLayerVert;
+constexpr size_t kNullLayerVertSpirvWords = generated_shader_bytecode::kNullLayerVertWords;
+constexpr const uint32_t* kNullLayerFragSpirv = generated_shader_bytecode::kNullLayerFrag;
+constexpr size_t kNullLayerFragSpirvWords = generated_shader_bytecode::kNullLayerFragWords;
+constexpr const uint32_t* kOutputVertSpirv = generated_shader_bytecode::kOutputVert;
+constexpr size_t kOutputVertSpirvWords = generated_shader_bytecode::kOutputVertWords;
+constexpr const uint32_t* kOutputFragSpirv = generated_shader_bytecode::kOutputFrag;
+constexpr size_t kOutputFragSpirvWords = generated_shader_bytecode::kOutputFragWords;
+
+// Motion blur shaders
+constexpr const uint32_t* kMotionBlurVertSpirv = generated_shader_bytecode::kMotionBlurVert;
+constexpr size_t kMotionBlurVertSpirvWords = generated_shader_bytecode::kMotionBlurVertWords;
+constexpr const uint32_t* kMotionBlurFragSpirv = generated_shader_bytecode::kMotionBlurFrag;
+constexpr size_t kMotionBlurFragSpirvWords = generated_shader_bytecode::kMotionBlurFragWords;
+constexpr const uint32_t* kDirectionalBlurVertSpirv = generated_shader_bytecode::kDirectionalBlurVert;
+constexpr size_t kDirectionalBlurVertSpirvWords = generated_shader_bytecode::kDirectionalBlurVertWords;
+constexpr const uint32_t* kDirectionalBlurFragSpirv = generated_shader_bytecode::kDirectionalBlurFrag;
+constexpr size_t kDirectionalBlurFragSpirvWords = generated_shader_bytecode::kDirectionalBlurFragWords;
+
+// Time remap shaders
+constexpr const uint32_t* kTimeRemapVertSpirv = generated_shader_bytecode::kTimeRemapVert;
+constexpr size_t kTimeRemapVertSpirvWords = generated_shader_bytecode::kTimeRemapVertWords;
+constexpr const uint32_t* kTimeRemapFragSpirv = generated_shader_bytecode::kTimeRemapFrag;
+constexpr size_t kTimeRemapFragSpirvWords = generated_shader_bytecode::kTimeRemapFragWords;
+
+// Mask/roto shaders
+constexpr const uint32_t* kBezierMaskVertSpirv = generated_shader_bytecode::kBezierMaskVert;
+constexpr size_t kBezierMaskVertSpirvWords = generated_shader_bytecode::kBezierMaskVertWords;
+constexpr const uint32_t* kBezierMaskFragSpirv = generated_shader_bytecode::kBezierMaskFrag;
+constexpr size_t kBezierMaskFragSpirvWords = generated_shader_bytecode::kBezierMaskFragWords;
+
+// Particle shaders
+constexpr const uint32_t* kParticleVertSpirv = generated_shader_bytecode::kParticleVert;
+constexpr size_t kParticleVertSpirvWords = generated_shader_bytecode::kParticleVertWords;
+constexpr const uint32_t* kParticleFragSpirv = generated_shader_bytecode::kParticleFrag;
+constexpr size_t kParticleFragSpirvWords = generated_shader_bytecode::kParticleFragWords;
+
+// Shape2D shaders
+constexpr const uint32_t* kShape2DVertSpirv = generated_shader_bytecode::kShape2DVert;
+constexpr size_t kShape2DVertSpirvWords = generated_shader_bytecode::kShape2DVertWords;
+constexpr const uint32_t* kShape2DFragSpirv = generated_shader_bytecode::kShape2DFrag;
+constexpr size_t kShape2DFragSpirvWords = generated_shader_bytecode::kShape2DFragWords;
+constexpr const uint32_t* kShapeMergeFragSpirv = generated_shader_bytecode::kShapeMergeFrag;
+constexpr size_t kShapeMergeFragSpirvWords = generated_shader_bytecode::kShapeMergeFragWords;
+constexpr const uint32_t* kShapeTransformVertSpirv = generated_shader_bytecode::kShapeTransformVert;
+constexpr size_t kShapeTransformVertSpirvWords = generated_shader_bytecode::kShapeTransformVertWords;
 
 namespace {
 

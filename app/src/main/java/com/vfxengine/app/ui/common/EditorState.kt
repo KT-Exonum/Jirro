@@ -98,6 +98,36 @@ class EditorState(
         VectorSource("Vector", 0xFF673AB7.toInt(), 13),
         TextSource("Text", 0xFF795548.toInt(), 14),
         StrokeSource("Stroke", 0xFF009688.toInt(), 15),
+        // Motion blur
+        MotionBlur("Motion Blur", 0xFFE91E63.toInt(), 16),
+        DirectionalBlur("Directional Blur", 0xFFE91E63.toInt(), 17),
+        TransformBlur("Transform Blur", 0xFFE91E63.toInt(), 18),
+        // Velocity/Time remap
+        VelocityGraph("Velocity Graph", 0xFF00BCD4.toInt(), 19),
+        TimeRemap("Time Remap", 0xFF00BCD4.toInt(), 20),
+        OpticalFlow("Optical Flow", 0xFF00BCD4.toInt(), 21),
+        // Masking/Rotoscoping
+        BezierMask("Bezier Mask", 0xFF9C27B0.toInt(), 22),
+        Rotoscoping("Rotoscoping", 0xFF9C27B0.toInt(), 23),
+        RotoBrush("Roto Brush", 0xFF9C27B0.toInt(), 24),
+        Tracker("Tracker", 0xFF9C27B0.toInt(), 25),
+        // Particle system
+        ParticleEmitter("Particle Emitter", 0xFFFF5722.toInt(), 26),
+        ParticleForces("Particle Forces", 0xFFFF5722.toInt(), 27),
+        ParticleRenderer("Particle Renderer", 0xFFFF5722.toInt(), 28),
+        // Shape2D System
+        ShapeRectangle("Rectangle", 0xFF4CAF50.toInt(), 29),
+        ShapeEllipse("Ellipse", 0xFF4CAF50.toInt(), 30),
+        ShapePolygon("Polygon", 0xFF4CAF50.toInt(), 31),
+        ShapeStar("Star", 0xFF4CAF50.toInt(), 32),
+        ShapePath("Path", 0xFF4CAF50.toInt(), 33),
+        ShapeRender("Shape Render", 0xFF4CAF50.toInt(), 34),
+        ShapeMerge("Shape Merge", 0xFF4CAF50.toInt(), 35),
+        ShapeTransform("Shape Transform", 0xFF4CAF50.toInt(), 36),
+        ShapeStroke("Shape Stroke", 0xFF4CAF50.toInt(), 37),
+        ShapeFill("Shape Fill", 0xFF4CAF50.toInt(), 38),
+        ShapeRepeater("Shape Repeater", 0xFF4CAF50.toInt(), 39),
+        ShapeBoolean("Shape Boolean", 0xFF4CAF50.toInt(), 40),
     }
 
     data class Port(val name: String, val type: PortType) {
@@ -444,6 +474,60 @@ class EditorState(
             }
             NodeType.Group -> {
                 // Group ports are dynamic based on exposed inputs/outputs
+            }
+            // Motion blur
+            NodeType.MotionBlur, NodeType.DirectionalBlur, NodeType.TransformBlur -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Velocity/Time remap
+            NodeType.VelocityGraph, NodeType.TimeRemap, NodeType.OpticalFlow -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Masking/Rotoscoping
+            NodeType.BezierMask, NodeType.Rotoscoping, NodeType.RotoBrush -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.Tracker -> {
+                node.outputs.add(Port("transform", Port.PortType.Output))
+                node.outputs.add(Port("position", Port.PortType.Output))
+                node.outputs.add(Port("rotation", Port.PortType.Output))
+                node.outputs.add(Port("scale", Port.PortType.Output))
+            }
+            // Particle system
+            NodeType.ParticleEmitter -> {
+                node.outputs.add(Port("particles", Port.PortType.Output))
+            }
+            NodeType.ParticleForces -> {
+                node.inputs.add(Port("particles", Port.PortType.Input))
+                node.outputs.add(Port("particles", Port.PortType.Output))
+            }
+            NodeType.ParticleRenderer -> {
+                node.inputs.add(Port("particles", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Shape2D System
+            NodeType.ShapeRectangle, NodeType.ShapeEllipse, NodeType.ShapePolygon, NodeType.ShapeStar, NodeType.ShapePath -> {
+                node.outputs.add(Port("shape", Port.PortType.Output))
+            }
+            NodeType.ShapeRender -> {
+                node.inputs.add(Port("shape", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.ShapeMerge -> {
+                node.inputs.add(Port("shapeA", Port.PortType.Input))
+                node.inputs.add(Port("shapeB", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.ShapeTransform -> {
+                node.inputs.add(Port("shape", Port.PortType.Input))
+                node.outputs.add(Port("shape", Port.PortType.Output))
+            }
+            NodeType.ShapeStroke, NodeType.ShapeFill, NodeType.ShapeRepeater, NodeType.ShapeBoolean -> {
+                node.inputs.add(Port("shape", Port.PortType.Input))
+                node.outputs.add(Port("shape", Port.PortType.Output))
             }
         }
         nodes.value[id] = node

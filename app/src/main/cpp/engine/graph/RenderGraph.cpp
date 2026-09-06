@@ -61,6 +61,39 @@ extern const uint32_t* kOutputVertSpirv;
 extern size_t kOutputVertSpirvWords;
 extern const uint32_t* kOutputFragSpirv;
 extern size_t kOutputFragSpirvWords;
+// Motion blur shaders
+extern const uint32_t* kMotionBlurVertSpirv;
+extern size_t kMotionBlurVertSpirvWords;
+extern const uint32_t* kMotionBlurFragSpirv;
+extern size_t kMotionBlurFragSpirvWords;
+extern const uint32_t* kDirectionalBlurVertSpirv;
+extern size_t kDirectionalBlurVertSpirvWords;
+extern const uint32_t* kDirectionalBlurFragSpirv;
+extern size_t kDirectionalBlurFragSpirvWords;
+// Time remap shaders
+extern const uint32_t* kTimeRemapVertSpirv;
+extern size_t kTimeRemapVertSpirvWords;
+extern const uint32_t* kTimeRemapFragSpirv;
+extern size_t kTimeRemapFragSpirvWords;
+// Mask/roto shaders
+extern const uint32_t* kBezierMaskVertSpirv;
+extern size_t kBezierMaskVertSpirvWords;
+extern const uint32_t* kBezierMaskFragSpirv;
+extern size_t kBezierMaskFragSpirvWords;
+// Particle shaders
+extern const uint32_t* kParticleVertSpirv;
+extern size_t kParticleVertSpirvWords;
+extern const uint32_t* kParticleFragSpirv;
+extern size_t kParticleFragSpirvWords;
+// Shape2D shaders
+extern const uint32_t* kShape2DVertSpirv;
+extern size_t kShape2DVertSpirvWords;
+extern const uint32_t* kShape2DFragSpirv;
+extern size_t kShape2DFragSpirvWords;
+extern const uint32_t* kShapeMergeFragSpirv;
+extern size_t kShapeMergeFragSpirvWords;
+extern const uint32_t* kShapeTransformVertSpirv;
+extern size_t kShapeTransformVertSpirvWords;
 
 CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) {
     CompileResult result;
@@ -309,6 +342,113 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             // Group nodes are handled by expanding their members during compile
             // This should not be reached if compile expands groups
             fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        // Motion blur nodes
+        case NodeKind::MotionBlur: {
+            vsHandle = GetOrCreateShaderModule(kMotionBlurVertSpirv, kMotionBlurVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kMotionBlurFragSpirv, kMotionBlurFragSpirvWords);
+            break;
+        }
+        case NodeKind::DirectionalBlur: {
+            vsHandle = GetOrCreateShaderModule(kDirectionalBlurVertSpirv, kDirectionalBlurVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kDirectionalBlurFragSpirv, kDirectionalBlurFragSpirvWords);
+            break;
+        }
+        case NodeKind::TransformBlur: {
+            // Transform with integrated motion blur - uses directional blur shader
+            vsHandle = GetOrCreateShaderModule(kDirectionalBlurVertSpirv, kDirectionalBlurVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kDirectionalBlurFragSpirv, kDirectionalBlurFragSpirvWords);
+            break;
+        }
+        // Velocity/Time remap nodes
+        case NodeKind::VelocityGraph: {
+            vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kTimeRemapFragSpirv, kTimeRemapFragSpirvWords);
+            break;
+        }
+        case NodeKind::TimeRemap: {
+            vsHandle = GetOrCreateShaderModule(kTimeRemapVertSpirv, kTimeRemapVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kTimeRemapFragSpirv, kTimeRemapFragSpirvWords);
+            break;
+        }
+        case NodeKind::OpticalFlow: {
+            vsHandle = GetOrCreateShaderModule(kTimeRemapVertSpirv, kTimeRemapVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kTimeRemapFragSpirv, kTimeRemapFragSpirvWords);
+            break;
+        }
+        // Masking/Rotoscoping nodes
+        case NodeKind::BezierMask: {
+            vsHandle = GetOrCreateShaderModule(kBezierMaskVertSpirv, kBezierMaskVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBezierMaskFragSpirv, kBezierMaskFragSpirvWords);
+            break;
+        }
+        case NodeKind::Rotoscoping: {
+            vsHandle = GetOrCreateShaderModule(kBezierMaskVertSpirv, kBezierMaskVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBezierMaskFragSpirv, kBezierMaskFragSpirvWords);
+            break;
+        }
+        case NodeKind::RotoBrush: {
+            vsHandle = GetOrCreateShaderModule(kBezierMaskVertSpirv, kBezierMaskVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBezierMaskFragSpirv, kBezierMaskFragSpirvWords);
+            break;
+        }
+        case NodeKind::Tracker: {
+            // Tracker outputs transform data, doesn't render directly
+            vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        // Particle system nodes
+        case NodeKind::ParticleEmitter: {
+            vsHandle = GetOrCreateShaderModule(kParticleVertSpirv, kParticleVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kParticleFragSpirv, kParticleFragSpirvWords);
+            break;
+        }
+        case NodeKind::ParticleForces: {
+            // Forces modify particle simulation, don't render directly
+            vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        case NodeKind::ParticleRenderer: {
+            vsHandle = GetOrCreateShaderModule(kParticleVertSpirv, kParticleVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kParticleFragSpirv, kParticleFragSpirvWords);
+            break;
+        }
+        // Shape2D System nodes
+        case NodeKind::ShapeRectangle:
+        case NodeKind::ShapeEllipse:
+        case NodeKind::ShapePolygon:
+        case NodeKind::ShapeStar:
+        case NodeKind::ShapePath: {
+            vsHandle = GetOrCreateShaderModule(kShape2DVertSpirv, kShape2DVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kShape2DFragSpirv, kShape2DFragSpirvWords);
+            break;
+        }
+        case NodeKind::ShapeRender: {
+            vsHandle = GetOrCreateShaderModule(kShape2DVertSpirv, kShape2DVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kShape2DFragSpirv, kShape2DFragSpirvWords);
+            break;
+        }
+        case NodeKind::ShapeMerge: {
+            // ShapeMerge blends two shape textures with boolean ops
+            vsHandle = GetOrCreateShaderModule(kFullscreenVertSpirv, kFullscreenVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kShapeMergeFragSpirv, kShapeMergeFragSpirvWords);
+            break;
+        }
+        case NodeKind::ShapeTransform: {
+            vsHandle = GetOrCreateShaderModule(kShapeTransformVertSpirv, kShapeTransformVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+            break;
+        }
+        case NodeKind::ShapeStroke:
+        case NodeKind::ShapeFill:
+        case NodeKind::ShapeRepeater:
+        case NodeKind::ShapeBoolean: {
+            // These are handled as part of Shape2D pipeline
+            vsHandle = GetOrCreateShaderModule(kShape2DVertSpirv, kShape2DVertSpirvWords);
+            fsHandle = GetOrCreateShaderModule(kShape2DFragSpirv, kShape2DFragSpirvWords);
             break;
         }
         default: {

@@ -49,22 +49,354 @@ import com.vfxengine.app.ui.common.EditorState
 @Composable
 fun FusionTab(state: EditorState) {
     var showWarning by remember { mutableStateOf(true) }
+    var showTools by remember { mutableStateOf(true) }
+    var showInspector by remember { mutableStateOf(true) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header with zoom controls
             FusionHeader()
 
-            // Node canvas (main area)
-            FusionNodeCanvas(state)
+            // Main content area with tool palette, node canvas, and inspector
+            Row(modifier = Modifier.fillMaxSize().weight(1f)) {
+                // Left sidebar: Tools
+                if (showTools) {
+                    FusionToolPalette(state)
+                    androidx.compose.foundation.layout.Divider(color = Color.White.copy(alpha = 0.1f))
+                }
+
+                // Node canvas (main area)
+                FusionNodeCanvas(state)
+
+                // Right sidebar: Inspector
+                if (showInspector) {
+                    androidx.compose.foundation.layout.Divider(color = Color.White.copy(alpha = 0.1f))
+                    InspectorPanel(state)
+                }
+            }
 
             // Warning banner
             if (showWarning) {
                 WarningBanner(onDismiss = { showWarning = false })
             }
+        }
+        
+        // Floating tool toggle button
+        if (!showTools) {
+            FloatingToolToggle(onClick = { showTools = true })
+        }
+    }
+}
 
-            // Inspector panel at bottom
-            InspectorPanel(state)
+@Composable
+fun FloatingToolToggle(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.FloatingActionButton(
+            onClick = onClick,
+            containerColor = Color.Cyan,
+            contentColor = Color.Black
+        ) {
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_menu_manage),
+                contentDescription = "Show Tools",
+                tint = Color.Black
+            )
+        }
+    }
+}
+
+@Composable
+fun FusionTab(state: EditorState) {
+    var showWarning by remember { mutableStateOf(true) }
+    var showTools by remember { mutableStateOf(true) }
+    var showInspector by remember { mutableStateOf(true) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header with zoom controls
+            FusionHeader()
+
+            // Main content area with tool palette, node canvas, and inspector
+            Row(modifier = Modifier.fillMaxSize().weight(1f)) {
+                // Left sidebar: Tools
+                if (showTools) {
+                    FusionToolPalette(state)
+                    androidx.compose.foundation.layout.Divider(color = Color.White.copy(alpha = 0.1f))
+                }
+
+                // Node canvas (main area)
+                FusionNodeCanvas(state)
+
+                // Right sidebar: Inspector
+                if (showInspector) {
+                    androidx.compose.foundation.layout.Divider(color = Color.White.copy(alpha = 0.1f))
+                    InspectorPanel(state)
+                }
+            }
+
+            // Warning banner
+            if (showWarning) {
+                WarningBanner(onDismiss = { showWarning = false })
+            }
+        }
+        
+        // Floating tool toggle button
+        if (!showTools) {
+            FloatingToolToggle(onClick = { showTools = true })
+        }
+    }
+}
+
+/**
+ * Tool palette sidebar with all node categories
+ */
+@Composable
+fun FusionToolPalette(state: EditorState) {
+    Card(
+        modifier = Modifier
+            .width(280.dp)
+            .fillMaxHeight()
+            .background(Color(0xFF121212))
+            .padding(0.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Tool palette header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = 16.dp)
+                    .background(Color(0xFF1E1E1E)),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Tools", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { /* collapse */ }) {
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.ic_media_rew),
+                        contentDescription = "Collapse",
+                        tint = Color.White
+                    )
+                }
+            }
+
+            Divider(color = Color.White.copy(alpha = 0.1f))
+
+            // Tool categories
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+            ) {
+                // Sources
+                ToolCategorySection(
+                    title = "Sources",
+                    color = 0xFF2196F3.toInt(),
+                    items = listOf(
+                        ToolItem("Video", EditorState.NodeType.VideoSource, android.R.drawable.ic_media_play),
+                        ToolItem("Image", EditorState.NodeType.ImageSource, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Audio", EditorState.NodeType.AudioSource, android.R.drawable.ic_media_play),
+                        ToolItem("Vector", EditorState.NodeType.VectorSource, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Text", EditorState.NodeType.TextSource, android.R.drawable.ic_menu_edit),
+                        ToolItem("Stroke", EditorState.NodeType.StrokeSource, android.R.drawable.ic_menu_edit),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Shape2D (DaVinci Resolve style)
+                ToolCategorySection(
+                    title = "Shape2D",
+                    color = 0xFF4CAF50.toInt(),
+                    items = listOf(
+                        ToolItem("Rectangle", EditorState.NodeType.ShapeRectangle, android.R.drawable.ic_menu_crop),
+                        ToolItem("Ellipse", EditorState.NodeType.ShapeEllipse, android.R.drawable.ic_menu_crop),
+                        ToolItem("Polygon", EditorState.NodeType.ShapePolygon, android.R.drawable.ic_menu_crop),
+                        ToolItem("Star", EditorState.NodeType.ShapeStar, android.R.drawable.ic_menu_crop),
+                        ToolItem("Path", EditorState.NodeType.ShapePath, android.R.drawable.ic_menu_edit),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                ShapeOperationCategorySection(
+                    title = "Shape Operations",
+                    color = 0xFF8BC34A.toInt(),
+                    items = listOf(
+                        ToolItem("Render", EditorState.NodeType.ShapeRender, android.R.drawable.ic_media_play),
+                        ToolItem("Merge", EditorState.NodeType.ShapeMerge, android.R.drawable.ic_menu_agenda),
+                        ToolItem("Transform", EditorState.NodeType.ShapeTransform, android.R.drawable.ic_menu_crop),
+                        ToolItem("Stroke", EditorState.NodeType.ShapeStroke, android.R.drawable.ic_menu_edit),
+                        ToolItem("Fill", EditorState.NodeType.ShapeFill, android.R.drawable.ic_menu_edit),
+                        ToolItem("Repeater", EditorState.NodeType.ShapeRepeater, android.R.drawable.ic_menu_agenda),
+                        ToolItem("Boolean", EditorState.NodeType.ShapeBoolean, android.R.drawable.ic_menu_agenda),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Filters
+                ToolCategorySection(
+                    title = "Filters",
+                    color = 0xFF2196F3.toInt(),
+                    items = listOf(
+                        ToolItem("Blur", EditorState.NodeType.Blur, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Motion Blur", EditorState.NodeType.MotionBlur, android.R.drawable.ic_media_ff),
+                        ToolItem("Directional Blur", EditorState.NodeType.DirectionalBlur, android.R.drawable.ic_media_ff),
+                        ToolItem("Transform Blur", EditorState.NodeType.TransformBlur, android.R.drawable.ic_menu_crop),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Color
+                ToolCategorySection(
+                    title = "Color",
+                    color = 0xFFF44336.toInt(),
+                    items = listOf(
+                        ToolItem("Color Correction", EditorState.NodeType.ColorCorrection, android.R.drawable.ic_menu_gallery),
+                        ToolItem("Adjustment", EditorState.NodeType.Adjustment, android.R.drawable.ic_menu_edit),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Composite
+                ToolCategorySection(
+                    title = "Composite",
+                    color = 0xFF3F51B5.toInt(),
+                    items = listOf(
+                        ToolItem("Blend", EditorState.NodeType.Blend, android.R.drawable.ic_media_ff),
+                        ToolItem("Composite", EditorState.NodeType.Composite, android.R.drawable.ic_menu_agenda),
+                        ToolItem("Mask", EditorState.NodeType.Mask, android.R.drawable.ic_menu_crop),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Time/Velocity
+                ToolCategorySection(
+                    title = "Time & Velocity",
+                    color = 0xFF00BCD4.toInt(),
+                    items = listOf(
+                        ToolItem("Velocity Graph", EditorState.NodeType.VelocityGraph, android.R.drawable.ic_media_ff),
+                        ToolItem("Time Remap", EditorState.NodeType.TimeRemap, android.R.drawable.ic_media_rew),
+                        ToolItem("Optical Flow", EditorState.NodeType.OpticalFlow, android.R.drawable.ic_menu_rotate),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Masking/Rotoscoping
+                ToolCategorySection(
+                    title = "Masking & Roto",
+                    color = 0xFF9C27B0.toInt(),
+                    items = listOf(
+                        ToolItem("Bezier Mask", EditorState.NodeType.BezierMask, android.R.drawable.ic_menu_crop),
+                        ToolItem("Rotoscoping", EditorState.NodeType.Rotoscoping, android.R.drawable.ic_menu_edit),
+                        ToolItem("Roto Brush", EditorState.NodeType.RotoBrush, android.R.drawable.ic_menu_edit),
+                        ToolItem("Tracker", EditorState.NodeType.Tracker, android.R.drawable.ic_menu_mapmode),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Particles
+                ToolCategorySection(
+                    title = "Particles",
+                    color = 0xFFFF5722.toInt(),
+                    items = listOf(
+                        ToolItem("Emitter", EditorState.NodeType.ParticleEmitter, android.R.drawable.ic_menu_add),
+                        ToolItem("Forces", EditorState.NodeType.ParticleForces, android.R.drawable.ic_menu_rotate),
+                        ToolItem("Renderer", EditorState.NodeType.ParticleRenderer, android.R.drawable.ic_media_play),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+
+                // Utility
+                ToolCategorySection(
+                    title = "Utility",
+                    color = 0xFF8BC34A.toInt(),
+                    items = listOf(
+                        ToolItem("Shader", EditorState.NodeType.Shader, android.R.drawable.ic_menu_edit),
+                        ToolItem("Null", EditorState.NodeType.Null, android.R.drawable.ic_menu_help),
+                        ToolItem("Output", EditorState.NodeType.Output, android.R.drawable.ic_media_next),
+                    ),
+                    onItemClick = { type -> addNodeOfType(state, type) }
+                )
+            }
+        }
+    }
+}
+
+data class ToolItem(val label: String, val nodeType: EditorState.NodeType, val iconRes: Int)
+
+@Composable
+fun ToolCategorySection(
+    title: String,
+    color: Int,
+    items: List<ToolItem>,
+    onItemClick: (EditorState.NodeType) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(text = title, color = Color(color), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+        ) {
+            items(items) { item ->
+                androidx.compose.material3.TextButton(
+                    onClick = { onItemClick(item.nodeType) },
+                    modifier = Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = item.iconRes),
+                            contentDescription = "",
+                            tint = Color(color),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        androidx.compose.foundation.layout.Box(modifier = Modifier.width(12.dp))
+                        Text(text = item.label, color = Color.White, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShapeOperationCategorySection(
+    title: String,
+    color: Int,
+    items: List<ToolItem>,
+    onItemClick: (EditorState.NodeType) -> Unit
+) {
+    ToolCategorySection(title, color, items, onItemClick)
+}
+
+fun addNodeOfType(state: EditorState, type: EditorState.NodeType) {
+    state.addNode(type, 200f, 200f)
+}
+
+@Composable
+fun FloatingToolToggle(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.material3.FloatingActionButton(
+            onClick = onClick,
+            containerColor = Color.Cyan,
+            contentColor = Color.Black
+        ) {
+            Icon(
+                painter = painterResource(id = android.R.drawable.ic_menu_manage),
+                contentDescription = "Show Tools",
+                tint = Color.Black
+            )
         }
     }
 }

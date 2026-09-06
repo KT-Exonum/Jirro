@@ -32,6 +32,36 @@ enum class NodeKind {
     VectorSource,
     TextSource,
     StrokeSource,
+    // Motion blur
+    MotionBlur,
+    DirectionalBlur,
+    TransformBlur,    // Transform with integrated motion blur
+    // Velocity/Time remapping
+    VelocityGraph,
+    TimeRemap,
+    OpticalFlow,      // For frame interpolation
+    // Masking/Rotoscoping
+    BezierMask,
+    Rotoscoping,
+    RotoBrush,
+    Tracker,          // Planar/point tracker
+    // Particle system
+    ParticleEmitter,
+    ParticleForces,
+    ParticleRenderer,
+    // Shape2D System (DaVinci Resolve style sNodes)
+    ShapeRectangle,
+    ShapeEllipse,
+    ShapePolygon,
+    ShapeStar,
+    ShapePath,        // Custom bezier path
+    ShapeRender,      // Renders vector shapes to pixels
+    ShapeMerge,       // Boolean operations (union, subtract, intersect)
+    ShapeTransform,   // Vector transform (pre-render, infinite scale)
+    ShapeStroke,      // Stroke on shapes
+    ShapeFill,        // Fill (solid, gradient, texture)
+    ShapeRepeater,    // Duplicate/array shapes
+    ShapeBoolean,     // Boolean operations between shapes
 };
 
 enum class BlendMode { Normal, Multiply, Screen, Overlay, Add, Subtract };
@@ -95,6 +125,175 @@ struct OnionSkinConfig {
     float colorAfterR = 0.0f, colorAfterG = 0.0f, colorAfterB = 1.0f; // blue for future
 };
 
+// Motion blur configuration
+struct MotionBlurConfig {
+    bool enabled = true;
+    float shutterAngle = 180.0f;        // degrees (180 = 50% shutter)
+    float shutterPhase = -90.0f;        // degrees (-90 = centered on frame)
+    int samples = 16;                   // number of temporal samples
+    float sampleDistribution = 0.0f;    // 0=uniform, 1=gaussian
+    bool useVelocityBuffer = true;      // use velocity buffer for object motion blur
+    float maxBlurRadius = 64.0f;        // clamp extreme blur
+    // For directional/transform blur
+    float blurLength = 1.0f;            // multiplier for transform-based blur
+    bool useTransformDerivatives = true; // compute velocity from transform animation
+};
+
+// Velocity graph / time remap configuration
+struct VelocityConfig {
+    // Velocity curve (position vs time derivative)
+    std::vector<Keyframe> velocityKeyframes; // time, velocity value
+    InterpolationType velocityInterp = InterpolationType::Bezier;
+    // Time remap curve
+    std::vector<Keyframe> timeRemapKeyframes; // input time -> output time
+    InterpolationType timeRemapInterp = InterpolationType::Bezier;
+    // Optical flow
+    bool enableOpticalFlow = false;
+    float flowQuality = 0.5f;           // 0=fast, 1=quality
+    int flowIterations = 5;
+    // Frame blending fallback
+    bool enableFrameBlending = true;
+    BlendMode blendMode = BlendMode::Normal;
+};
+
+// Bezier mask / Rotoscoping configuration
+struct MaskConfig {
+    // Bezier spline points (flattened: x,y, inTangentX,inTangentY, outTangentX,outTangentY, ...)
+    std::vector<float> splinePoints;
+    bool isClosed = true;
+    float feather = 0.0f;               // edge feather in pixels
+    float expansion = 0.0f;             // positive=expand, negative=contract
+    float opacity = 1.0f;
+    int featherFalloff = 0;             // 0=linear, 1=smooth, 2=gaussian
+    // Rotoscoping specific
+    bool autoKeyframe = false;          // auto-create keyframes on shape change
+    int keyframeInterval = 1;           // keyframe every N frames
+    std::vector<std::string> trackedPointIds; // point IDs linked to tracker
+    // Roto brush
+    bool useRotoBrush = false;
+    std::vector<float> brushStrokes;    // foreground/background strokes
+    float brushSize = 20.0f;
+    float brushHardness = 0.5f;
+};
+
+// Particle system configuration
+struct ParticleConfig {
+    // Emitter
+    enum class EmitterShape { Point, Line, Disc, Sphere, Box, Mesh };
+    EmitterShape emitterShape = EmitterShape::Point;
+    float emitRate = 100.0f;            // particles per second
+    float emitRateVariation = 0.0f;
+    float initialLife = 2.0f;           // seconds
+    float lifeVariation = 0.5f;
+    // Initial velocity
+    float initialSpeed = 100.0f;        // pixels per second
+    float speedVariation = 0.0f;
+    float emitAngle = 0.0f;             // degrees
+    float angleVariation = 360.0f;
+    // Forces (applied per frame)
+    float gravity = 0.0f;
+    float windX = 0.0f;
+    float windY = 0.0f;
+    float turbulence = 0.0f;
+    float drag = 0.0f;
+    // Appearance
+    float startSize = 10.0f;
+    float endSize = 1.0f;
+    uint32_t startColor = 0xFFFFFFFF;
+    uint32_t endColor = 0xFFFFFF00;
+    float startRotation = 0.0f;
+    float rotationSpeed = 0.0f;
+    // Rendering
+    bool additiveBlending = true;
+    bool sortByDepth = false;
+    int maxParticles = 10000;
+    // Sub-emitters (spawn on death)
+    bool enableSubEmitters = false;
+    float subEmitProbability = 0.1f;
+};
+
+// Shape2D configuration (DaVinci Resolve style)
+struct Shape2DConfig {
+    // Shape type and parameters
+    enum class ShapeType { Rectangle, Ellipse, Polygon, Star, CustomPath };
+    ShapeType shapeType = ShapeType::Rectangle;
+    
+    // Rectangle
+    float rectWidth = 100.0f;
+    float rectHeight = 100.0f;
+    float rectCornerRadius = 0.0f;
+    
+    // Ellipse
+    float ellipseWidth = 100.0f;
+    float ellipseHeight = 100.0f;
+    
+    // Polygon
+    int polygonSides = 6;
+    float polygonRadius = 50.0f;
+    float polygonRotation = 0.0f;
+    float polygonRoundness = 0.0f;
+    
+    // Star
+    int starPoints = 5;
+    float starOuterRadius = 50.0f;
+    float starInnerRadius = 20.0f;
+    float starRotation = 0.0f;
+    
+    // Custom path
+    std::vector<float> pathPoints; // flattened x,y for bezier path
+    bool pathClosed = true;
+    
+    // Transform (vector space, pre-render)
+    float positionX = 0.0f;
+    float positionY = 0.0f;
+    float rotation = 0.0f;
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+    float anchorX = 0.5f;
+    float anchorY = 0.5f;
+    float skewX = 0.0f;
+    float skewY = 0.0f;
+    
+    // Stroke
+    bool strokeEnabled = true;
+    float strokeWidth = 2.0f;
+    uint32_t strokeColor = 0xFFFFFFFF;
+    enum class StrokeStyle { Solid, Dash, Dot, DashDot };
+    StrokeStyle strokeStyle = StrokeStyle::Solid;
+    std::vector<float> strokeDashPattern;
+    
+    // Fill
+    bool fillEnabled = true;
+    enum class FillType { Solid, LinearGradient, RadialGradient, Texture };
+    FillType fillType = FillType::Solid;
+    uint32_t fillColor = 0xFFFFFFFF;
+    // Gradient
+    float gradStartX = 0.0f, gradStartY = 0.0f;
+    float gradEndX = 100.0f, gradEndY = 0.0f;
+    uint32_t gradColor1 = 0xFFFFFFFF;
+    uint32_t gradColor2 = 0xFF0000FF;
+    // Texture
+    std::string fillTexturePath;
+    
+    // Boolean operations (for ShapeMerge/ShapeBoolean)
+    enum class BooleanOp { Union, Subtract, Intersect, Difference, XOR };
+    BooleanOp booleanOp = BooleanOp::Union;
+    bool invertMask = false;
+    
+    // Repeater (ShapeRepeater)
+    int repeatCount = 1;
+    float repeatOffsetX = 0.0f;
+    float repeatOffsetY = 0.0f;
+    float repeatRotation = 0.0f;
+    float repeatScale = 1.0f;
+    float repeatOpacity = 1.0f;
+    
+    // Render settings
+    float renderQuality = 1.0f;       // 0.5=fast, 1=quality, 2=supersampled
+    bool antialias = true;
+    float feather = 0.0f;             // edge feather
+};
+
 struct Node {
     std::string nodeId;
     NodeKind kind;
@@ -146,6 +345,21 @@ struct Node {
 
     // Only meaningful for kind == Output.
     OnionSkinConfig onionSkin;
+
+    // Only meaningful for kind == MotionBlur, DirectionalBlur, TransformBlur.
+    MotionBlurConfig motionBlur;
+
+    // Only meaningful for kind == VelocityGraph, TimeRemap, OpticalFlow.
+    VelocityConfig velocity;
+
+    // Only meaningful for kind == BezierMask, Rotoscoping, RotoBrush, Tracker.
+    MaskConfig mask;
+
+    // Only meaningful for kind == ParticleEmitter, ParticleForces, ParticleRenderer.
+    ParticleConfig particle;
+
+    // Only meaningful for kind == ShapeRectangle, ShapeEllipse, ShapePolygon, ShapeStar, ShapePath, ShapeRender, ShapeMerge, ShapeTransform, ShapeStroke, ShapeFill, ShapeRepeater, ShapeBoolean.
+    Shape2DConfig shape2D;
 
     [[nodiscard]] float EvaluateUniform(const std::string& name, double timelineSeconds) const {
         // Check animated uniforms first
