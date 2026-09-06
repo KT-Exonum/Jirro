@@ -91,12 +91,50 @@ fun InspectorPanel(state: EditorState) {
                     androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
                     
                     selectedNode.animatedUniforms.forEach { (name, track) ->
-                        AnimatedUniformField(
-                            state = state,
-                            nodeId = selectedNode.id,
-                            uniformName = name,
-                            track = track
-                        )
+                        androidx.compose.material3.Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            onClick = {
+                                state.keyframeEditorTarget = EditorState.KeyframeTarget(
+                                    nodeId = selectedNode.id,
+                                    uniformName = name,
+                                    track = track
+                                )
+                            }
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        text = "${track.keyframes.size} KFs",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                androidx.compose.foundation.layout.Box(modifier = Modifier.height(4.dp))
+                                track.keyframes.forEachIndexed { index, kf ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "${formatTime(kf.time)}: ${String.format("%.3f", kf.value)}",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = kf.interpolation.name,
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -130,47 +168,6 @@ fun UniformField(
                 placeholderColor = Color.White.copy(alpha = 0.4f)
             )
         )
-    }
-}
-
-@Composable
-fun AnimatedUniformField(
-    state: EditorState,
-    nodeId: String,
-    uniformName: String,
-    track: EditorState.KeyframeTrack
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-        ) {
-            Text(text = uniformName, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-            Text(
-                text = "${track.keyframes.size} keyframes",
-                color = Color.Green,
-                fontSize = 10.sp
-            )
-        }
-        
-        // Keyframe list
-        track.keyframes.forEachIndexed { index, kf ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${formatTime(kf.time)}: ${kf.value}",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = kf.interpolation.name,
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 10.sp
-                )
-            }
-        }
     }
 }
 

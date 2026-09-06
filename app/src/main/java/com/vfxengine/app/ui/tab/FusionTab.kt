@@ -86,8 +86,52 @@ fun FusionTab(state: EditorState) {
         if (!showTools) {
             FloatingToolToggle(onClick = { showTools = true })
         }
+        
+        // Keyframe editor overlay
+        if (state.keyframeEditorTarget != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xCC000000))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .fillMaxHeight(0.8f)
+                        .align(Alignment.Center)
+                        .background(Color(0xFF1E1E1E))
+                        .padding(8.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Keyframe Editor — ${state.keyframeEditorTarget!!.nodeId} > ${state.keyframeEditorTarget!!.uniformName}",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = { state.keyframeEditorTarget = null }) {
+                                Icon(
+                                    painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                                    contentDescription = "Close keyframe editor",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                        androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.1f))
+                        com.vfxengine.app.ui.keyframe.KeyframeEditor(state = state)
+                    }
+                }
+            }
+        }
     }
 }
+
+// Keyframe editor overlay is shown when state.keyframeEditorTarget is set
 
 @Composable
 fun FloatingToolToggle(onClick: () -> Unit) {
@@ -149,6 +193,48 @@ fun FusionTab(state: EditorState) {
         // Floating tool toggle button
         if (!showTools) {
             FloatingToolToggle(onClick = { showTools = true })
+        }
+        
+        // Keyframe editor overlay
+        if (state.keyframeEditorTarget != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xCC000000))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .fillMaxHeight(0.8f)
+                        .align(Alignment.Center)
+                        .background(Color(0xFF1E1E1E))
+                        .padding(8.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Keyframe Editor — ${state.keyframeEditorTarget!!.nodeId} > ${state.keyframeEditorTarget!!.uniformName}",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(onClick = { state.keyframeEditorTarget = null }) {
+                                Icon(
+                                    painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel),
+                                    contentDescription = "Close keyframe editor",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                        androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.1f))
+                        com.vfxengine.app.ui.keyframe.KeyframeEditor(state = state)
+                    }
+                }
+            }
         }
     }
 }

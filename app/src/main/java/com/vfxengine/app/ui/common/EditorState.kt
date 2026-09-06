@@ -284,9 +284,19 @@ class EditorState(
         }
 
         private fun evaluateCustom(prev: Keyframe, next: Keyframe, t: Double): Float {
-            // Custom curve evaluation using stored control points
-            // For now fall back to linear
-            prev.value + (next.value - prev.value) * t.toFloat()
+            val cp = prev.customCurvePoints
+            if (cp.size < 4) return prev.value + (next.value - prev.value) * t.toFloat()
+            val p0x = 0.0; val p0y = 0.0
+            val p1x = cp[0].toDouble(); val p1y = cp[1].toDouble()
+            val p2x = cp[2].toDouble(); val p2y = cp[3].toDouble()
+            val p3x = 1.0; val p3y = 1.0
+            val u = 1.0 - t
+            val uu = u * u
+            val uuu = uu * u
+            val tt = t * t
+            val ttt = tt * t
+            val py = uuu * p0y + 3 * uu * t * p1y + 3 * u * tt * p2y + ttt * p3y
+            return (prev.value + (next.value - prev.value) * py).toFloat()
         }
     }
 
@@ -302,6 +312,9 @@ class EditorState(
         data class UpdateClip(val clipId: String, val propertyName: String, val oldValue: Any, val newValue: Any) : HistoryAction()
         data class CreateGroup(val group: NodeGroup) : HistoryAction()
         data class RemoveGroup(val group: NodeGroup) : HistoryAction()
+        data class AddKeyframe(val nodeId: String, val uniformName: String, val keyframe: Keyframe) : HistoryAction()
+        data class RemoveKeyframe(val nodeId: String, val uniformName: String, val keyframe: Keyframe) : HistoryAction()
+        data class UpdateKeyframe(val nodeId: String, val uniformName: String, val oldKeyframe: Keyframe, val newKeyframe: Keyframe) : HistoryAction()
         data class MultiAction(val actions: List<HistoryAction>) : HistoryAction()
     }
 
@@ -375,6 +388,25 @@ class EditorState(
             }
             is HistoryAction.CreateGroup -> groups.value[action.group.groupId] = action.group
             is HistoryAction.RemoveGroup -> groups.value.remove(action.group.groupId)
+            is HistoryAction.AddKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms.getOrPut(action.uniformName) { KeyframeTrack() }
+                track.keyframes.add(action.keyframe)
+                track.keyframes.sortBy { it.time }
+            }
+            is HistoryAction.RemoveKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                track.keyframes.removeAll { it.time == action.keyframe.time && it.value == action.keyframe.value }
+            }
+            is HistoryAction.UpdateKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                val idx = track.keyframes.indexOfFirst { it.time == action.newKeyframe.time && it.value == action.newKeyframe.value }
+                if (idx != -1) {
+                    track.keyframes[idx] = action.newKeyframe
+                }
+            }
             is HistoryAction.MultiAction -> action.actions.forEach { applyAction(it) }
         }
     }
@@ -414,6 +446,25 @@ class EditorState(
             }
             is HistoryAction.CreateGroup -> groups.value.remove(action.group.groupId)
             is HistoryAction.RemoveGroup -> groups.value[action.group.groupId] = action.group
+            is HistoryAction.AddKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                track.keyframes.removeAll { it.time == action.keyframe.time && it.value == action.keyframe.value }
+            }
+            is HistoryAction.RemoveKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms.getOrPut(action.uniformName) { KeyframeTrack() }
+                track.keyframes.add(action.keyframe)
+                track.keyframes.sortBy { it.time }
+            }
+            is HistoryAction.UpdateKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                val idx = track.keyframes.indexOfFirst { it.time == action.newKeyframe.time && it.value == action.newKeyframe.value }
+                if (idx != -1) {
+                    track.keyframes[idx] = action.oldKeyframe
+                }
+            }
             is HistoryAction.MultiAction -> action.actions.forEach { revertAction(it) }
         }
     }
@@ -698,19 +749,38 @@ class EditorState(
     fun addKeyframe(nodeId: String, uniformName: String, time: Double, value: Float) {
         val node = nodes.value[nodeId] ?: return
         val track = node.animatedUniforms.getOrPut(uniformName) { KeyframeTrack() }
-        // Replace existing keyframe at same time or add new
         val existing = track.keyframes.firstOrNull { Math.abs(it.time - time) < 0.001 }
         if (existing != null) {
-            val oldValue = existing.value
+            val oldKf = existing.copy()
             existing.value = value
-            recordAction(HistoryAction.UpdateNode(nodeId, "keyframe_$uniformName", oldValue, value))
+            recordAction(HistoryAction.UpdateKeyframe(nodeId, uniformName, oldKf, existing.copy()))
         } else {
-            track.keyframes.add(Keyframe(time, value))
+            val kf = Keyframe(time, value)
+            track.keyframes.add(kf)
             track.keyframes.sortBy { it.time }
+            recordAction(HistoryAction.AddKeyframe(nodeId, uniformName, kf.copy()))
         }
-        // Also update static uniform as fallback
         node.uniforms[uniformName] = value
         nativeEngine.updateUniform(nodeId, uniformName, value)
+    }
+
+    fun removeKeyframe(nodeId: String, uniformName: String, keyframe: Keyframe) {
+        val node = nodes.value[nodeId] ?: return
+        val track = node.animatedUniforms[uniformName] ?: return
+        val removed = track.keyframes.firstOrNull { it.time == keyframe.time && it.value == keyframe.value } ?: return
+        track.keyframes.remove(removed)
+        recordAction(HistoryAction.RemoveKeyframe(nodeId, uniformName, removed.copy()))
+    }
+
+    fun updateKeyframe(nodeId: String, uniformName: String, oldKeyframe: Keyframe, newKeyframe: Keyframe) {
+        val node = nodes.value[nodeId] ?: return
+        val track = node.animatedUniforms[uniformName] ?: return
+        val idx = track.keyframes.indexOfFirst { it.time == oldKeyframe.time && it.value == oldKeyframe.value }
+        if (idx != -1) {
+            track.keyframes[idx] = newKeyframe.copy()
+            track.keyframes.sortBy { it.time }
+            recordAction(HistoryAction.UpdateKeyframe(nodeId, uniformName, oldKeyframe.copy(), newKeyframe.copy()))
+        }
     }
 
     fun addAudioClip(clipId: String) {
