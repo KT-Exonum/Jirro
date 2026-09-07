@@ -53,11 +53,10 @@ def find_glslang_validator(explicit_path=None):
 
 def compile_shader(glslang, input_path, output_path):
     suffix = input_path.suffix
-    stage_flag = "-V" if suffix in [".vert", ".frag"] else "-C"  # -C for compute
+    stage_flag = "-V"  # -V for all stages (Vulkan semantics)
     cmd = [
         glslang,
         stage_flag,
-        "--source-entrypoint", "main",
         "-o", str(output_path),
         str(input_path),
     ]
