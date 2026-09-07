@@ -194,6 +194,82 @@ class NativeEngine {
         if (handle != 0L) nativeCreateTransition(handle, fromClipId, toClipId, duration, blendShaderNodeId)
     }
 
+    // Media import and thumbnail generation
+    fun importMedia(uri: String) {
+        if (handle != 0L) nativeImportMedia(handle, uri)
+    }
+
+    fun generateThumbnail(uri: String, timeMs: Long): String? {
+        if (handle != 0L) return nativeGenerateThumbnail(handle, uri, timeMs)
+        return null
+    }
+
+    fun getMediaMetadata(uri: String): String? {
+        if (handle != 0L) return nativeGetMediaMetadata(handle, uri)
+        return null
+    }
+
+    // Project save/load
+    fun saveProject(filePath: String) {
+        if (handle != 0L) nativeSaveProject(handle, filePath)
+    }
+
+    fun loadProject(filePath: String) {
+        if (handle != 0L) nativeLoadProject(handle, filePath)
+    }
+
+    fun newProject(name: String) {
+        if (handle != 0L) nativeNewProject(handle, name)
+    }
+
+    // Export
+    fun exportVideo(outputPath: String, width: Int, height: Int, frameRate: Double, startTime: Double, endTime: Double, bitrateMbps: Int, codec: String) {
+        if (handle != 0L) nativeExport(handle, outputPath, width, height, frameRate, startTime, endTime, bitrateMbps, codec)
+    }
+
+    // Audio output control
+    fun startAudioOutput() {
+        if (handle != 0L) nativeStartAudioOutput(handle)
+    }
+
+    fun stopAudioOutput() {
+        if (handle != 0L) nativeStopAudioOutput(handle)
+    }
+
+    // Profiling
+    fun getProfileStats(): String {
+        if (handle != 0L) return nativeGetProfileStats(handle)
+        return "{}"
+    }
+
+    // Shader compilation
+    fun compileShadersIfNeeded() {
+        if (handle != 0L) nativeCompileShadersIfNeeded(handle)
+    }
+
+    fun reloadShaders() {
+        if (handle != 0L) nativeReloadShaders(handle)
+    }
+
+    // Crash Recovery
+    fun enableCrashRecovery(enabled: Boolean, intervalSeconds: Int = 30) {
+        if (handle != 0L) nativeEnableCrashRecovery(handle, enabled, intervalSeconds)
+    }
+
+    // Thermal Adaptation
+    fun enableLowEndFallbacks(enabled: Boolean) {
+        if (handle != 0L) nativeEnableLowEndFallbacks(handle, enabled)
+    }
+
+    fun autoConfigureForDevice() {
+        if (handle != 0L) nativeAutoConfigureForDevice(handle)
+    }
+
+    // Media import and thumbnail generation
+    private external fun nativeImportMedia(handle: Long, uri: String)
+    private external fun nativeGenerateThumbnail(handle: Long, uri: String, timeMs: Long): String
+    private external fun nativeGetMediaMetadata(handle: Long, uri: String): String
+
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAttachSurface(handle: Long, surface: Surface)
@@ -242,6 +318,13 @@ class NativeEngine {
     private external fun nativeSplitClip(handle: Long, clipId: String, timelinePosition: Double)
     private external fun nativeTrimClip(handle: Long, clipId: String, sourceIn: Double, sourceOut: Double)
     private external fun nativeCreateTransition(handle: Long, fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String)
+
+    // Crash Recovery
+    private external fun nativeEnableCrashRecovery(handle: Long, enabled: Boolean, intervalSeconds: Int)
+
+    // Thermal Adaptation
+    private external fun nativeEnableLowEndFallbacks(handle: Long, enabled: Boolean)
+    private external fun nativeAutoConfigureForDevice(handle: Long)
 
     companion object {
         init {

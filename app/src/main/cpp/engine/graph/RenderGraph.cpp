@@ -204,6 +204,16 @@ extern size_t kAudioWaveformFragSpirvWords;
 extern const uint32_t* kAudioSpectrumFragSpirv;
 extern size_t kAudioSpectrumFragSpirvWords;
 
+// Frame blend & optical flow
+extern const uint32_t* kFrameBlendFragSpirv;
+extern size_t kFrameBlendFragSpirvWords;
+extern const uint32_t* kOpticalFlowCompSpirv;
+extern size_t kOpticalFlowCompSpirvWords;
+
+// LUT
+extern const uint32_t* kLUTFragSpirv;
+extern size_t kLUTFragSpirvWords;
+
 // Text shaders
 extern const uint32_t* kTextVertSpirv;
 extern size_t kTextVertSpirvWords;
@@ -329,6 +339,10 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(FrameBlend, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFrameBlendFragSpirv, kFrameBlendFragSpirvWords);
         V(StopMotion, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kStopMotionFragSpirv, kStopMotionFragSpirvWords);
         V(PosterizeTime, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPosterizeTimeFragSpirv, kPosterizeTimeFragSpirvWords);
+        // Optical Flow (compute)
+        V(OpticalFlow, kTimeRemapVertSpirv, kTimeRemapVertSpirvWords, kTimeRemapFragSpirv, kTimeRemapFragSpirvWords);
+        // LUT
+        V(LUT, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kLUTFragSpirv, kLUTFragSpirvWords);
         // Motion Effects - Utility Motion
         V(Wiggle, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kWiggleFragSpirv, kWiggleFragSpirvWords);
         V(Jitter, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kJitterFragSpirv, kJitterFragSpirvWords);

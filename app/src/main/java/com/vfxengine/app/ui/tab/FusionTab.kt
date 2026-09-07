@@ -1231,6 +1231,11 @@ fun InspectorPanel(state: EditorState) {
                             }
                         )
                     }
+                    
+                    // LUT Browser for LUT nodes
+                    if (selectedNode.type == EditorState.NodeType.LUT) {
+                        LUTBrowserPanel(state, selectedNode)
+                    }
                 }
             }
         }
@@ -1568,5 +1573,382 @@ fun MasterSlider(
             )
         )
         Text(text = "%.2f".format(currentValue), color = Color.Cyan, fontSize = 10.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+    }
+}
+
+// Color scopes panel - Waveform, Vectorscope, Parade
+@Composable
+fun ScopesPanel(
+    state: EditorState,
+    scopeType: ScopeType = ScopeType.Waveform,
+    onScopeTypeChange: (ScopeType) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .background(Color(0xFF0D0D0D))
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Scope selector
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Scopes", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    ScopeType.values().forEach { type ->
+                        androidx.compose.material3.TextButton(
+                            onClick = { onScopeTypeChange(type) },
+                            modifier = Modifier.height(32.dp).padding(horizontal = 8.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                containerColor = if (scopeType == type) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
+                            )
+                        ) {
+                            Text(
+                                text = type.label,
+                                color = if (scopeType == type) Color.Cyan else Color.White.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+            
+            androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.1f))
+            
+            // Scope display
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+            ) {
+                when (scopeType) {
+                    ScopeType.Waveform -> WaveformScope()
+                    ScopeType.Vectorscope -> VectorscopeScope()
+                    ScopeType.Parade -> ParadeScope()
+                }
+            }
+        }
+    }
+}
+
+enum class ScopeType(val label: String) {
+    Waveform("Waveform"),
+    Vectorscope("Vectorscope"),
+    Parade("Parade")
+}
+
+@Composable
+fun WaveformScope() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val width = size.width
+        val height = size.height
+        val centerY = height / 2
+        
+        // Draw grid
+        drawGrid(width, height)
+        
+        // Draw placeholder waveform (in real impl, get from engine)
+        val path = Path()
+        val dataSize = 256
+        val step = width / dataSize
+        for (i in 0..dataSize) {
+            val x = i * step
+            // Simulated waveform with some noise
+            val noise = (Math.sin(i * 0.1) * 0.5 + Math.sin(i * 0.05) * 0.3 + (Math.random() - 0.5) * 0.2)
+            val y = centerY - (noise * centerY * 0.8f)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(
+            path = path,
+            color = Color.Green,
+            style = androidx.compose.ui.graphics.Stroke(width = 1.5f)
+        )
+        
+        // Draw zero line
+        drawLine(
+            color = Color.White.copy(alpha = 0.3f),
+            start = Offset(0f, centerY),
+            end = Offset(width, centerY),
+            strokeWidth = 1f
+        )
+    }
+}
+
+@Composable
+fun VectorscopeScope() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val width = size.width
+        val height = size.height
+        val center = Offset(width / 2f, height / 2f)
+        val radius = minOf(width, height) / 2f * 0.9f
+        
+        // Draw circular graticule
+        drawCircle(
+            color = Color.White.copy(alpha = 0.1f),
+            radius = radius,
+            center = center,
+            style = androidx.compose.ui.graphics.Stroke(width = 1f)
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = 0.1f),
+            radius = radius * 0.7f,
+            center = center,
+            style = androidx.compose.ui.graphics.Stroke(width = 1f)
+        )
+        
+        // Draw I and Q axes
+        drawLine(
+            color = Color.White.copy(alpha = 0.2f),
+            start = Offset(center.x - radius, center.y),
+            end = Offset(center.x + radius, center.y),
+            strokeWidth = 1f
+        )
+        drawLine(
+            color = Color.White.copy(alpha = 0.2f),
+            start = Offset(center.x, center.y - radius),
+            end = Offset(center.x, center.y + radius),
+            strokeWidth = 1f
+        )
+        
+        // Draw color targets (simplified - real impl would plot U/V from frame)
+        val targets = listOf(
+            Triple(0.7f, 0.7f, "R"),   // Red
+            Triple(-0.3f, 0.7f, "G"),  // Green
+            Triple(-0.3f, -0.7f, "B"), // Blue
+            Triple(0.7f, -0.7f, "Y"),  // Yellow
+            Triple(-0.7f, -0.7f, "C"), // Cyan
+            Triple(0.7f, 0.3f, "M"),   // Magenta
+        )
+        
+        for ((iq, label) in targets) {
+            val x = center.x + iq.first * radius
+            val y = center.y - iq.second * radius
+            drawCircle(
+                color = Color.White.copy(alpha = 0.5f),
+                radius = 8.dp.toPx(),
+                center = Offset(x, y)
+            )
+            drawText(
+                text = label,
+                color = Color.White,
+                fontSize = 10.sp,
+                topLeft = Offset(x + 10.dp.toPx(), y - 10.dp.toPx())
+            )
+        }
+    }
+}
+
+@Composable
+fun ParadeScope() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val width = size.width
+        val height = size.height
+        val thirdHeight = height / 3f
+        
+        // Draw three waveform panels (R, G, B)
+        for (ch in 0..2) {
+            val top = ch * thirdHeight
+            val centerY = top + thirdHeight / 2f
+            
+            // Channel label
+            drawText(
+                text = listOf("R", "G", "B")[ch],
+                color = listOf(Color.Red, Color.Green, Color.Blue)[ch],
+                fontSize = 12.sp,
+                topLeft = Offset(4f, top + 4f)
+            )
+            
+            // Draw waveform for this channel (simulated)
+            val path = Path()
+            val dataSize = 256
+            val step = width / dataSize
+            for (i in 0..dataSize) {
+                val x = i * step
+                val noise = (Math.sin(i * 0.1) * 0.5 + Math.sin(i * 0.05) * 0.3 + (Math.random() - 0.5) * 0.2)
+                val y = centerY - (noise * thirdHeight * 0.4f)
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(
+                path = path,
+                color = listOf(Color.Red, Color.Green, Color.Blue)[ch],
+                style = androidx.compose.ui.graphics.Stroke(width = 1.5f)
+            )
+        }
+    }
+}
+
+@Composable
+fun drawGrid(width: Float, height: Float) {
+    val centerY = height / 2
+    val gridColor = Color.White.copy(alpha = 0.05f)
+    
+    // Horizontal lines
+    for (i in 0..4) {
+        val y = i * height / 4f
+        drawLine(
+            color = gridColor,
+            start = Offset(0f, y),
+            end = Offset(width, y),
+            strokeWidth = 1f
+        )
+    }
+    
+    // Vertical lines
+    for (i in 0..10) {
+        val x = i * width / 10f
+        drawLine(
+            color = gridColor,
+            start = Offset(x, 0f),
+            end = Offset(x, height),
+            strokeWidth = 1f
+        )
+    }
+}
+
+// LUT Browser Panel for LUT nodes
+@Composable
+fun LUTBrowserPanel(state: EditorState, node: EditorState.Node) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        backgroundColor = Color(0xFF1E1E1E)
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text(text = "3D LUT Browser", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            
+            // LUT selection
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "LUT: ${node.uniforms["lutName"]?.toString() ?: "None"}", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { /* Open LUT picker */ },
+                    modifier = Modifier.height(36.dp).padding(horizontal = 16.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.Cyan,
+                        borderColor = Color.Cyan.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Text(text = "Browse", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // LUT parameters
+            LUTSlider("Intensity", "lutIntensity", 0f, 1f, state, node)
+            LUTSlider("Contrast", "lutContrast", -1f, 1f, state, node)
+            LUTSlider("Saturation", "lutSaturation", 0f, 2f, state, node)
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Interpolation method
+            Text(text = "Interpolation", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+            ) {
+                val interpMethods = listOf("Nearest", "Trilinear", "Tetrahedral")
+                interpMethods.forEach { method ->
+                    androidx.compose.material3.TextButton(
+                        onClick = { state.updateNodeUniform(node.id, "lutInterpolation", interpMethods.indexOf(method).toFloat()) },
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            containerColor = (node.uniforms["lutInterpolation"] ?: 0f).toInt() == interpMethods.indexOf(method) ? Color.Cyan.copy(alpha = 0.2f) : Color.Transparent
+                        )
+                    ) {
+                        Text(text = method, color = if ((node.uniforms["lutInterpolation"] ?: 0f).toInt() == interpMethods.indexOf(method)) Color.Cyan else Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    }
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            
+            // Color space
+            Text(text = "Input Color Space", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+            ) {
+                val colorSpaces = listOf("sRGB", "Rec.709", "LogC", "S-Log")
+                colorSpaces.forEach { cs ->
+                    androidx.compose.material3.TextButton(
+                        onClick = { state.updateNodeUniform(node.id, "lutColorSpace", colorSpaces.indexOf(cs).toFloat()) },
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            containerColor = (node.uniforms["lutColorSpace"] ?: 0f).toInt() == colorSpaces.indexOf(cs) ? Color.Cyan.copy(alpha = 0.2f) : Color.Transparent
+                        )
+                    ) {
+                        Text(text = cs, color = if ((node.uniforms["lutColorSpace"] ?: 0f).toInt() == colorSpaces.indexOf(cs)) Color.Cyan else Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    }
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Preview toggle
+            androidx.compose.material3.IconButton(
+                onClick = { 
+                    val current = node.uniforms["lutPreview"] ?: 0f
+                    state.updateNodeUniform(node.id, "lutPreview", if (current > 0.5f) 0f else 1f)
+                },
+                modifier = Modifier.size(40.dp),
+                colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
+                    containerColor = (node.uniforms["lutPreview"] ?: 0f) > 0.5f ? Color.Cyan.copy(alpha = 0.2f) : Color.Transparent
+                )
+            ) {
+                Icon(
+                    painter = painterResource(id = android.R.drawable.ic_menu_zoom),
+                    contentDescription = "Toggle LUT Preview",
+                    tint = if ((node.uniforms["lutPreview"] ?: 0f) > 0.5f) Color.Cyan else Color.White.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LUTSlider(
+    label: String,
+    uniformName: String,
+    min: Float,
+    max: Float,
+    state: EditorState,
+    node: EditorState.Node
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+        ) {
+            Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+            Text(text = "%.2f".format(node.uniforms[uniformName] ?: (if (uniformName == "lutIntensity") 1f else if (uniformName == "lutContrast") 0f else 1f)), color = Color.Cyan, fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+        }
+        
+        var currentValue by remember { mutableStateOf(node.uniforms[uniformName] ?: (if (uniformName == "lutIntensity") 1f else if (uniformName == "lutContrast") 0f else 1f)) }
+        
+        androidx.compose.material3.Slider(
+            modifier = Modifier.fillMaxWidth(),
+            value = (currentValue - min) / (max - min),
+            onValueChange = { ratio ->
+                val newValue = min + ratio * (max - min)
+                currentValue = newValue
+                state.updateNodeUniform(node.id, uniformName, newValue)
+            },
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color.Cyan,
+                activeTrackColor = Color.Cyan,
+                inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+            )
+        )
     }
 }

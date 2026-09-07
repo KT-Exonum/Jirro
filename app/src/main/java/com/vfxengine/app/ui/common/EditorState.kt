@@ -309,7 +309,10 @@ class EditorState(
     )
 
     val clips = remember { mutableStateOf(mutableListOf<Clip>()) }
-
+    
+    // Multi-select support
+    val selectedClipIds = remember { mutableStateOf(mutableSetOf<String>()) }
+    
     // Audio clip data
     data class AudioClip(
         val id: String,
@@ -1193,7 +1196,125 @@ class EditorState(
         // Call native engine
         nativeEngine.createTransition(fromClipId, toClipId, duration, blendShaderNodeId)
     }
-
+    
+    // Multi-select support
+    fun selectClip(clipId: String, extend: Boolean = false) {
+        if (extend) {
+            if (selectedClipIds.value.contains(clipId)) {
+                selectedClipIds.value.remove(clipId)
+            } else {
+                selectedClipIds.value.add(clipId)
+            }
+        } else {
+            selectedClipIds.value.clear()
+            selectedClipIds.value.add(clipId)
+        }
+    }
+    
+    fun selectAllClips() {
+        selectedClipIds.value.clear()
+        selectedClipIds.value.addAll(clips.value.map { it.id })
+    }
+    
+    fun clearSelection() {
+        selectedClipIds.value.clear()
+    }
+    
+    fun isClipSelected(clipId: String): Boolean = selectedClipIds.value.contains(clipId)
+    
+    val selectedClips: List<Clip>
+        get() = clips.value.filter { it.id in selectedClipIds.value }
+    
+    // Ripple delete - removes clip and shifts subsequent clips to close the gap
+    fun rippleDelete(clipId: String) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        val clipEnd = clip.timelineStart + clip.duration
+        
+        // Remove the clip
+        removeClip(clipId)
+        
+        // Shift all clips on the same track that start after this clip
+        val trackClips = clips.value.filter { it.layer == clip.layer && it.timelineStart > clip.timelineStart }
+        for (c in trackClips) {
+            updateClip(c.id, "timelineStart", c.timelineStart - clip.duration)
+            nativeEngine.updateClip(c.id, c.timelineStart, c.sourceIn, c.sourceOut, c.speed, c.layer, c.enabled, c.locked, true, false, false, false, false, false)
+        }
+    }
+    
+    // Ripple delete multiple clips
+    fun rippleDelete(clipIds: List<String>) {
+        // Sort by timeline position
+        val sortedClips = clipIds.mapNotNull { id -> clips.value.firstOrNull { it.id == id } }
+            .sortedBy { it.timelineStart }
+        
+        for (clipId in sortedClips.map { it.id }) {
+            rippleDelete(clipId)
+        }
+    }
+    
+    // Snap to nearest clip edge
+    fun snapToNearestClip(position: Double, currentClipId: String? = null): Double {
+        var nearest = position
+        var minDist = Double.MAX_VALUE
+        
+        for (clip in clips.value) {
+            if (clip.id == currentClipId) continue
+            if (!clip.enabled) continue
+            
+            val clipStart = clip.timelineStart
+            val clipEnd = clipStart + clip.duration
+            
+            // Check start edge
+            val distStart = abs(clipStart - position)
+            if (distStart < minDist) {
+                minDist = distStart
+                nearest = clipStart
+            }
+            
+            // Check end edge
+            val distEnd = abs(clipEnd - position)
+            if (distEnd < minDist) {
+                minDist = distEnd
+                nearest = clipEnd
+            }
+        }
+        
+        // Snap threshold: 0.5 seconds at current zoom
+        val snapThreshold = 0.5 / maxOf(1.0, timeScale / 100.0)
+        return if (minDist < snapThreshold) nearest else position
+    }
+    
+    // Snap to frame boundary (at 30fps)
+    fun snapToFrame(position: Double): Double {
+        val frameRate = 30.0
+        val frameTime = 1.0 / frameRate
+        val snapped = kotlin.math.round(position / frameTime) * frameTime
+        return snapped
+    }
+    
+    // Move clip with ripple (shifts subsequent clips)
+    fun moveClipRipple(clipId: String, newPosition: Double) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        val oldPosition = clip.timelineStart
+        val delta = newPosition - oldPosition
+        
+        if (abs(delta) < 0.001) return
+        
+        updateClip(clipId, "timelineStart", newPosition)
+        nativeEngine.updateClip(clipId, newPosition, clip.sourceIn, clip.sourceOut, clip.speed, clip.layer, clip.enabled, clip.locked, true, false, false, false, false, false)
+        
+        // Shift subsequent clips on same track
+        val trackClips = clips.value.filter { 
+            it.layer == clip.layer && it.timelineStart > oldPosition && it.id != clipId 
+        }.sortedBy { it.timelineStart }
+        
+        for (c in trackClips) {
+            val newPos = c.timelineStart + delta
+            updateClip(c.id, "timelineStart", newPos)
+            nativeEngine.updateClip(c.id, newPos, c.sourceIn, c.sourceOut, c.speed, c.layer, c.enabled, c.locked, true, false, false, false, false, false)
+        }
+    }
+    
     fun getProxyResolutionOptions(): List<String> {
         return listOf("270p", "360p", "540p", "720p", "1080p")
     }

@@ -21,8 +21,10 @@ aaudio_data_callback_result_t AudioOutput::DataCallback(
     int frames = numFrames;
 
     std::lock_guard<std::mutex> lock(self->callbackMutex_);
-    if (self->callback_) {
-        self->callback_({output, static_cast<size_t>(frames * channels)}, frames);
+    if (self->callback_ && self->timelineProvider_) {
+        double timelinePos = self->timelineProvider_();
+        double frameDuration = static_cast<double>(frames) / self->sampleRate_;
+        self->callback_({output, static_cast<size_t>(frames * channels)}, frames, timelinePos, frameDuration);
     } else {
         // Silence if no callback
         std::fill(output, output + frames * channels, 0.0f);

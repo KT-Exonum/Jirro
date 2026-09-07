@@ -390,6 +390,12 @@ public:
         return audioCache_.GetAudio(clipId);
     }
 
+    // Generate thumbnail for media file at given time
+    std::string GenerateThumbnail(const std::string& filePath, double timeSeconds);
+    
+    // Get media metadata as JSON string
+    std::string GetMediaMetadata(const std::string& filePath);
+
 private:
     void MediaThreadMain();
     void DecodeAudioFile(const std::string& clipId, const std::string& filePath);

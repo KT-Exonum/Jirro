@@ -1,5 +1,8 @@
 package com.vfxengine.app.ui
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +51,10 @@ import com.vfxengine.app.NativeEngine
  * DaVinci Resolve style 4-tab editor: Media, Edit, Fusion, Deliver
  */
 @Composable
-fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
+fun EditorRoot(
+    engine: com.vfxengine.app.NativeEngine,
+    pickMedia: (Intent) -> Unit
+) {
     val state = remember { EditorState(engine) }
     val settings = remember { mutableStateOf(Settings()) }
     var showSettings by remember { mutableStateOf(false) }
@@ -66,7 +72,7 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Tab content
                 when (currentTab) {
-                    EditorTab.Media -> MediaTab(state)
+                    EditorTab.Media -> MediaTab(state, pickMedia)
                     EditorTab.Timeline -> EditTab(state, onTabSwitch)
                     EditorTab.Effects -> FusionTab(state)
                     EditorTab.Export -> DeliverTab(state, engine)

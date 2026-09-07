@@ -358,6 +358,14 @@ public:
     [[nodiscard]] AudioEngine* GetAudioEngine() { return audioEngine_.get(); }
     [[nodiscard]] const AudioEngine* GetAudioEngine() const { return audioEngine_.get(); }
 
+    // Crash Recovery
+    void EnableCrashRecovery(bool enabled, int intervalSeconds = 30);
+    
+    // Thermal Adaptation
+    void SetThermalCallback(std::function<void(bool)> callback);
+    void EnableLowEndFallbacks(bool enabled);
+    void AutoConfigureForDevice();
+
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
 
@@ -371,6 +379,14 @@ private:
     void SaveProject(SaveProjectCommand&& cmd);
     void LoadProject(LoadProjectCommand&& cmd);
     void UpdateThermalAdaptation();
+
+    // Crash Recovery & Auto-Save
+    void CheckCrashRecovery();
+    
+    // Low-end fallbacks
+    void ApplyLowEndSettings(const LowEndSettings& settings);
+    LowEndSettings GetRecommendedLowEndSettings();
+    void AutoConfigureForDevice();
 
     // Phase 7+: Node graph operations
     void AddNode(AddNodeCommand&& cmd);
@@ -423,6 +439,33 @@ private:
 
     std::chrono::steady_clock::time_point lastTickTime_{};
     double masterSpeed_ = 1.0; // Phase 4: master timeline speed (negative = reverse)
+
+    // Crash Recovery
+    bool crashRecoveryEnabled_ = false;
+    int crashRecoveryIntervalSec_ = 30;
+    std::chrono::steady_clock::time_point lastCrashRecoverySave_{};
+
+    // Thermal Adaptation
+    bool thermalThrottlingActive_ = false;
+    bool disableExpensiveEffects_ = false;
+    float renderScale_ = 1.0f;
+    std::function<void(bool)> onThermalStateChange_;
+
+    // Low-End Fallbacks
+    bool lowEndFallbacksEnabled_ = false;
+    struct LowEndSettings {
+        bool useSimpleShaders = true;
+        int maxParticles = 1000;
+        bool enableShadows = false;
+        bool enableMSAA = false;
+        bool useBilinearFiltering = true;
+        int maxTextureSize = 1024;
+        bool enableComputeShaders = false;
+        int maxLights = 1;
+        bool enablePostProcess = false;
+        float renderScale = 0.75f;
+    };
+    LowEndSettings lowEndSettings_;
 };
 
 } // namespace vfx

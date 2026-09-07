@@ -135,6 +135,7 @@ enum class NodeKind {
     MeshWarp,         // Grid-based mesh warp
     PolarCoordinates, // Polar coordinate transform
     DisplacementMap,  // Texture-based displacement
+    LUT,              // 3D LUT color grading
 };
 
 enum class BlendMode { Normal, Multiply, Screen, Overlay, Add, Subtract };

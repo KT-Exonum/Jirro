@@ -179,11 +179,30 @@ void AudioMixer::AddInput(const std::string& id, int channels) {
     input.pan = 0.0f;
     input.mute = false;
     input.sampleRate = sampleRate_;
+    input.startTimeUs = 0;
+    input.sourceStartUs = 0;
+    input.speed = 1.0f;
 }
 
 void AudioMixer::RemoveInput(const std::string& id) {
     std::lock_guard<std::mutex> lock(mutex_);
     inputs_.erase(id);
+}
+
+void AudioMixer::SetInputTimeline(const std::string& id, int64_t timelineStartUs, int64_t sourceStartUs, float speed) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (auto it = inputs_.find(id); it != inputs_.end()) {
+        it->second.startTimeUs = timelineStartUs;
+        it->second.sourceStartUs = sourceStartUs;
+        it->second.speed = speed;
+    }
+}
+
+void AudioMixer::SetInputClipId(const std::string& id, const std::string& clipId) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (auto it = inputs_.find(id); it != inputs_.end()) {
+        it->second.clipId = clipId;
+    }
 }
 
 bool AudioMixer::WriteInput(const std::string& id, std::span<const float> samples) {
@@ -220,7 +239,7 @@ void AudioMixer::SetInputMute(const std::string& id, bool mute) {
     if (auto it = inputs_.find(id); it != inputs_.end()) it->second.mute = mute;
 }
 
-size_t AudioMixer::Mix(std::span<float> output) {
+size_t AudioMixer::Mix(std::span<float> output, double timelinePositionSec, double frameDurationSec) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (inputs_.empty()) {
         std::fill(output.begin(), output.end(), 0.0f);
@@ -229,15 +248,41 @@ size_t AudioMixer::Mix(std::span<float> output) {
 
     std::fill(output.begin(), output.end(), 0.0f);
 
+    int64_t timelinePosUs = static_cast<int64_t>(timelinePositionSec * 1'000'000.0);
+    int64_t frameDurUs = static_cast<int64_t>(frameDurationSec * 1'000'000.0);
+
     for (auto& [id, input] : inputs_) {
         if (input.mute) continue;
+        
+        // Check if this input is active at current timeline position
+        int64_t inputStartUs = input.startTimeUs;
+        int64_t inputEndUs = inputStartUs + static_cast<int64_t>((input.buffer.size() / channels_) * 1'000'000.0 / sampleRate_ / input.speed);
+        
+        if (timelinePosUs + frameDurUs < inputStartUs || timelinePosUs > inputEndUs) {
+            continue; // Not active at this timeline position
+        }
+        
+        // Calculate how many frames to read based on frame duration and speed
+        size_t framesToRead = static_cast<size_t>((frameDurUs * input.speed) * sampleRate_ / 1'000'000.0);
+        framesToRead = std::min(framesToRead, output.size() / channels_);
+        
+        // Calculate read position based on timeline offset
+        int64_t offsetUs = timelinePosUs - inputStartUs;
+        if (offsetUs < 0) offsetUs = 0;
+        size_t readOffset = static_cast<size_t>(offsetUs * sampleRate_ / 1'000'000.0 * input.speed);
+        
+        // Ensure we don't read past available data
         size_t available = (input.writePos >= input.readPos)
             ? (input.writePos - input.readPos)
             : (bufferFrames_ - input.readPos + input.writePos);
-
-        size_t framesToRead = std::min(available, output.size() / channels_);
-        for (size_t i = 0; i < framesToRead; ++i) {
-            size_t idx = input.readPos * channels_;
+        
+        if (readOffset >= available) continue;
+        
+        size_t actualFrames = std::min(framesToRead, available - readOffset);
+        size_t readPos = (input.readPos + readOffset) % bufferFrames_;
+        
+        for (size_t i = 0; i < actualFrames; ++i) {
+            size_t idx = readPos * channels_;
             float vol = input.volume * masterVolume_;
             float pan = input.pan + masterPan_;
             float leftGain = std::clamp(1.0f - pan * 0.5f, 0.0f, 1.0f);
@@ -249,7 +294,7 @@ size_t AudioMixer::Mix(std::span<float> output) {
             } else {
                 output[i] += input.buffer[idx] * vol;
             }
-            input.readPos = (input.readPos + 1) % bufferFrames_;
+            readPos = (readPos + 1) % bufferFrames_;
         }
     }
 
@@ -264,7 +309,7 @@ std::vector<float> AudioMixer::RenderMix(double startTimeSec, double endTimeSec)
     size_t totalFrames = static_cast<size_t>((endTimeSec - startTimeSec) * sampleRate_);
     std::vector<float> output(totalFrames * channels_);
     if (!output.empty()) {
-        Mix(output);
+        Mix(output, startTimeSec, endTimeSec - startTimeSec);
     }
     return output;
 }
@@ -465,14 +510,17 @@ bool AudioEngine::Initialize(GraphicsDevice* device) {
     analyzer_ = std::make_unique<AudioAnalyzer>();
     audioOutput_ = std::make_unique<AudioOutput>();
     
-    // Set up audio output callback to pull from mixer
-    audioOutput_->SetCallback([this](std::span<float> output, int numFrames) {
+    // Set up audio output callback to pull from mixer with timeline sync
+    audioOutput_->SetCallback([this](std::span<float> output, int numFrames, double timelinePos, double frameDur) {
         if (mixer_) {
-            mixer_->Mix(output);
+            mixer_->Mix(output, timelinePos, frameDur);
         } else {
             std::fill(output.begin(), output.end(), 0.0f);
         }
     });
+    
+    // Set timeline provider
+    audioOutput_->SetTimelineProvider([this]() { return currentTimeSec_; });
     
     LOGI("AudioEngine initialized");
     return true;
@@ -523,6 +571,9 @@ AudioClip* AudioEngine::CreateClip(const std::string& audioId, int64_t startUs, 
     if (auto* dec = it->second.get()) {
         if (endUs == 0) clip->endTimeUs = dec->GetDurationUs();
         mixer_->AddInput(clipId, dec->GetFormat().channels);
+        // Set timeline info for sync
+        mixer_->SetInputTimeline(clipId, startUs, 0, clip->speed);
+        mixer_->SetInputClipId(clipId, clipId);
     }
 
     AudioClip* ptr = clip.get();
@@ -659,15 +710,33 @@ void AudioEngine::Update(double deltaTime) {
     currentTimeSec_ += deltaTime * playbackSpeed_;
     UpdateClipPositions();
     
-    // Decode audio for active clips and feed to mixer
+    // Decode audio for active clips at current timeline position
     for (const auto& id : clipOrder_) {
         if (auto it = clips_.find(id); it != clips_.end()) {
             AudioClip* clip = it->second.get();
             if (clip->mute) continue;
             
-            // Check if we need to decode audio for this clip at current time
-            // In a full implementation, this would decode from the source file
-            // For now, we'll just update the clip's mute state
+            // Check if clip is active at current time
+            int64_t currentTimeUs = static_cast<int64_t>(currentTimeSec_ * 1'000'000.0);
+            if (currentTimeUs >= clip->startTimeUs && 
+                (clip->endTimeUs == 0 || currentTimeUs < clip->endTimeUs)) {
+                
+                // Decode audio for this clip at current position
+                auto decIt = decoders_.find(clip->sourcePath);
+                if (decIt != decoders_.end() && decIt->second) {
+                    // Seek to the correct position in the source
+                    int64_t sourcePosUs = clip->startTimeUs + static_cast<int64_t>((currentTimeSec_ - clip->startTimeUs / 1'000'000.0) * clip->speed * 1'000'000.0);
+                    decIt->second->Seek(sourcePosUs);
+                    
+                    // Decode frames and feed to mixer
+                    // In a real implementation, we'd decode continuously
+                    // For now, decode one frame at a time
+                    auto frame = decIt->second->DecodeFrame();
+                    if (frame) {
+                        mixer_->WriteInput(clip->clipId, frame->samples);
+                    }
+                }
+            }
         }
     }
 }

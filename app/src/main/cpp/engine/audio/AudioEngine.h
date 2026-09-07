@@ -122,11 +122,12 @@ private:
     void ApplyWindow(std::span<float> buffer);
 };
 
-// Audio mixer - combines multiple audio sources
+// Audio mixer - combines multiple audio sources with timeline sync
 class AudioMixer {
 public:
     struct MixInput {
         std::string id;
+        std::string clipId;  // Timeline clip ID this input belongs to
         std::vector<float> buffer; // ring buffer of audio
         size_t readPos = 0;
         size_t writePos = 0;
@@ -135,13 +136,21 @@ public:
         bool mute = false;
         int channels = 2;
         int sampleRate = 48000;
+        // Timeline sync
+        int64_t startTimeUs = 0;   // Timeline start position in microseconds
+        int64_t sourceStartUs = 0; // Source file start position in microseconds
+        float speed = 1.0f;        // Playback speed
     };
 
     AudioMixer(int sampleRate = 48000, int channels = 2, int bufferFrames = 48000);
 
-    // Add a mix input (audio track)
+    // Add a mix input (audio track) with timeline info
     void AddInput(const std::string& id, int channels = 2);
     void RemoveInput(const std::string& id);
+
+    // Update timeline position for an input (for sync)
+    void SetInputTimeline(const std::string& id, int64_t timelineStartUs, int64_t sourceStartUs, float speed = 1.0f);
+    void SetInputClipId(const std::string& id, const std::string& clipId);
 
     // Write audio to an input (called by decoders)
     bool WriteInput(const std::string& id, std::span<const float> samples);
@@ -151,11 +160,11 @@ public:
     void SetInputPan(const std::string& id, float pan);
     void SetInputMute(const std::string& id, bool mute);
 
-    // Mix all inputs into output buffer
+    // Mix all inputs into output buffer at given timeline position
     // Returns number of frames mixed
-    size_t Mix(std::span<float> output);
+    size_t Mix(std::span<float> output, double timelinePositionSec, double frameDurationSec);
 
-    // Get mixed audio for export
+    // Get mixed audio for export (timeline-aware)
     std::vector<float> RenderMix(double startTimeSec, double endTimeSec);
 
     // Master output

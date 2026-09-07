@@ -16,7 +16,8 @@ namespace vfx {
 
 class AudioOutput {
 public:
-    using Callback = std::function<void(std::span<float> output, int numFrames)>;
+    // Callback with timeline position for A/V sync
+    using Callback = std::function<void(std::span<float> output, int numFrames, double timelinePositionSec, double frameDurationSec)>;
 
     AudioOutput() = default;
     ~AudioOutput() { Stop(); }
@@ -25,8 +26,11 @@ public:
     bool Start(int sampleRate = 48000, int channels = 2, int framesPerBurst = 240);
     void Stop();
 
-    // Set the callback that provides mixed audio
+    // Set the callback that provides mixed audio (with timeline sync)
     void SetCallback(Callback cb) { callback_ = std::move(cb); }
+    
+    // Set the timeline position provider
+    void SetTimelineProvider(std::function<double()> provider) { timelineProvider_ = std::move(provider); }
 
     // Get current latency estimate in frames
     [[nodiscard]] int GetLatencyFrames() const;
@@ -44,6 +48,7 @@ private:
     AAudioStream* stream_ = nullptr;
     aaudio_stream_state_t state_ = AAUDIO_STREAM_STATE_UNINITIALIZED;
     Callback callback_;
+    std::function<double()> timelineProvider_; // Returns current timeline position in seconds
     std::mutex callbackMutex_;
     std::atomic<float> volume_{1.0f};
     int sampleRate_ = 48000;

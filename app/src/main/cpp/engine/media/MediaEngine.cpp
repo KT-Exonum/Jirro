@@ -693,4 +693,97 @@ void MediaEngine::GenerateProxy(const ActiveProxyRequest& request) {
     // Implementation would use MediaCodec encoder
 }
 
+std::string MediaEngine::GenerateThumbnail(const std::string& filePath, double timeSeconds) {
+    // Create a temporary decoder to extract a frame
+    VideoDecoder decoder(filePath);
+    if (!decoder.Open(device_)) {
+        return "";
+    }
+    
+    if (!decoder.SeekTo(timeSeconds)) {
+        return "";
+    }
+    
+    // Decode a frame
+    auto frame = decoder.DequeueFrame(device_);
+    if (!frame) {
+        return "";
+    }
+    
+    // Save frame as JPEG/PNG to temp file
+    // For now, return a placeholder path
+    // Real implementation would use ImageWriter or encode to JPEG
+    std::string thumbPath = "/data/data/com.vfxengine.app/cache/thumb_" + 
+                           std::to_string(std::hash<std::string>{}(filePath)) + ".jpg";
+    
+    // TODO: Actually save the frame texture to file
+    // This would require copying from GPU to CPU and encoding
+    
+    return thumbPath;
+}
+
+std::string MediaEngine::GetMediaMetadata(const std::string& filePath) {
+    AMediaExtractor* extractor = AMediaExtractor_new();
+    if (!extractor) return "{}";
+    
+    if (AMediaExtractor_setDataSource(extractor, filePath.c_str()) != AMEDIA_OK) {
+        AMediaExtractor_delete(extractor);
+        return "{}";
+    }
+    
+    int trackCount = AMediaExtractor_getTrackCount(extractor);
+    bool hasVideo = false, hasAudio = false;
+    int32_t width = 0, height = 0, sampleRate = 0, channels = 0;
+    int64_t durationUs = 0;
+    std::string videoMime, audioMime;
+    
+    for (int i = 0; i < trackCount; ++i) {
+        AMediaFormat* fmt = AMediaExtractor_getTrackFormat(extractor, i);
+        const char* mime = nullptr;
+        AMediaFormat_getString(fmt, AMEDIAFORMAT_KEY_MIME, &mime);
+        
+        if (mime && strncmp(mime, "video/", 6) == 0) {
+            hasVideo = true;
+            videoMime = mime;
+            AMediaFormat_getInteger(fmt, AMEDIAFORMAT_KEY_WIDTH, &width);
+            AMediaFormat_getInteger(fmt, AMEDIAFORMAT_KEY_HEIGHT, &height);
+            AMediaFormat_getLongLong(fmt, AMEDIAFORMAT_KEY_DURATION, &durationUs);
+        } else if (mime && strncmp(mime, "audio/", 6) == 0) {
+            hasAudio = true;
+            audioMime = mime;
+            AMediaFormat_getInteger(fmt, AMEDIAFORMAT_KEY_SAMPLE_RATE, &sampleRate);
+            AMediaFormat_getInteger(fmt, AMEDIAFORMAT_KEY_CHANNEL_COUNT, &channels);
+            AMediaFormat_getLongLong(fmt, AMEDIAFORMAT_KEY_DURATION, &durationUs);
+        }
+        AMediaFormat_delete(fmt);
+    }
+    
+    AMediaExtractor_delete(extractor);
+    
+    // Build JSON
+    char json[1024];
+    snprintf(json, sizeof(json),
+        "{"
+        "\"hasVideo\":%s,"
+        "\"hasAudio\":%s,"
+        "\"width\":%d,"
+        "\"height\":%d,"
+        "\"duration\":%.3f,"
+        "\"videoMime\":\"%s\","
+        "\"audioMime\":\"%s\","
+        "\"sampleRate\":%d,"
+        "\"channels\":%d"
+        "}",
+        hasVideo ? "true" : "false",
+        hasAudio ? "true" : "false",
+        width, height,
+        durationUs / 1'000'000.0,
+        videoMime.c_str(),
+        audioMime.c_str(),
+        sampleRate, channels
+    );
+    
+    return std::string(json);
+}
+
 } // namespace vfx

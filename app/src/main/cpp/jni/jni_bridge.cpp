@@ -523,4 +523,76 @@ Java_com_vfxengine_app_NativeEngine_nativeCreateTransition(JNIEnv* env, jobject,
     env->ReleaseStringUTFChars(blendShaderNodeId, blendChars);
 }
 
+// Media import and thumbnails
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeImportMedia(JNIEnv* env, jobject, jlong handle,
+                                                       jstring uri) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* uriChars = env->GetStringUTFChars(uri, nullptr);
+    engine->QueueCommand([uri = std::string(uriChars)](vfx::Engine& eng) {
+        // Add media to project
+        auto clipId = eng.Media().AddClip(uri);
+        // Also load audio if it's an audio file
+        eng.Audio().LoadAudioFile(clipId, uri);
+    });
+    env->ReleaseStringUTFChars(uri, uriChars);
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGenerateThumbnail(JNIEnv* env, jobject, jlong handle,
+                                                             jstring uri, jlong timeMs) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("");
+    
+    const char* uriChars = env->GetStringUTFChars(uri, nullptr);
+    
+    // Generate thumbnail using media engine
+    std::string thumbPath = engine->Media().GenerateThumbnail(uriChars, timeMs / 1000.0);
+    
+    env->ReleaseStringUTFChars(uri, uriChars);
+    return env->NewStringUTF(thumbPath.c_str());
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGetMediaMetadata(JNIEnv* env, jobject, jlong handle,
+                                                            jstring uri) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("{}");
+    
+    const char* uriChars = env->GetStringUTFChars(uri, nullptr);
+    
+    // Get media metadata using media engine
+    std::string metadata = engine->Media().GetMediaMetadata(uriChars);
+    
+    env->ReleaseStringUTFChars(uri, uriChars);
+    return env->NewStringUTF(metadata.c_str());
+}
+
+// Crash Recovery
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeEnableCrashRecovery(JNIEnv*, jobject, jlong handle,
+                                                               jboolean enabled, jint intervalSeconds) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->EnableCrashRecovery(enabled == JNI_TRUE, intervalSeconds);
+}
+
+// Thermal Adaptation
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeEnableLowEndFallbacks(JNIEnv*, jobject, jlong handle,
+                                                                 jboolean enabled) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->EnableLowEndFallbacks(enabled == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeAutoConfigureForDevice(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->AutoConfigureForDevice();
+}
+
 } // extern "C"

@@ -1,5 +1,7 @@
 package com.vfxengine.app.ui.tab
 
+import android.content.Intent
+import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +44,10 @@ import com.vfxengine.app.ui.common.EditorState
  * Bottom: Asset details panel when selected
  */
 @Composable
-fun MediaTab(state: EditorState) {
+fun MediaTab(
+    state: EditorState,
+    pickMedia: (Intent) -> Unit
+) {
     var searchText by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(FilterType.All) }
     var selectedMedia by remember { mutableStateOf<EditorState.MediaFile?>(null) }
@@ -52,7 +57,7 @@ fun MediaTab(state: EditorState) {
         MediaTopBar(
             searchText = searchText,
             onSearchChange = { searchText = it },
-            onAddClick = { /* Import media */ }
+            onAddClick = { pickMedia(Intent(Intent.ACTION_PICK, MediaStore.Media.EXTERNAL_CONTENT_URI)) }
         )
 
         // Filter chips
@@ -261,23 +266,33 @@ fun MediaGridItem(
                     .weight(1f)
                     .background(Color(0xFF121212))
             ) {
-                // Icon based on media type
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .align(Alignment.Center)
-                ) {
-                    Icon(
-                        painter = painterResource(id = when {
-                            isVideo -> android.R.drawable.ic_media_play
-                            isAudio -> android.R.drawable.ic_media_play
-                            isImage -> android.R.drawable.ic_menu_gallery
-                            else -> android.R.drawable.ic_menu_upload
-                        }),
-                        contentDescription = "Media type",
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(48.dp)
+                // Thumbnail image (if available)
+                if (media.thumbnailPath != null && media.thumbnailPath.isNotEmpty()) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.foundation.painterResource(id = 0), // Placeholder - would use AsyncImage in real impl
+                        contentDescription = "Thumbnail",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
+                } else {
+                    // Icon based on media type
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .align(Alignment.Center)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = when {
+                                isVideo -> android.R.drawable.ic_media_play
+                                isAudio -> android.R.drawable.ic_media_play
+                                isImage -> android.R.drawable.ic_menu_gallery
+                                else -> android.R.drawable.ic_menu_upload
+                            }),
+                            contentDescription = "Media type",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
                 }
                 
                 // Selected overlay
@@ -315,7 +330,8 @@ fun AssetDetailsPanel(
     media: EditorState.MediaFile,
     onClose: () -> Unit,
     onPreview: () -> Unit,
-    onAdd: () -> Unit
+    onAdd: () -> Unit,
+    onAddToTimeline: (EditorState.MediaFile) -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -372,7 +388,10 @@ fun AssetDetailsPanel(
 
                 // Add button
                 androidx.compose.material3.Button(
-                    onClick = onAdd,
+                    onClick = { 
+                        onAdd()
+                        onAddToTimeline(media)
+                    },
                     modifier = Modifier.weight(1f).height(44.dp),
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Cyan)
                 ) {

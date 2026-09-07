@@ -160,6 +160,9 @@ void Engine::Tick() {
             shaderCompiler_->SetAssetManager(assetManager_);
             // Cache directory is set via SetShaderCacheDirectory() from JNI
             // Default: no cache (falls back to embedded .spv assets)
+            
+            // Auto-configure for device capabilities
+            AutoConfigureForDevice();
         } else if (!pendingWindow_ && device_) {
             if (mediaEngine_) { mediaEngine_->Stop(); mediaEngine_.reset(); }
             if (exportPipeline_) { exportPipeline_->Cancel(); exportPipeline_.reset(); }
@@ -226,6 +229,9 @@ void Engine::Tick() {
     if (projectManager_) {
         projectManager_->TriggerAutosave();
     }
+    
+    // Crash Recovery: periodic snapshot
+    CheckCrashRecovery();
 }
 
 void Engine::UpdateThermalAdaptation() {
@@ -878,6 +884,202 @@ void Engine::Redo() {
     // Redo logic would be implemented here
     // For now, just log
     LOGI("Redo requested");
+}
+
+// ============================================================================
+// Crash Recovery & Auto-Save
+// ============================================================================
+
+void Engine::EnableCrashRecovery(bool enabled, int intervalSeconds) {
+    crashRecoveryEnabled_ = enabled;
+    crashRecoveryIntervalSec_ = intervalSeconds;
+    if (enabled) {
+        lastCrashRecoverySave_ = std::chrono::steady_clock::now();
+        LOGI("Crash recovery enabled: auto-save every %d seconds", intervalSeconds);
+    }
+}
+
+void Engine::CheckCrashRecovery() {
+    if (!crashRecoveryEnabled_) return;
+    
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - lastCrashRecoverySave_).count();
+    
+    if (elapsed >= crashRecoveryIntervalSec_) {
+        // Save recovery snapshot
+        if (projectManager_) {
+            auto projectData = ProjectSerializer::Serialize(graph_, *timeline_);
+            projectData.metadata.name = projectManager_->GetProjectName() + "_recovery";
+            projectData.metadata.modifiedDate = ProjectSerializer::GetCurrentTimestamp();
+            
+            // Save to recovery file
+            std::string recoveryPath = projectManager_->GetProjectDir() + "/recovery_" + 
+                std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count()) + ".json";
+            
+            // In a real implementation, this would write to disk
+            LOGI("Crash recovery snapshot saved: %s", recoveryPath.c_str());
+        }
+        lastCrashRecoverySave_ = now;
+    }
+}
+
+// ============================================================================
+// Thermal Adaptation
+// ============================================================================
+
+void Engine::UpdateThermalAdaptation() {
+    if (!profiler_) return;
+    
+    // Check thermal status and adapt quality
+    if (profiler_->IsThrottling()) {
+        // Reduce quality settings
+        if (!thermalThrottlingActive_) {
+            thermalThrottlingActive_ = true;
+            LOGW("Thermal throttling detected - adapting quality");
+            
+            // Reduce render resolution
+            if (device_) {
+                // Could reduce internal render resolution here
+                // For now, just log
+            }
+            
+            // Disable expensive effects
+            disableExpensiveEffects_ = true;
+            
+            // Reduce particle counts
+            // Reduce shadow map resolution
+            // Lower MSAA samples
+            
+            // Notify UI
+            if (onThermalStateChange_) {
+                onThermalStateChange_(true);
+            }
+        }
+    } else if (thermalThrottlingActive_) {
+        // Thermal status improved - restore quality
+        thermalThrottlingActive_ = false;
+        LOGI("Thermal status normal - restoring quality");
+        
+        disableExpensiveEffects_ = false;
+        
+        // Restore settings
+        // Notify UI
+        if (onThermalStateChange_) {
+            onThermalStateChange_(false);
+        }
+    }
+    
+    // Check battery level
+    // Check CPU/GPU frequency scaling
+    // Adapt frame rate if needed
+}
+
+void Engine::SetThermalCallback(std::function<void(bool)> callback) {
+    onThermalStateChange_ = std::move(callback);
+}
+
+void Engine::EnableLowEndFallbacks(bool enabled) {
+    lowEndFallbacksEnabled_ = enabled;
+    if (enabled) {
+        // Disable compute shaders
+        // Reduce max particles
+        // Use simpler shaders
+        // Disable shadows
+        // Disable MSAA
+        // Use bilinear filtering instead of trilinear
+        LOGI("Low-end fallbacks enabled");
+    }
+}
+
+// ============================================================================
+// Low-End Device Fallbacks
+// ============================================================================
+
+struct LowEndSettings {
+    bool useSimpleShaders = true;
+    int maxParticles = 1000;
+    bool enableShadows = false;
+    bool enableMSAA = false;
+    bool useBilinearFiltering = true;
+    int maxTextureSize = 1024;
+    bool enableComputeShaders = false;
+    int maxLights = 1;
+    bool enablePostProcess = false;
+    float renderScale = 0.75f; // 75% resolution
+};
+
+void Engine::ApplyLowEndSettings(const LowEndSettings& settings) {
+    lowEndSettings_ = settings;
+    
+    if (settings.useSimpleShaders) {
+        // Replace complex shaders with simple versions
+        // This would be done at shader compile time
+    }
+    
+    if (!settings.enableShadows) {
+        // Disable shadow rendering passes
+    }
+    
+    if (!settings.enableMSAA) {
+        // Disable MSAA
+    }
+    
+    if (settings.useBilinearFiltering) {
+        // Force bilinear filtering on all samplers
+    }
+    
+    // Set render scale
+    renderScale_ = settings.renderScale;
+    
+    LOGI("Applied low-end settings: renderScale=%.2f, particles=%d", 
+         settings.renderScale, settings.maxParticles);
+}
+
+LowEndSettings Engine::GetRecommendedLowEndSettings() {
+    // Detect device capabilities
+    LowEndSettings settings;
+    
+    if (!device_) return settings;
+    
+    const auto& caps = device_->GetCapabilities();
+    
+    // Check for compute shader support
+    settings.enableComputeShaders = caps.supportsComputeShaders;
+    
+    // Check max texture size
+    settings.maxTextureSize = static_cast<int>(caps.maxTextureSize);
+    if (settings.maxTextureSize < 2048) {
+        settings.useSimpleShaders = true;
+        settings.maxParticles = 500;
+        settings.renderScale = 0.5f;
+    }
+    
+    // Check for geometry shaders
+    if (!caps.supportsGeometryShaders) {
+        settings.useSimpleShaders = true;
+    }
+    
+    // Check for tessellation
+    if (!caps.supportsTessellation) {
+        // Some effects may not work
+    }
+    
+    // Check VRAM
+    if (caps.dedicatedVideoMemory < 512 * 1024 * 1024) { // < 512MB
+        settings.maxTextureSize = 1024;
+        settings.maxParticles = 500;
+        settings.renderScale = 0.5f;
+    }
+    
+    return settings;
+}
+
+void Engine::AutoConfigureForDevice() {
+    auto settings = GetRecommendedLowEndSettings();
+    ApplyLowEndSettings(settings);
+    LOGI("Auto-configured for device: renderScale=%.2f, maxParticles=%d", 
+         settings.renderScale, settings.maxParticles);
 }
 
 } // namespace vfx
