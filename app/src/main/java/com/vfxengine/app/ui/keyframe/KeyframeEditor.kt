@@ -65,7 +65,7 @@ fun KeyframeEditor(state: EditorState) {
     var autoKey by remember { mutableStateOf(false) }
     var activeTab by remember { mutableStateOf(EditorTab.Curve) }
 
-    enum class EditorTab { Curve, Procedural }
+    enum class EditorTab { Curve, DopeSheet, Procedural, EasingPresets, RoamingCurves }
 
     Box(
         modifier = Modifier
@@ -167,11 +167,62 @@ fun KeyframeEditor(state: EditorState) {
                                 )
                             }
                         }
+                        EditorTab.DopeSheet -> {
+                            DopeSheetView(
+                                state = state,
+                                target = target,
+                                selectedIndex = selectedIndex,
+                                onSelectIndex = { selectedIndex = it },
+                                snapEnabled = snapEnabled
+                            )
+                        }
                         EditorTab.Procedural -> {
                             ProceduralControls(
                                 procedural = target.track.procedural,
                                 onChange = { newProc ->
                                     target.track.procedural = newProc
+                                }
+                            )
+                        }
+                        EditorTab.EasingPresets -> {
+                            EasingPresetsPanel(
+                                state = state,
+                                target = target,
+                                selectedIndex = selectedIndex,
+                                onApplyPreset = { preset ->
+                                    // Apply easing preset to selected keyframes
+                                    val indices = if (selectedIndex != null) listOf(selectedIndex) else target.track.keyframes.indices
+                                    indices.forEach { idx ->
+                                        if (idx in target.track.keyframes.indices) {
+                                            val oldKf = target.track.keyframes[idx].copy()
+                                            val newKf = target.track.keyframes[idx].copy(interpolation = preset.interpolation)
+                                            if (preset.interpolation == EditorState.InterpolationType.Bezier) {
+                                                newKf.inTangent = preset.inTangent
+                                                newKf.outTangent = preset.outTangent
+                                            }
+                                            target.track.keyframes[idx] = newKf
+                                            state.updateKeyframe(target.nodeId, target.uniformName, oldKf, newKf)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        EditorTab.RoamingCurves -> {
+                            RoamingCurvesPanel(
+                                state = state,
+                                target = target,
+                                onApplyCurve = { curveData ->
+                                    // Apply roaming curve
+                                    val indices = if (selectedIndex != null) listOf(selectedIndex) else target.track.keyframes.indices
+                                    indices.forEach { idx ->
+                                        if (idx in target.track.keyframes.indices) {
+                                            val oldKf = target.track.keyframes[idx].copy()
+                                            val newKf = target.track.keyframes[idx].copy()
+                                            // Apply curve shape to keyframe
+                                            target.track.keyframes[idx] = newKf
+                                            state.updateKeyframe(target.nodeId, target.uniformName, oldKf, newKf)
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -713,7 +764,16 @@ private fun TabBar(
             val isActive = activeTab == tab
             val label = when (tab) {
                 EditorTab.Curve -> "Curve"
+                EditorTab.DopeSheet -> "Dope Sheet"
                 EditorTab.Procedural -> "Procedural"
+                EditorTab.EasingPresets -> "Easing"
+                EditorTab.RoamingCurves -> "Curves"
+            }
+            val showIndicator = when (tab) {
+                EditorTab.Procedural -> procedural.enabled
+                EditorTab.EasingPresets -> true
+                EditorTab.RoamingCurves -> true
+                else -> false
             }
             androidx.compose.material3.TextButton(
                 onClick = { onTabClick(tab) },
@@ -730,8 +790,8 @@ private fun TabBar(
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = label, fontSize = 12.sp, fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
-                    if (tab == EditorTab.Procedural && procedural.enabled) {
+                    Text(text = label, fontSize = 11.sp, fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal)
+                    if (showIndicator) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)

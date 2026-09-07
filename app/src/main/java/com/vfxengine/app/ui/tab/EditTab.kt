@@ -741,6 +741,10 @@ fun TransitionPanel(
 ) {
     var selectedType by remember { mutableStateOf(TransitionType.CrossDissolve) }
     var duration by remember { mutableStateOf(1.0) } // seconds
+    var alignment by remember { mutableStateOf(TransitionAlignment.CenterAtCut) }
+    var easeIn by remember { mutableStateOf(0.5f) }
+    var easeOut by remember { mutableStateOf(0.5f) }
+    var showAdvanced by remember { mutableStateOf(false) }
     
     Card(
         modifier = Modifier
@@ -792,6 +796,17 @@ fun TransitionPanel(
             
             androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
             
+            // Transition preview
+            TransitionPreview(
+                type = selectedType,
+                duration = duration,
+                alignment = alignment,
+                easeIn = easeIn,
+                easeOut = easeOut
+            )
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
             // Transition type selector
             Text(text = "Transition Type", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
             androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
@@ -822,6 +837,109 @@ fun TransitionPanel(
                             Text(text = "${type.defaultDuration}s", fontSize = 10.sp, color = Color.White.copy(alpha = 0.6f))
                         }
                     }
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Alignment selector
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Alignment", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                androidx.compose.material3.TextButton(
+                    onClick = { showAdvanced = !showAdvanced },
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(text = if (showAdvanced) "Advanced ▼" else "Advanced ▶", color = Color.Cyan, fontSize = 12.sp)
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+            ) {
+                TransitionAlignment.values().forEach { align ->
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { alignment = align },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (alignment == align) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent,
+                            borderColor = if (alignment == align) Color.Cyan else Color.White.copy(alpha = 0.3f),
+                            contentColor = if (alignment == align) Color.Cyan else Color.White
+                        )
+                    ) {
+                        Text(text = align.label, fontSize = 11.sp)
+                    }
+                }
+            }
+            
+            // Advanced options
+            if (showAdvanced) {
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+                
+                // Ease In
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Ease In", color = Color.White, fontSize = 13.sp)
+                    Text(text = "%.2f".format(easeIn), color = Color.Cyan, fontSize = 13.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
+                androidx.compose.material3.Slider(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = easeIn,
+                    onValueChange = { easeIn = it },
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color.Cyan,
+                        activeTrackColor = Color.Cyan,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                    )
+                )
+                
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+                
+                // Ease Out
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Ease Out", color = Color.White, fontSize = 13.sp)
+                    Text(text = "%.2f".format(easeOut), color = Color.Cyan, fontSize = 13.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                }
+                androidx.compose.material3.Slider(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = easeOut,
+                    onValueChange = { easeOut = it },
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Color.Cyan,
+                        activeTrackColor = Color.Cyan,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                    )
+                )
+                
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+                
+                // Default transition checkbox
+                androidx.compose.material3.Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Set as Default Transition", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                    androidx.compose.material3.Checkbox(
+                        checked = false, // TODO: persist default
+                        onCheckedChange = { /* TODO */ },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Color.Cyan)
+                    )
                 }
             }
             
@@ -863,6 +981,117 @@ fun TransitionPanel(
             }
         }
     }
+}
+
+// Transition preview - visual representation of the transition
+@Composable
+fun TransitionPreview(
+    type: TransitionType,
+    duration: Double,
+    alignment: TransitionAlignment,
+    easeIn: Float,
+    easeOut: Float
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .background(Color(0xFF0D0D0D))
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Preview", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                Text(text = "${type.label} • ${String.format("%.1f", duration)}s", color = Color.Cyan, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+            
+            // Visual timeline representation
+            Canvas(modifier = Modifier.fillMaxWidth().height(32.dp)) {
+                val width = size.width
+                val height = size.height
+                val clipAWidth = when (alignment) {
+                    TransitionAlignment.CenterAtCut -> width / 2f
+                    TransitionAlignment.StartAtCut -> 0f
+                    TransitionAlignment.EndAtCut -> width
+                }
+                val clipBWidth = width - clipAWidth
+                val overlapWidth = duration / 5.0 * width // Scale for visual
+                
+                // Clip A (from)
+                drawRect(
+                    color = Color(0xFF2196F3),
+                    topLeft = Offset(0f, 0f),
+                    size = Size(clipAWidth, height)
+                )
+                
+                // Clip B (to)
+                drawRect(
+                    color = Color(0xFF4CAF50),
+                    topLeft = Offset(clipAWidth, 0f),
+                    size = Size(clipBWidth, height)
+                )
+                
+                // Transition overlay
+                val transitionStart = clipAWidth - overlapWidth / 2f
+                val transitionEnd = transitionStart + overlapWidth
+                
+                // Draw blend curve
+                val path = Path()
+                val steps = 20
+                for (i in 0..steps) {
+                    val t = i / steps.toFloat()
+                    val easedT = when {
+                        t < 0.5f -> {
+                            val normT = t * 2f
+                            normT * normT * normT * (1f - easeIn) + 3f * normT * normT * easeIn
+                        }
+                        else -> {
+                            val normT = (t - 0.5f) * 2f
+                            1f - (1f - normT) * (1f - normT) * (1f - easeOut) - 3f * normT * (1f - normT) * easeOut
+                        }
+                    }
+                    val x = transitionStart + t * overlapWidth
+                    val y = height * (1f - easedT)
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                
+                // Transition area background
+                drawRect(
+                    color = Color.Cyan.copy(alpha = 0.2f),
+                    topLeft = Offset(transitionStart, 0f),
+                    size = Size(overlapWidth, height)
+                )
+                
+                // Blend curve
+                drawPath(
+                    path = path,
+                    color = Color.Cyan,
+                    style = androidx.compose.ui.graphics.Stroke(width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+                
+                // Cut line
+                drawLine(
+                    color = Color.White.copy(alpha = 0.5f),
+                    start = Offset(clipAWidth, 0f),
+                    end = Offset(clipAWidth, height),
+                    strokeWidth = 1f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f), 0f)
+                )
+            }
+        }
+    }
+}
+
+// Transition alignment enum
+enum class TransitionAlignment(val label: String) {
+    CenterAtCut("Center at Cut"),
+    StartAtCut("Start at Cut"),
+    EndAtCut("End at Cut")
 }
 
 @Composable

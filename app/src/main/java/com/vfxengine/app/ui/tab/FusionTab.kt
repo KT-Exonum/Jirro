@@ -1204,6 +1204,15 @@ fun InspectorPanel(state: EditorState) {
                     // Color wheels for color correction nodes
                     LiftGammaGainOffsetWheels(state, selectedNode)
                     
+                    // Split Color Wheels (Shadows/Midtones/Highlights)
+                    SplitColorWheels(state, selectedNode)
+                    
+                    // RGB Curves Editor
+                    CurvesEditor(state, selectedNode)
+                    
+                    // HSL Qualifiers
+                    HSLQualifiersPanel(state, selectedNode)
+                    
                     // Fallback sliders for non-color nodes or additional controls
                     val isColorNode = selectedNode.type == EditorState.NodeType.ColorCorrection || 
                                       selectedNode.type == EditorState.NodeType.Adjustment
@@ -1219,7 +1228,7 @@ fun InspectorPanel(state: EditorState) {
                                 state.updateNodeUniform(selectedNode.id, "gain", value)
                             }
                         )
-        
+            
                         // Lift slider
                         UniformSlider(
                             label = "Lift",
@@ -1530,6 +1539,481 @@ fun LiftGammaGainOffsetWheels(
                 )
             }
             
+            }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// Color Grading: RGB Curves Editor
+// ============================================================================
+@Composable
+fun CurvesEditor(
+    state: EditorState,
+    node: EditorState.Node
+) {
+    val isColorNode = node.type == EditorState.NodeType.ColorCorrection || 
+                      node.type == EditorState.NodeType.Adjustment ||
+                      node.type == EditorState.NodeType.Curves
+    
+    if (!isColorNode) return
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        backgroundColor = Color(0xFF1E1E1E)
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Channel selector
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "RGB Curves", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                
+                androidx.compose.material3.TextButton(
+                    onClick = { state.updateNodeUniform(node.id, "curvesReset", 1f) },
+                    modifier = Modifier.height(32.dp).padding(horizontal = 12.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = Color.Cyan)
+                ) {
+                    Text(text = "Reset", fontSize = 12.sp)
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Channel tabs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+            ) {
+                listOf("Master", "Red", "Green", "Blue").forEach { channel ->
+                    val isMaster = channel == "Master"
+                    androidx.compose.material3.TextButton(
+                        onClick = { 
+                            state.updateNodeUniform(node.id, "curvesChannel", 
+                                when(channel) { "Master" -> 0f; "Red" -> 1f; "Green" -> 2f; "Blue" -> 3f; else -> 0f })
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(32.dp)
+                            .padding(horizontal = 8.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            containerColor = if ((node.uniforms["curvesChannel"] ?: 0f).toInt() == 
+                                when(channel) { "Master" -> 0; "Red" -> 1; "Green" -> 2; "Blue" -> 3; else -> 0 }) 
+                                Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
+                        )
+                    ) {
+                        Text(
+                            text = channel,
+                            color = if ((node.uniforms["curvesChannel"] ?: 0f).toInt() == 
+                                when(channel) { "Master" -> 0; "Red" -> 1; "Green" -> 2; "Blue" -> 3; else -> 0 }) 
+                                Color.Cyan else Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Curves graph
+            CurvesGraph(state, node)
+            
+            // Preset curves
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Presets:", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                listOf("Linear", "Contrast", "Log", "Cineon", "S-Curve").forEach { preset ->
+                    androidx.compose.material3.TextButton(
+                        onClick = { state.updateNodeUniform(node.id, "curvesPreset", preset) },
+                        modifier = Modifier.height(28.dp).padding(horizontal = 8.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = Color.White.copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Text(text = preset, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Curves graph visualization and editor
+@Composable
+fun CurvesGraph(state: EditorState, node: EditorState.Node) {
+    val channel = (node.uniforms["curvesChannel"] ?: 0f).toInt()
+    val channelName = when(channel) { 0 -> "master"; 1 -> "red"; 2 -> "green"; 3 -> "blue"; else -> "master" }
+    
+    // Get or create keyframe track for this curve
+    val curveKey = "curves_${channelName}"
+    val curveTrack = remember { node.animatedUniforms.getOrPut(curveKey) { KeyframeTrack() } }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .background(Color(0xFF0D0D0D))
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            val padding = 20f
+            val graphWidth = width - 2 * padding
+            val graphHeight = height - 2 * padding
+            
+            // Grid
+            val gridColor = Color.White.copy(alpha = 0.05f)
+            for (i in 0..4) {
+                val x = padding + i * graphWidth / 4f
+                drawLine(color = gridColor, start = Offset(x, padding), end = Offset(x, padding + graphHeight), strokeWidth = 1f)
+                val y = padding + i * graphHeight / 4f
+                drawLine(color = gridColor, start = Offset(padding, y), end = Offset(padding + graphWidth, y), strokeWidth = 1f)
+            }
+            
+            // Diagonal reference line
+            drawLine(
+                color = Color.White.copy(alpha = 0.1f),
+                start = Offset(padding, padding + graphHeight),
+                end = Offset(padding + graphWidth, padding),
+                strokeWidth = 1f
+            )
+            
+            // Curve path
+            val path = Path()
+            val points = curveTrack.keyframes.sortedBy { it.time }
+            if (points.size >= 2) {
+                // Interpolate curve for smooth drawing
+                for (i in 0..100) {
+                    val t = i / 100f
+                    val value = curveTrack.evaluate(t)
+                    val x = padding + t * graphWidth
+                    val y = padding + graphHeight - value * graphHeight
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+            } else {
+                // Default diagonal
+                path.moveTo(padding, padding + graphHeight)
+                path.lineTo(padding + graphWidth, padding)
+            }
+            
+            drawPath(
+                path = path,
+                color = when(channel) { 0 -> Color.White; 1 -> Color.Red; 2 -> Color.Green; 3 -> Color.Blue; else -> Color.White },
+                style = androidx.compose.ui.graphics.Stroke(width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+            
+            // Control points
+            points.forEach { kf ->
+                val x = padding + (kf.time as Float) * graphWidth
+                val y = padding + graphHeight - kf.value * graphHeight
+                drawCircle(
+                    color = Color.Cyan,
+                    radius = 8.dp.toPx(),
+                    center = Offset(x, y)
+                )
+                drawCircle(
+                    color = Color.Black,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, y)
+                )
+            }
+        }
+        
+        // Touch interaction for adding/moving points
+        .pointerInput(Unit) {
+            detectTapGestures(
+                onTap = { offset ->
+                    // Convert screen coordinates to curve coordinates
+                    val x = (offset.x - 20f) / (size.width - 40f)
+                    val y = 1f - (offset.y - 20f) / (size.height - 40f)
+                    val clampedX = x.coerceIn(0f, 1f)
+                    val clampedY = y.coerceIn(0f, 1f)
+                    
+                    // Add keyframe
+                    val newKf = Keyframe(
+                        time = clampedX.toDouble(),
+                        value = clampedY,
+                        interpolation = InterpolationType.Bezier
+                    )
+                    curveTrack.keyframes.add(newKf)
+                    curveTrack.keyframes.sortBy { it.time }
+                    
+                    // Update native engine
+                    state.updateNodeUniform(node.id, curveKey, clampedY)
+                }
+            )
+        }
+    }
+}
+
+// ============================================================================
+// Color Grading: HSL Qualifiers (Hue vs Sat, Hue vs Hue, Hue vs Lum, Sat vs Sat, Lum vs Sat)
+// ============================================================================
+@Composable
+fun HSLQualifiersPanel(
+    state: EditorState,
+    node: EditorState.Node
+) {
+    val isColorNode = node.type == EditorState.NodeType.ColorCorrection || 
+                      node.type == EditorState.NodeType.Adjustment ||
+                      node.type == EditorState.NodeType.HueVsSat ||
+                      node.type == EditorState.NodeType.HueVsHue ||
+                      node.type == EditorState.NodeType.HueVsLum ||
+                      node.type == EditorState.NodeType.SatVsSat ||
+                      node.type == EditorState.NodeType.LumVsSat
+    
+    if (!isColorNode) return
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        backgroundColor = Color(0xFF1E1E1E)
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            // Qualifier type selector
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "HSL Qualifiers", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+                    listOf("Hue vs Sat", "Hue vs Hue", "Hue vs Lum", "Sat vs Sat", "Lum vs Sat").forEach { qualifier ->
+                        androidx.compose.material3.TextButton(
+                            onClick = { 
+                                state.updateNodeUniform(node.id, "hslQualifierType", qualifier)
+                                state.updateNodeUniform(node.id, "hslQualifierEnable", 1f)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(32.dp)
+                                .padding(horizontal = 4.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                containerColor = if ((node.uniforms["hslQualifierType"] ?: "Hue vs Sat") == qualifier) 
+                                    Color.Cyan.copy(alpha = 0.2f) else Color.Transparent
+                            )
+                        ) {
+                            Text(text = qualifier, color = if ((node.uniforms["hslQualifierType"] ?: "Hue vs Sat") == qualifier) Color.Cyan else Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Qualifier curve editor (similar to curves but for HSL space)
+            QualifierGraph(state, node)
+            
+            // Range selectors
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                QualifierRangeSlider("Hue Range", "hslHueRange", 0f, 360f, state, node)
+                QualifierRangeSlider("Sat Range", "hslSatRange", 0f, 1f, state, node)
+                QualifierRangeSlider("Lum Range", "hslLumRange", 0f, 1f, state, node)
+            }
+            
+            // Softness/falloff
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MasterSlider("Hue Softness", "hslHueSoft", 0f, 1f, state, node)
+                MasterSlider("Sat Softness", "hslSatSoft", 0f, 1f, state, node)
+                MasterSlider("Lum Softness", "hslLumSoft", 0f, 1f, state, node)
+            }
+        }
+    }
+}
+
+@Composable
+fun QualifierGraph(state: EditorState, node: EditorState.Node) {
+    // Similar to CurvesGraph but for HSL qualifier curves
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .background(Color(0xFF0D0D0D))
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            // Draw HSL qualifier visualization
+            val width = size.width
+            val height = size.height
+            val padding = 20f
+            
+            // Hue wheel background
+            val centerX = width / 2f
+            val centerY = height / 2f
+            val outerRadius = minOf(width, height) / 2f - padding
+            
+            // Draw hue ring
+            for (i in 0..360 step 2) {
+                val angle = (i - 90) * Math.PI / 180.0
+                val nextAngle = (i + 2 - 90) * Math.PI / 180.0
+                val color = Color.HSVToColor((i / 360f), 1f, 1f)
+                drawArc(
+                    color = color,
+                    startAngle = (i - 90f).toFloat(),
+                    sweepAngle = 2f,
+                    useCenter = true,
+                    topLeft = Offset(centerX - outerRadius, centerY - outerRadius),
+                    size = Size(outerRadius * 2, outerRadius * 2),
+                    style = androidx.compose.ui.graphics.Stroke(width = 4f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun QualifierRangeSlider(
+    label: String,
+    uniformBase: String,
+    min: Float,
+    max: Float,
+    state: EditorState,
+    node: EditorState.Node
+) {
+    Column(modifier = Modifier.weight(1f)) {
+        Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+        
+        var rangeStart by remember { mutableStateOf(node.uniforms["${uniformBase}Start"] ?: min) }
+        var rangeEnd by remember { mutableStateOf(node.uniforms["${uniformBase}End"] ?: max) }
+        
+        androidx.compose.material3.RangeSlider(
+            modifier = Modifier.fillMaxWidth(),
+            start = rangeStart,
+            end = rangeEnd,
+            onStartChange = { v ->
+                rangeStart = v
+                state.updateNodeUniform(node.id, "${uniformBase}Start", v)
+            },
+            onEndChange = { v ->
+                rangeEnd = v
+                state.updateNodeUniform(node.id, "${uniformBase}End", v)
+            },
+            rangeStart = min,
+            rangeEnd = max,
+            colors = androidx.compose.material3.SliderDefaults.colors(
+                thumbColor = Color.Cyan,
+                activeTrackColor = Color.Cyan,
+                inactiveTrackColor = Color.White.copy(alpha = 0.1f)
+            )
+        )
+    }
+}
+
+// ============================================================================
+// Color Grading: Split Color Wheels (Shadows / Midtones / Highlights)
+// ============================================================================
+@Composable
+fun SplitColorWheels(
+    state: EditorState,
+    node: EditorState.Node
+) {
+    val isColorNode = node.type == EditorState.NodeType.ColorCorrection || 
+                      node.type == EditorState.NodeType.Adjustment ||
+                      node.type == EditorState.NodeType.ColorWheels
+    
+    if (!isColorNode) return
+    
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        backgroundColor = Color(0xFF1E1E1E)
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text(text = "Split Color Wheels (Shadows / Midtones / Highlights)", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Range boundaries
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+            ) {
+                MasterSlider("Shadows Max", "shadowMax", 0f, 1f, state, node)
+                MasterSlider("Midtones Center", "midCenter", 0f, 1f, state, node)
+                MasterSlider("Highlights Min", "highlightMin", 0f, 1f, state, node)
+            }
+            
+            // Falloff controls
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+            ) {
+                MasterSlider("Shadow Falloff", "shadowFalloff", 0f, 1f, state, node)
+                MasterSlider("Highlight Falloff", "highlightFalloff", 0f, 1f, state, node)
+            }
+            
+            androidx.compose.foundation.layout.Box(modifier = Modifier.height(16.dp))
+            
+            // Three color wheels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SplitColorWheel(
+                    label = "Shadows",
+                    color = Color.HSVToColor(
+                        (node.uniforms["shadowHue"] ?: 0f),
+                        (node.uniforms["shadowSat"] ?: 0f),
+                        (node.uniforms["shadowVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "shadowHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "shadowSat", hsv[1])
+                        state.updateNodeUniform(node.id, "shadowVal", hsv[2])
+                        state.updateNodeUniform(node.id, "shadows", hsv[2] - 1f)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                SplitColorWheel(
+                    label = "Midtones",
+                    color = Color.HSVToColor(
+                        (node.uniforms["midHue"] ?: 0f),
+                        (node.uniforms["midSat"] ?: 0f),
+                        (node.uniforms["midVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "midHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "midSat", hsv[1])
+                        state.updateNodeUniform(node.id, "midVal", hsv[2])
+                        state.updateNodeUniform(node.id, "midtones", hsv[2])
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                SplitColorWheel(
+                    label = "Highlights",
+                    color = Color.HSVToColor(
+                        (node.uniforms["highlightHue"] ?: 0f),
+                        (node.uniforms["highlightSat"] ?: 0f),
+                        (node.uniforms["highlightVal"] ?: 1f)
+                    ),
+                    onColorChange = { color ->
+                        val hsv = Color.RGBToHSV(color)
+                        state.updateNodeUniform(node.id, "highlightHue", hsv[0] * 360f)
+                        state.updateNodeUniform(node.id, "highlightSat", hsv[1])
+                        state.updateNodeUniform(node.id, "highlightVal", hsv[2])
+                        state.updateNodeUniform(node.id, "highlights", hsv[2] - 1f)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            
             // Master controls
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -1542,6 +2026,31 @@ fun LiftGammaGainOffsetWheels(
                 MasterSlider("Tint", "tint", -1f, 1f, state, node)
             }
         }
+    }
+}
+
+@Composable
+fun SplitColorWheel(
+    label: String,
+    color: androidx.compose.ui.graphics.Color,
+    onColorChange: (androidx.compose.ui.graphics.Color) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
+        androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+        
+        // Use the existing ColorWheel but with fixed size
+        ColorWheel(
+            label = "",
+            color = color,
+            onColorChange = onColorChange,
+            modifier = Modifier.size(120.dp),
+            wheelSize = 120.dp
+        )
     }
 }
 
