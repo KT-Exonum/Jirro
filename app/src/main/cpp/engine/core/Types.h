@@ -53,6 +53,14 @@ enum class TextureUsage : uint8_t {
     Storage,
 };
 
+enum class BufferUsage : uint8_t {
+    Uniform,
+    Vertex,
+    Index,
+    Storage,
+    Indirect,
+};
+
 struct TextureDesc {
     uint32_t width = 0;
     uint32_t height = 0;

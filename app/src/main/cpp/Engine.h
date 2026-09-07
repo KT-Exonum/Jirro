@@ -28,11 +28,15 @@
 #include "engine/core/CommandQueue.h"
 #include "engine/core/GraphicsDevice.h"
 #include "engine/core/Profiler.h"
+#include "engine/core/RuntimeShaderCompiler.h"
 #include "engine/export/ExportPipeline.h"
 #include "engine/export/ProjectSerializer.h"
+#include "engine/expression/ExpressionEngine.h"
 #include "engine/graph/Node.h"
 #include "engine/graph/RenderGraph.h"
 #include "engine/media/MediaEngine.h"
+#include "engine/text/TextRenderer.h"
+#include "engine/audio/AudioEngine.h"
 #include "engine/timeline/Timeline.h"
 
 namespace vfx {
@@ -224,6 +228,18 @@ public:
     // load .spv shaders from the APK's assets/ folder at runtime.
     void SetAssetManager(AAssetManager* mgr) { assetManager_ = mgr; }
 
+    // Runtime shader compilation: set the directory where compiled SPIR-V is cached.
+    void SetShaderCacheDirectory(std::string_view cacheDir) {
+        if (shaderCompiler_) shaderCompiler_->SetCacheDirectory(cacheDir);
+    }
+
+    // Trigger compilation of all shaders (compile-on-first-run).
+    void CompileShadersIfNeeded() {
+        if (shaderCompiler_ && assetManager_) {
+            shaderCompiler_->CompileAllShaders([](const std::string&, ShaderCompileResult) {});
+        }
+    }
+
     // Reload all shaders from assets (dev builds only, guarded by
     // ENGINE_DEV_SHADER_HOTLOAD). Falls back to embedded bytecode when
     // asset loading fails for any individual shader.
@@ -285,6 +301,25 @@ public:
         });
     }
 
+    // Timeline clip operations (Split/Trim/Delete)
+    void QueueSplitClip(const std::string& clipId, double timelinePosition) {
+        QueueCommand([clipId, timelinePosition](Engine& engine) {
+            engine.timeline_->SplitClip(clipId, timelinePosition);
+        });
+    }
+
+    void QueueTrimClip(const std::string& clipId, double sourceIn, double sourceOut) {
+        QueueCommand([clipId, sourceIn, sourceOut](Engine& engine) {
+            engine.timeline_->TrimClip(clipId, sourceIn, sourceOut);
+        });
+    }
+
+    void QueueCreateTransition(const std::string& fromClipId, const std::string& toClipId, double duration, const std::string& blendShaderNodeId) {
+        QueueCommand([fromClipId, toClipId, duration, blendShaderNodeId](Engine& engine) {
+            engine.timeline_->CreateTransition(fromClipId, toClipId, duration, blendShaderNodeId);
+        });
+    }
+
     // Undo/Redo
     void QueueUndo(UndoCommand) {
         QueueCommand([](Engine& engine) { engine.Undo(); });
@@ -294,6 +329,19 @@ public:
         QueueCommand([](Engine& engine) { engine.Redo(); });
     }
 
+    // Audio output control
+    void QueueStartAudioOutput() {
+        QueueCommand([](Engine& engine) {
+            if (engine.audioEngine_) engine.audioEngine_->StartAudioOutput();
+        });
+    }
+
+    void QueueStopAudioOutput() {
+        QueueCommand([](Engine& engine) {
+            if (engine.audioEngine_) engine.audioEngine_->StopAudioOutput();
+        });
+    }
+
     // Profiling access
     [[nodiscard]] Profiler* GetProfiler() { return profiler_.get(); }
     [[nodiscard]] const Profiler* GetProfiler() const { return profiler_.get(); }
@@ -301,6 +349,22 @@ public:
     // Project manager access
     [[nodiscard]] ProjectManager* GetProjectManager() { return projectManager_.get(); }
     [[nodiscard]] const ProjectManager* GetProjectManager() const { return projectManager_.get(); }
+
+    // Phase 7+: Expression engine access
+    [[nodiscard]] ExpressionEngine* GetExpressionEngine() { return expressionEngine_.get(); }
+    [[nodiscard]] const ExpressionEngine* GetExpressionEngine() const { return expressionEngine_.get(); }
+
+    // Phase 7+: Audio engine access
+    [[nodiscard]] AudioEngine* GetAudioEngine() { return audioEngine_.get(); }
+    [[nodiscard]] const AudioEngine* GetAudioEngine() const { return audioEngine_.get(); }
+
+    // Crash Recovery
+    void EnableCrashRecovery(bool enabled, int intervalSeconds = 30);
+    
+    // Thermal Adaptation
+    void SetThermalCallback(std::function<void(bool)> callback);
+    void EnableLowEndFallbacks(bool enabled);
+    void AutoConfigureForDevice();
 
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
@@ -316,6 +380,14 @@ private:
     void LoadProject(LoadProjectCommand&& cmd);
     void UpdateThermalAdaptation();
 
+    // Crash Recovery & Auto-Save
+    void CheckCrashRecovery();
+    
+    // Low-end fallbacks
+    void ApplyLowEndSettings(const LowEndSettings& settings);
+    LowEndSettings GetRecommendedLowEndSettings();
+    void AutoConfigureForDevice();
+
     // Phase 7+: Node graph operations
     void AddNode(AddNodeCommand&& cmd);
     void RemoveNode(RemoveNodeCommand&& cmd);
@@ -330,7 +402,8 @@ private:
     void Redo();
 
     std::atomic<bool> running_{false};
-    std::thread engineThread_;
+    std::jthread engineThread_;
+    std::stop_source engineStopSource_;
 
     CommandQueue commandQueue_;
 
@@ -345,8 +418,20 @@ private:
     std::unique_ptr<ExportPipeline> exportPipeline_;
     std::unique_ptr<ProjectManager> projectManager_;
 
+    // Phase 7+: Expression engine for procedural animation
+    std::unique_ptr<ExpressionEngine> expressionEngine_;
+
+    // Audio engine for decoding, mixing, and analysis
+    std::unique_ptr<class AudioEngine> audioEngine_;
+
+    // Text rendering
+    std::unique_ptr<TextRenderer> textRenderer_;
+
     // Dev hot-reload: non-owning pointer to the APK's AAssetManager.
     AAssetManager* assetManager_ = nullptr;
+
+    // Runtime shader compilation (compile-on-first-run, cache for later)
+    std::unique_ptr<RuntimeShaderCompiler> shaderCompiler_;
 
     std::mutex windowMutex_;
     ANativeWindow* pendingWindow_ = nullptr;
@@ -354,6 +439,33 @@ private:
 
     std::chrono::steady_clock::time_point lastTickTime_{};
     double masterSpeed_ = 1.0; // Phase 4: master timeline speed (negative = reverse)
+
+    // Crash Recovery
+    bool crashRecoveryEnabled_ = false;
+    int crashRecoveryIntervalSec_ = 30;
+    std::chrono::steady_clock::time_point lastCrashRecoverySave_{};
+
+    // Thermal Adaptation
+    bool thermalThrottlingActive_ = false;
+    bool disableExpensiveEffects_ = false;
+    float renderScale_ = 1.0f;
+    std::function<void(bool)> onThermalStateChange_;
+
+    // Low-End Fallbacks
+    bool lowEndFallbacksEnabled_ = false;
+    struct LowEndSettings {
+        bool useSimpleShaders = true;
+        int maxParticles = 1000;
+        bool enableShadows = false;
+        bool enableMSAA = false;
+        bool useBilinearFiltering = true;
+        int maxTextureSize = 1024;
+        bool enableComputeShaders = false;
+        int maxLights = 1;
+        bool enablePostProcess = false;
+        float renderScale = 0.75f;
+    };
+    LowEndSettings lowEndSettings_;
 };
 
 } // namespace vfx

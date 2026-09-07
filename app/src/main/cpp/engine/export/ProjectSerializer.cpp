@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
+#include <format>
 #include <iomanip>
 #include <sstream>
 
@@ -99,81 +100,176 @@ void ProjectSerializer::WriteJsonValue(std::ostream& os, const JsonValue& value,
 }
 
 bool ProjectSerializer::ReadJsonValue(std::istream& is, JsonValue& value) {
-    // Simplified JSON parser - in production use nlohmann/json or similar
-    // This is a minimal implementation for basic types
-    char c;
-    while (is >> c) {
-        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') continue;
-        
-        if (c == '{') {
-            value.type = JsonValue::Object;
-            while (is >> c) {
-                if (c == '}') break;
-                if (c == ',') continue;
-                if (c == ' ' || c == '\n') continue;
+    // Kept for API compatibility; LoadFromFile uses JsonDeserialize instead
+    return false;
+}
+
+bool ProjectSerializer::JsonDeserialize(const std::string& json, ProjectData& data) {
+    // Minimal JSON parser for our specific project format
+    auto getString = [](const std::string& json, size_t& pos, const std::string& key) -> std::string {
+        size_t keyPos = json.find("\"" + key + "\"", pos);
+        if (keyPos == std::string::npos) return "";
+        keyPos = json.find(':', keyPos);
+        if (keyPos == std::string::npos) return "";
+        keyPos++;
+        while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t' || json[keyPos] == '\n')) keyPos++;
+        if (keyPos >= json.size() || json[keyPos] != '"') return "";
+        keyPos++;
+        size_t end = json.find('"', keyPos);
+        if (end == std::string::npos) return "";
+        pos = end + 1;
+        return json.substr(keyPos, end - keyPos);
+    };
+    
+    auto getNumber = [](const std::string& json, size_t& pos, const std::string& key) -> double {
+        size_t keyPos = json.find("\"" + key + "\"", pos);
+        if (keyPos == std::string::npos) return 0.0;
+        keyPos = json.find(':', keyPos);
+        if (keyPos == std::string::npos) return 0.0;
+        keyPos++;
+        while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t' || json[keyPos] == '\n')) keyPos++;
+        size_t end = keyPos;
+        while (end < json.size() && (isdigit(json[end]) || json[end] == '.' || json[end] == '-' || json[end] == 'e' || json[end] == 'E')) end++;
+        std::string numStr = json.substr(keyPos, end - keyPos);
+        pos = end;
+        return std::stod(numStr);
+    };
+    
+    auto getBool = [](const std::string& json, size_t& pos, const std::string& key) -> bool {
+        size_t keyPos = json.find("\"" + key + "\"", pos);
+        if (keyPos == std::string::npos) return false;
+        keyPos = json.find(':', keyPos);
+        if (keyPos == std::string::npos) return false;
+        keyPos++;
+        while (keyPos < json.size() && (json[keyPos] == ' ' || json[keyPos] == '\t')) keyPos++;
+        pos = keyPos + (json.substr(keyPos, 4) == "true" ? 4 : 5);
+        return json.substr(keyPos, 4) == "true";
+    };
+    
+    // Parse metadata
+    size_t pos = 0;
+    data.metadata.version = static_cast<int>(getNumber(json, pos, "version"));
+    data.metadata.name = getString(json, pos, "name");
+    data.metadata.duration = getNumber(json, pos, "duration");
+    data.metadata.frameRate = getNumber(json, pos, "frameRate");
+    data.metadata.width = static_cast<uint32_t>(getNumber(json, pos, "width"));
+    data.metadata.height = static_cast<uint32_t>(getNumber(json, pos, "height"));
+    
+    // Parse nodes
+    size_t nodesStart = json.find("\"nodes\"");
+    if (nodesStart != std::string::npos) {
+        size_t arrStart = json.find('[', nodesStart);
+        if (arrStart != std::string::npos) {
+            size_t arrEnd = json.find(']', arrStart);
+            std::string nodesJson = json.substr(arrStart, arrEnd - arrStart + 1);
+            
+            size_t nodePos = 0;
+            while (true) {
+                size_t nodeStart = nodesJson.find("{", nodePos);
+                if (nodeStart == std::string::npos) break;
+                size_t nodeEnd = nodesJson.find("}", nodeStart);
+                if (nodeEnd == std::string::npos) break;
                 
-                std::string key;
-                if (c == '"') {
-                    std::getline(is, key, '"');
+                std::string nodeJson = nodesJson.substr(nodeStart, nodeEnd - nodeStart + 1);
+                SerializedNode sn;
+                sn.type = getString(nodeJson, pos, "type");
+                sn.id = getString(nodeJson, pos, "id");
+                sn.name = getString(nodeJson, pos, "name");
+                sn.x = static_cast<float>(getNumber(nodeJson, pos, "x"));
+                sn.y = static_cast<float>(getNumber(nodeJson, pos, "y"));
+                sn.sourceFilePath = getString(nodeJson, pos, "sourceFilePath");
+                sn.blendMode = static_cast<int>(getNumber(nodeJson, pos, "blendMode"));
+                
+                // Audio config
+                size_t audioPos = nodeJson.find("\"audio\"");
+                if (audioPos != std::string::npos) {
+                    size_t audioEnd = nodeJson.find('}', audioPos);
+                    std::string audioJson = nodeJson.substr(audioPos, audioEnd - audioPos + 1);
+                    size_t ap = 0;
+                    sn.audioSourceClipId = getString(audioJson, ap, "sourceClipId");
+                    sn.audioSensitivity = static_cast<float>(getNumber(audioJson, ap, "sensitivity"));
+                    sn.audioSmoothing = static_cast<float>(getNumber(audioJson, ap, "smoothing"));
+                    sn.audioFrequencyMin = static_cast<float>(getNumber(audioJson, ap, "frequencyMin"));
+                    sn.audioFrequencyMax = static_cast<float>(getNumber(audioJson, ap, "frequencyMax"));
+                    sn.audioFftSize = static_cast<int>(getNumber(audioJson, ap, "fftSize"));
+                    sn.audioUseBeatDetection = getBool(audioJson, ap, "useBeatDetection");
+                    sn.audioBeatThreshold = static_cast<float>(getNumber(audioJson, ap, "beatThreshold"));
+                    sn.audioWaveformPoints = static_cast<int>(getNumber(audioJson, ap, "waveformPoints"));
+                    sn.audioSpectrumBars = static_cast<int>(getNumber(audioJson, ap, "spectrumBars"));
+                    sn.audioBarWidth = static_cast<float>(getNumber(audioJson, ap, "barWidth"));
+                    sn.audioBarGap = static_cast<float>(getNumber(audioJson, ap, "barGap"));
+                    sn.audioBarColor = static_cast<uint32_t>(getNumber(audioJson, ap, "barColor"));
+                    sn.audioBackgroundColor = static_cast<uint32_t>(getNumber(audioJson, ap, "backgroundColor"));
                 }
                 
-                is >> c; // skip :
-                
-                JsonValue val;
-                ReadJsonValue(is, val);
-                value.objVal[key] = std::move(val);
+                data.nodes.push_back(std::move(sn));
+                nodePos = nodeEnd + 1;
             }
-            return true;
-        }
-        else if (c == '[') {
-            value.type = JsonValue::Array;
-            while (is >> c) {
-                if (c == ']') break;
-                if (c == ',') continue;
-                if (c == ' ' || c == '\n') { is.unget(); continue; }
-                
-                is.unget();
-                JsonValue val;
-                ReadJsonValue(is, val);
-                value.arrVal.push_back(std::move(val));
-            }
-            return true;
-        }
-        else if (c == '"') {
-            std::getline(is, value.strVal, '"');
-            value.type = JsonValue::String;
-            return true;
-        }
-        else if (c == 't' || c == 'f') {
-            std::string val(1, c);
-            char next;
-            while (is >> next && next != ' ' && next != ',' && next != '}' && next != ']') {
-                val += next;
-            }
-            value.type = JsonValue::Bool;
-            value.boolVal = (val == "true");
-            return true;
-        }
-        else if (c == 'n') {
-            // null
-            char buf[4];
-            is.read(buf, 3);
-            value.type = JsonValue::Null;
-            return true;
-        }
-        else {
-            // Number
-            std::string num(1, c);
-            char next;
-            while (is >> next && (isdigit(next) || next == '.' || next == '-' || next == 'e' || next == 'E')) {
-                num += next;
-            }
-            is.unget();
-            value.type = JsonValue::Number;
-            value.numVal = std::stod(num);
-            return true;
         }
     }
+    
+    // Parse connections
+    size_t connStart = json.find("\"connections\"");
+    if (connStart != std::string::npos) {
+        size_t arrStart = json.find('[', connStart);
+        if (arrStart != std::string::npos) {
+            size_t arrEnd = json.find(']', arrStart);
+            std::string connJson = json.substr(arrStart, arrEnd - arrStart + 1);
+            
+            size_t connPos = 0;
+            while (true) {
+                size_t connStartPos = connJson.find("{", connPos);
+                if (connStartPos == std::string::npos) break;
+                size_t connEnd = connJson.find("}", connStartPos);
+                if (connEnd == std::string::npos) break;
+                
+                std::string singleConn = connJson.substr(connStartPos, connEnd - connStartPos + 1);
+                SerializedConnection sc;
+                sc.fromNodeId = getString(singleConn, connPos, "fromNodeId");
+                sc.fromPort = getString(singleConn, connPos, "fromPort");
+                sc.toNodeId = getString(singleConn, connPos, "toNodeId");
+                sc.toPort = getString(singleConn, connPos, "toPort");
+                data.connections.push_back(std::move(sc));
+                connPos = connEnd + 1;
+            }
+        }
+    }
+    
+    // Parse clips
+    size_t clipsStart = json.find("\"clips\"");
+    if (clipsStart != std::string::npos) {
+        size_t arrStart = json.find('[', clipsStart);
+        if (arrStart != std::string::npos) {
+            size_t arrEnd = json.find(']', arrStart);
+            std::string clipsJson = json.substr(arrStart, arrEnd - arrStart + 1);
+            
+            size_t clipPos = 0;
+            while (true) {
+                size_t clipStart = clipsJson.find("{", clipPos);
+                if (clipStart == std::string::npos) break;
+                size_t clipEnd = clipsJson.find("}", clipStart);
+                if (clipEnd == std::string::npos) break;
+                
+                std::string singleClip = clipsJson.substr(clipStart, clipEnd - clipStart + 1);
+                SerializedClip sc;
+                sc.id = getString(singleClip, clipPos, "id");
+                sc.sourceNodeId = getString(singleClip, clipPos, "sourceNodeId");
+                sc.timelineStart = getNumber(singleClip, clipPos, "timelineStart");
+                sc.sourceInPoint = getNumber(singleClip, clipPos, "sourceInPoint");
+                sc.sourceOutPoint = getNumber(singleClip, clipPos, "sourceOutPoint");
+                sc.playbackSpeed = getNumber(singleClip, clipPos, "playbackSpeed");
+                sc.layer = static_cast<int>(getNumber(singleClip, clipPos, "layer"));
+                data.clips.push_back(std::move(sc));
+                clipPos = clipEnd + 1;
+            }
+        }
+    }
+    
+    return true;
+}
+
+bool ProjectSerializer::ReadJsonValue(std::istream& is, JsonValue& value) {
+    // Kept for API compatibility; LoadFromFile uses JsonDeserialize instead
     return false;
 }
 
@@ -227,6 +323,58 @@ std::string ProjectSerializer::NodeKindToString(NodeKind kind) {
         case NodeKind::DepthOfField: return "DepthOfField";
         case NodeKind::ChromaKey: return "ChromaKey";
         case NodeKind::MeshSource: return "MeshSource";
+        case NodeKind::AudioReactive: return "AudioReactive";
+        case NodeKind::AudioWaveform: return "AudioWaveform";
+        case NodeKind::AudioSpectrum: return "AudioSpectrum";
+        // Motion Effects - Transform Motion
+        case NodeKind::Oscillate: return "Oscillate";
+        case NodeKind::Shake: return "Shake";
+        case NodeKind::RandomDisplacement: return "RandomDisplacement";
+        case NodeKind::Pulse: return "Pulse";
+        case NodeKind::Swing: return "Swing";
+        case NodeKind::Bounce: return "Bounce";
+        case NodeKind::Elastic: return "Elastic";
+        // Motion Effects - Camera Motion
+        case NodeKind::CameraShake: return "CameraShake";
+        case NodeKind::ZoomBlur: return "ZoomBlur";
+        case NodeKind::RadialBlur: return "RadialBlur";
+        case NodeKind::MotionBlur: return "MotionBlur";
+        case NodeKind::DirectionalBlur: return "DirectionalBlur";
+        // Motion Effects - Distortion Motion
+        case NodeKind::Ripple: return "Ripple";
+        case NodeKind::Wave: return "Wave";
+        case NodeKind::Twist: return "Twist";
+        case NodeKind::Bulge: return "Bulge";
+        case NodeKind::Vortex: return "Vortex";
+        // Motion Effects - Stylize Motion
+        case NodeKind::Glitch: return "Glitch";
+        case NodeKind::VHS: return "VHS";
+        case NodeKind::Scanlines: return "Scanlines";
+        case NodeKind::CRT: return "CRT";
+        case NodeKind::ChromaticAberration: return "ChromaticAberration";
+        case NodeKind::RGBShift: return "RGBShift";
+        // Motion Effects - Time Motion
+        case NodeKind::TimeStretch: return "TimeStretch";
+        case NodeKind::FrameBlend: return "FrameBlend";
+        case NodeKind::StopMotion: return "StopMotion";
+        case NodeKind::PosterizeTime: return "PosterizeTime";
+        // Motion Effects - Utility Motion
+        case NodeKind::Wiggle: return "Wiggle";
+        case NodeKind::Jitter: return "Jitter";
+        case NodeKind::Drift: return "Drift";
+        case NodeKind::Orbit: return "Orbit";
+        // Resolve FX inspired
+        case NodeKind::CameraShakePro: return "CameraShakePro";
+        case NodeKind::DynamicZoom: return "DynamicZoom";
+        case NodeKind::FilmDamage: return "FilmDamage";
+        case NodeKind::FilmGrain: return "FilmGrain";
+        case NodeKind::Vignette: return "Vignette";
+        case NodeKind::Letterbox: return "Letterbox";
+        // Advanced
+        case NodeKind::BezierWarp: return "BezierWarp";
+        case NodeKind::MeshWarp: return "MeshWarp";
+        case NodeKind::PolarCoordinates: return "PolarCoordinates";
+        case NodeKind::DisplacementMap: return "DisplacementMap";
         default: return "Unknown";
     }
 }
@@ -269,7 +417,7 @@ NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "ShapeRender") return NodeKind::ShapeRender;
     if (str == "ShapeMerge") return NodeKind::ShapeMerge;
     if (str == "ShapeTransform") return NodeKind::ShapeTransform;
-    if (str == "ShapeStroke") return NodeKind::ShapeStroke;
+    if (str == "ShapeStroke") return NodeKind::ShapeTransform;
     if (str == "ShapeFill") return NodeKind::ShapeFill;
     if (str == "ShapeRepeater") return NodeKind::ShapeRepeater;
     if (str == "ShapeBoolean") return NodeKind::ShapeBoolean;
@@ -278,6 +426,58 @@ NodeKind ProjectSerializer::StringToNodeKind(const std::string& str) {
     if (str == "DepthOfField") return NodeKind::DepthOfField;
     if (str == "ChromaKey") return NodeKind::ChromaKey;
     if (str == "MeshSource") return NodeKind::MeshSource;
+    if (str == "AudioReactive") return NodeKind::AudioReactive;
+    if (str == "AudioWaveform") return NodeKind::AudioWaveform;
+    if (str == "AudioSpectrum") return NodeKind::AudioSpectrum;
+    // Motion Effects - Transform Motion
+    if (str == "Oscillate") return NodeKind::Oscillate;
+    if (str == "Shake") return NodeKind::Shake;
+    if (str == "RandomDisplacement") return NodeKind::RandomDisplacement;
+    if (str == "Pulse") return NodeKind::Pulse;
+    if (str == "Swing") return NodeKind::Swing;
+    if (str == "Bounce") return NodeKind::Bounce;
+    if (str == "Elastic") return NodeKind::Elastic;
+    // Motion Effects - Camera Motion
+    if (str == "CameraShake") return NodeKind::CameraShake;
+    if (str == "ZoomBlur") return NodeKind::ZoomBlur;
+    if (str == "RadialBlur") return NodeKind::RadialBlur;
+    if (str == "MotionBlur") return NodeKind::MotionBlur;
+    if (str == "DirectionalBlur") return NodeKind::DirectionalBlur;
+    // Motion Effects - Distortion Motion
+    if (str == "Ripple") return NodeKind::Ripple;
+    if (str == "Wave") return NodeKind::Wave;
+    if (str == "Twist") return NodeKind::Twist;
+    if (str == "Bulge") return NodeKind::Bulge;
+    if (str == "Vortex") return NodeKind::Vortex;
+    // Motion Effects - Stylize Motion
+    if (str == "Glitch") return NodeKind::Glitch;
+    if (str == "VHS") return NodeKind::VHS;
+    if (str == "Scanlines") return NodeKind::Scanlines;
+    if (str == "CRT") return NodeKind::CRT;
+    if (str == "ChromaticAberration") return NodeKind::ChromaticAberration;
+    if (str == "RGBShift") return NodeKind::RGBShift;
+    // Motion Effects - Time Motion
+    if (str == "TimeStretch") return NodeKind::TimeStretch;
+    if (str == "FrameBlend") return NodeKind::FrameBlend;
+    if (str == "StopMotion") return NodeKind::StopMotion;
+    if (str == "PosterizeTime") return NodeKind::PosterizeTime;
+    // Motion Effects - Utility Motion
+    if (str == "Wiggle") return NodeKind::Wiggle;
+    if (str == "Jitter") return NodeKind::Jitter;
+    if (str == "Drift") return NodeKind::Drift;
+    if (str == "Orbit") return NodeKind::Orbit;
+    // Resolve FX inspired
+    if (str == "CameraShakePro") return NodeKind::CameraShakePro;
+    if (str == "DynamicZoom") return NodeKind::DynamicZoom;
+    if (str == "FilmDamage") return NodeKind::FilmDamage;
+    if (str == "FilmGrain") return NodeKind::FilmGrain;
+    if (str == "Vignette") return NodeKind::Vignette;
+    if (str == "Letterbox") return NodeKind::Letterbox;
+    // Advanced
+    if (str == "BezierWarp") return NodeKind::BezierWarp;
+    if (str == "MeshWarp") return NodeKind::MeshWarp;
+    if (str == "PolarCoordinates") return NodeKind::PolarCoordinates;
+    if (str == "DisplacementMap") return NodeKind::DisplacementMap;
     return NodeKind::Shader;
 }
 
@@ -325,10 +525,9 @@ int ProjectSerializer::StringToInterpolationType(const std::string& str) {
 static std::string GetCurrentTimestamp() {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
-    std::tm tm = *std::localtime(&time);
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S");
-    return oss.str();
+    std::tm tm{};
+    localtime_r(&time, &tm);
+    return std::format("{:%Y-%m-%dT%H:%M:%S}", tm);
 }
 
 // --- Serialize ---
@@ -351,7 +550,7 @@ ProjectData ProjectSerializer::Serialize(const NodeGraph& graph, const Timeline&
         
         // Ports
         for (const auto& port : node.inputs) sn.inputPorts.push_back(port.slotName);
-        sn.outputPorts.push_back(node.output.slotName);
+        for (const auto& port : node.outputs) sn.outputPorts.push_back(port.slotName);
         
         // Uniforms
         sn.uniforms = node.uniformFloats;
@@ -376,6 +575,22 @@ ProjectData ProjectSerializer::Serialize(const NodeGraph& graph, const Timeline&
         sn.sourceFilePath = node.sourceFilePath;
         sn.blendMode = static_cast<int>(node.blendMode);
         sn.spirvFragment = node.spirvFragment;
+        if (node.kind == NodeKind::AudioReactive || node.kind == NodeKind::AudioWaveform || node.kind == NodeKind::AudioSpectrum) {
+            sn.audioSourceClipId = node.audio.sourceClipId;
+            sn.audioSensitivity = node.audio.sensitivity;
+            sn.audioSmoothing = node.audio.smoothing;
+            sn.audioFrequencyMin = node.audio.frequencyMin;
+            sn.audioFrequencyMax = node.audio.frequencyMax;
+            sn.audioFftSize = node.audio.fftSize;
+            sn.audioUseBeatDetection = node.audio.useBeatDetection;
+            sn.audioBeatThreshold = node.audio.beatThreshold;
+            sn.audioWaveformPoints = node.audio.waveformPoints;
+            sn.audioSpectrumBars = node.audio.spectrumBars;
+            sn.audioBarWidth = node.audio.barWidth;
+            sn.audioBarGap = node.audio.barGap;
+            sn.audioBarColor = node.audio.barColor;
+            sn.audioBackgroundColor = node.audio.backgroundColor;
+        }
         
         data.nodes.push_back(std::move(sn));
     }
@@ -436,7 +651,7 @@ bool ProjectSerializer::Deserialize(const ProjectData& data, NodeGraph& graph, T
                 node.inputs.push_back({portName});
             }
             for (const auto& portName : sn.outputPorts) {
-                node.output = {portName};
+                node.outputs.push_back({portName});
             }
             
             // Uniforms
@@ -461,6 +676,22 @@ bool ProjectSerializer::Deserialize(const ProjectData& data, NodeGraph& graph, T
             node.sourceFilePath = sn.sourceFilePath;
             node.blendMode = static_cast<BlendMode>(sn.blendMode);
             node.spirvFragment = sn.spirvFragment;
+            if (node.kind == NodeKind::AudioReactive || node.kind == NodeKind::AudioWaveform || node.kind == NodeKind::AudioSpectrum) {
+                node.audio.sourceClipId = sn.audioSourceClipId;
+                node.audio.sensitivity = sn.audioSensitivity;
+                node.audio.smoothing = sn.audioSmoothing;
+                node.audio.frequencyMin = sn.audioFrequencyMin;
+                node.audio.frequencyMax = sn.audioFrequencyMax;
+                node.audio.fftSize = sn.audioFftSize;
+                node.audio.useBeatDetection = sn.audioUseBeatDetection;
+                node.audio.beatThreshold = sn.audioBeatThreshold;
+                node.audio.waveformPoints = sn.audioWaveformPoints;
+                node.audio.spectrumBars = sn.audioSpectrumBars;
+                node.audio.barWidth = sn.audioBarWidth;
+                node.audio.barGap = sn.audioBarGap;
+                node.audio.barColor = sn.audioBarColor;
+                node.audio.backgroundColor = sn.audioBackgroundColor;
+            }
             
             graph.AddNode(std::move(node));
         }
@@ -577,6 +808,24 @@ bool ProjectSerializer::SaveToFile(const ProjectData& data, const std::string& f
             if (n.blendMode != 0) {
                 file << ",\n      \"blendMode\": " << n.blendMode;
             }
+            if (n.type == "AudioReactive" || n.type == "AudioWaveform" || n.type == "AudioSpectrum") {
+                file << ",\n      \"audio\": {\n";
+                file << "        \"sourceClipId\": \"" << n.audioSourceClipId << "\",\n";
+                file << "        \"sensitivity\": " << n.audioSensitivity << ",\n";
+                file << "        \"smoothing\": " << n.audioSmoothing << ",\n";
+                file << "        \"frequencyMin\": " << n.audioFrequencyMin << ",\n";
+                file << "        \"frequencyMax\": " << n.audioFrequencyMax << ",\n";
+                file << "        \"fftSize\": " << n.audioFftSize << ",\n";
+                file << "        \"useBeatDetection\": " << (n.audioUseBeatDetection ? "true" : "false") << ",\n";
+                file << "        \"beatThreshold\": " << n.audioBeatThreshold << ",\n";
+                file << "        \"waveformPoints\": " << n.audioWaveformPoints << ",\n";
+                file << "        \"spectrumBars\": " << n.audioSpectrumBars << ",\n";
+                file << "        \"barWidth\": " << n.audioBarWidth << ",\n";
+                file << "        \"barGap\": " << n.audioBarGap << ",\n";
+                file << "        \"barColor\": " << n.audioBarColor << ",\n";
+                file << "        \"backgroundColor\": " << n.audioBackgroundColor << "\n";
+                file << "      }";
+            }
             
             file << "\n    }";
             if (i + 1 < data.nodes.size()) file << ",";
@@ -638,10 +887,10 @@ bool ProjectSerializer::LoadFromFile(ProjectData& data, const std::string& fileP
             return false;
         }
         
-        // In production, use a proper JSON parser
-        // This is a minimal implementation - real code would parse properly
-        LOGI("LoadFromFile: basic implementation - use nlohmann/json for production");
-        return false;
+        std::string json((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        file.close();
+        
+        return JsonDeserialize(json, data);
     } catch (const std::exception& e) {
         LOGE("LoadFromFile failed: %s", e.what());
         return false;
@@ -795,6 +1044,24 @@ void ProjectManager::UpdateTimestamps() {
 
 void ProjectManager::NotifyChanged() {
     if (onProjectChanged_) onProjectChanged_(projectPath_);
+}
+
+std::string ProjectManager::GetRecentProjectsJson() const {
+    // In a real implementation, this would read from a recents file
+    // For now, return empty array
+    return "[]";
+}
+
+bool ProjectManager::HasProject() const {
+    return currentProject_.has_value();
+}
+
+const std::string& ProjectManager::GetProjectName() const {
+    return projectName_;
+}
+
+bool ProjectManager::IsModified() const {
+    return modified_;
 }
 
 } // namespace vfx

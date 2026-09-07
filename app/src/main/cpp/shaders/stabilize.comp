@@ -1,0 +1,79 @@
+#version 450
+
+// Video Stabilization Compute Shader
+// Computes global motion (translation, rotation, scale) between frames
+// and outputs a stabilizing transform
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D uFramePrev;
+layout(set = 0, binding = 1) uniform sampler2D uFrameCurr;
+
+layout(set = 1, binding = 0, rgba32f) uniform image2D uGlobalMotionOut; // Translation, rotation, scale
+layout(set = 1, binding = 1, rgba32f) uniform image2D uStabilizedOut;   // Stabilized frame
+
+layout(push_constant) uniform PushConstants {
+    float uTime;
+    float uResolution[2];
+    float uSmoothing;
+    float uCropScale;
+    int uMode; // 0 = translation only, 1 = similarity, 2 = affine
+} pc;
+
+vec2 sampleGrad(sampler2D tex, vec2 uv, vec2 texelSize) {
+    float dx = texture(tex, uv + vec2(texelSize.x, 0.0)).r - texture(tex, uv - vec2(texelSize.x, 0.0)).r;
+    float dy = texture(tex, uv + vec2(0.0, texelSize.y)).r - texture(tex, uv - vec2(0.0, texelSize.y)).r;
+    return vec2(dx, dy) * 0.5;
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dims = imageSize(uGlobalMotionOut);
+    
+    if (pixel.x >= dims.x || pixel.y >= dims.y) return;
+    
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(dims);
+    vec2 texelSize = 1.0 / vec2(dims);
+    
+    // Compute gradients on previous frame
+    float I0 = texture(uFramePrev, uv).r;
+    float I1 = texture(uFrameCurr, uv).r;
+    
+    vec2 grad = sampleGrad(uFramePrev, uv, texelSize);
+    float It = I1 - I0;
+    
+    // Global motion estimation using phase correlation (simplified)
+    // For production, would use FFT-based phase correlation
+    
+    // Lucas-Kanade global motion
+    float Ix = grad.x;
+    float Iy = grad.y;
+    
+    // Accumulate in local memory (simplified - single thread block)
+    // In practice, use parallel reduction
+    
+    // Output estimated motion parameters
+    // For now, output zero (placeholder)
+    if (pixel.x == 0 && pixel.y == 0) {
+        // Translation X, Translation Y, Rotation, Scale
+        imageStore(uGlobalMotionOut, ivec2(0, 0), vec4(0.0, 0.0, 0.0, 1.0));
+        
+        // Output homography matrix (3x3 = 9 floats in 3 vec4)
+        // Identity matrix
+        imageStore(uGlobalMotionOut, ivec2(1, 0), vec4(1.0, 0.0, 0.0, 0.0));
+        imageStore(uGlobalMotionOut, ivec2(2, 0), vec4(0.0, 1.0, 0.0, 0.0));
+        imageStore(uGlobalMotionOut, ivec2(3, 0), vec4(0.0, 0.0, 1.0, 0.0));
+    }
+    
+    // Apply stabilization (inverse transform)
+    vec2 center = vec2(0.5);
+    vec2 dir = uv - center;
+    float dist = length(dir);
+    
+    // Apply inverse of global motion (placeholder - identity)
+    vec2 stabilizedUV = uv;
+    
+    // Sample and output stabilized frame
+    vec4 color = texture(uFrameCurr, stabilizedUV);
+    imageStore(uStabilizedOut, pixel, color);
+}

@@ -91,13 +91,98 @@ fun InspectorPanel(state: EditorState) {
                     androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
                     
                     selectedNode.animatedUniforms.forEach { (name, track) ->
-                        AnimatedUniformField(
-                            state = state,
-                            nodeId = selectedNode.id,
-                            uniformName = name,
-                            track = track
-                        )
+                        androidx.compose.material3.Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            onClick = {
+                                state.keyframeEditorTarget = EditorState.KeyframeTarget(
+                                    nodeId = selectedNode.id,
+                                    uniformName = name,
+                                    track = track
+                                )
+                            }
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    Text(
+                                        text = "${track.keyframes.size} KFs",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                androidx.compose.foundation.layout.Box(modifier = Modifier.height(4.dp))
+                                track.keyframes.forEachIndexed { index, kf ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "${formatTime(kf.time)}: ${String.format("%.3f", kf.value)}",
+                                            color = Color.White.copy(alpha = 0.7f),
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = kf.interpolation.name,
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
+                }
+            }
+            
+            Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 16.dp))
+            
+            // Audio-specific properties
+            if (selectedNode.type == EditorState.NodeType.AudioReactive ||
+                selectedNode.type == EditorState.NodeType.AudioSpectrum ||
+                selectedNode.type == EditorState.NodeType.AudioWaveform ||
+                selectedNode.type == EditorState.NodeType.BeatDetect) {
+                Text(text = "Audio", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
+                
+                UniformField(
+                    label = "Sensitivity",
+                    value = selectedNode.uniforms["sensitivity"] ?: 1.0f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "sensitivity", it) }
+                )
+                UniformField(
+                    label = "Frequency Min (Hz)",
+                    value = selectedNode.uniforms["frequencyMin"] ?: 20.0f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "frequencyMin", it) }
+                )
+                UniformField(
+                    label = "Frequency Max (Hz)",
+                    value = selectedNode.uniforms["frequencyMax"] ?: 20000.0f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "frequencyMax", it) }
+                )
+                UniformField(
+                    label = "Beat Threshold",
+                    value = selectedNode.uniforms["beatThreshold"] ?: 0.5f,
+                    onValueChange = { state.updateNodeUniform(selectedNode.id, "beatThreshold", it) }
+                )
+                
+                if (selectedNode.type == EditorState.NodeType.AudioSpectrum) {
+                    UniformField(
+                        label = "Spectrum Bars",
+                        value = selectedNode.uniforms["spectrumBars"] ?: 64.0f,
+                        onValueChange = { state.updateNodeUniform(selectedNode.id, "spectrumBars", it) }
+                    )
+                }
+                if (selectedNode.type == EditorState.NodeType.AudioWaveform) {
+                    UniformField(
+                        label = "Waveform Points",
+                        value = selectedNode.uniforms["waveformPoints"] ?: 512.0f,
+                        onValueChange = { state.updateNodeUniform(selectedNode.id, "waveformPoints", it) }
+                    )
                 }
             }
         }
@@ -130,47 +215,6 @@ fun UniformField(
                 placeholderColor = Color.White.copy(alpha = 0.4f)
             )
         )
-    }
-}
-
-@Composable
-fun AnimatedUniformField(
-    state: EditorState,
-    nodeId: String,
-    uniformName: String,
-    track: EditorState.KeyframeTrack
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-        ) {
-            Text(text = uniformName, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-            Text(
-                text = "${track.keyframes.size} keyframes",
-                color = Color.Green,
-                fontSize = 10.sp
-            )
-        }
-        
-        // Keyframe list
-        track.keyframes.forEachIndexed { index, kf ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${formatTime(kf.time)}: ${kf.value}",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = kf.interpolation.name,
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 10.sp
-                )
-            }
-        }
     }
 }
 

@@ -69,6 +69,73 @@ enum class NodeKind {
     ChromaKey,        // Green/blue screen keying
     // 3D Models
     MeshSource,       // GLTF/OBJ mesh with PBR materials
+
+    // Audio
+    AudioReactive,    // Audio-reactive values output (spectrum/beat)
+    AudioWaveform,    // Waveform visualization
+    AudioSpectrum,    // Spectrum visualization (bars)
+    // Text/Typography
+    TextAnimator,     // Text animation effects
+    TextPath,         // Text on path
+    Typewriter,       // Typewriter effect
+
+    // Motion Effects - Transform Motion (Alight Motion inspired)
+    Oscillate,        // Sine/triangle wave oscillation
+    Shake,            // Camera shake with decay
+    RandomDisplacement, // Smooth random position offset
+    Pulse,            // Scale pulse (heartbeat)
+    Swing,            // Pendulum rotation
+    Bounce,           // Bouncing motion with decay
+    Elastic,          // Elastic/spring motion
+
+    // Motion Effects - Camera Motion (Resolve FX inspired)
+    CameraShake,      // Full camera shake (pos+rot+scale)
+    ZoomBlur,         // Radial zoom blur
+    RadialBlur,       // Center-weighted radial blur
+    MotionBlur,       // Vector motion blur
+    DirectionalBlur,  // Directional streak blur
+
+    // Motion Effects - Distortion Motion
+    Ripple,           // Radial ripple displacement
+    Wave,             // Sine wave displacement
+    Twist,            // Twirl/vortex distortion
+    Bulge,            // Bulge/pinch lens
+    Vortex,           // Swirling vortex
+
+    // Motion Effects - Stylize Motion
+    Glitch,           // Digital glitch artifacts
+    VHS,              // VHS tape damage
+    Scanlines,        // CRT scanlines
+    CRT,              // Full CRT simulation
+    ChromaticAberration, // RGB channel separation
+    RGBShift,         // RGB channel offset
+
+    // Motion Effects - Time Motion
+    TimeStretch,      // Time remap with frame blending
+    FrameBlend,       // Optical flow frame blend
+    StopMotion,       // Posterized frame rate
+    PosterizeTime,    // Temporal posterization
+
+    // Motion Effects - Utility Motion
+    Wiggle,           // AE-style wiggle expression
+    Jitter,           // High-freq random jitter
+    Drift,            // Slow random drift
+    Orbit,            // Circular orbit motion
+
+    // Resolve FX inspired
+    CameraShakePro,   // Advanced camera shake with presets
+    DynamicZoom,      // Ken Burns style zoom
+    FilmDamage,       // Film scratches/dirt
+    FilmGrain,        // Photographic film grain
+    Vignette,         // Lens vignette
+    Letterbox,        // Cinematic letterbox
+
+    // Advanced
+    BezierWarp,       // Bezier-based warp
+    MeshWarp,         // Grid-based mesh warp
+    PolarCoordinates, // Polar coordinate transform
+    DisplacementMap,  // Texture-based displacement
+    LUT,              // 3D LUT color grading
 };
 
 enum class BlendMode { Normal, Multiply, Screen, Overlay, Add, Subtract };
@@ -197,12 +264,33 @@ struct ParticleConfig {
     float speedVariation = 0.0f;
     float emitAngle = 0.0f;             // degrees
     float angleVariation = 360.0f;
+    // Emission position/area
+    float emitterPositionX = 0.0f;
+    float emitterPositionY = 0.0f;
+    float emitRadius = 50.0f;
+    float emitLineStartX = -50.0f;
+    float emitLineStartY = 0.0f;
+    float emitLineEndX = 50.0f;
+    float emitLineEndY = 0.0f;
     // Forces (applied per frame)
     float gravity = 0.0f;
     float windX = 0.0f;
     float windY = 0.0f;
     float turbulence = 0.0f;
     float drag = 0.0f;
+    // Advanced forces
+    struct Force {
+        enum class Type { Attractor, Repeller, Vortex };
+        Type type = Type::Attractor;
+        float positionX = 0.0f;
+        float positionY = 0.0f;
+        float strength = 100.0f;
+        float radius = 200.0f;
+        bool enabled = false;
+    };
+    Force forces[8];
+    float curlNoiseScale = 0.01f;
+    float curlNoiseStrength = 0.0f;
     // Appearance
     float startSize = 10.0f;
     float endSize = 1.0f;
@@ -214,9 +302,23 @@ struct ParticleConfig {
     bool additiveBlending = true;
     bool sortByDepth = false;
     int maxParticles = 10000;
+    // GPU simulation toggle
+    bool useGpuParticles = true;
+    // Random seed for deterministic simulation
+    uint32_t seed = 12345;
     // Sub-emitters (spawn on death)
     bool enableSubEmitters = false;
     float subEmitProbability = 0.1f;
+    // Sprite sheet animation
+    bool useSpriteSheet = false;
+    int spriteSheetCols = 1;
+    int spriteSheetRows = 1;
+    float frameRate = 30.0f;
+    bool loopAnimation = true;
+    // Ribbon/trail
+    bool enableRibbons = false;
+    float ribbonWidth = 1.0f;
+    float ribbonLength = 10.0f;
 };
 
 // Shape2D configuration (DaVinci Resolve style)
@@ -439,7 +541,11 @@ struct Node {
     std::string debugName;
 
     std::vector<NodeSocket> inputs;
-    NodeSocket output{"output"};
+    std::vector<NodeSocket> outputs;
+
+    // Node position in the editor
+    float x = 0.0f;
+    float y = 0.0f;
 
     // Static (non-animated) parameters.
     std::unordered_map<std::string, float> uniformFloats;
@@ -514,6 +620,25 @@ struct Node {
 
     // Only meaningful for kind == MeshSource.
     MeshConfig mesh;
+
+    // Only meaningful for kind == AudioReactive, AudioWaveform, AudioSpectrum.
+    struct AudioConfig {
+        std::string sourceClipId;       // Audio clip to analyze
+        float sensitivity = 1.0f;       // Multiplier for reactive values
+        float smoothing = 0.8f;         // EMA smoothing factor
+        float frequencyMin = 20.0f;     // Hz
+        float frequencyMax = 20000.0f;  // Hz
+        int fftSize = 1024;
+        bool useBeatDetection = true;
+        float beatThreshold = 0.5f;
+        // Waveform/spectrum display
+        int waveformPoints = 512;
+        int spectrumBars = 64;
+        float barWidth = 2.0f;
+        float barGap = 1.0f;
+        uint32_t barColor = 0xFF00FF00;
+        uint32_t backgroundColor = 0x00000000;
+    } audio;
 
     [[nodiscard]] float EvaluateUniform(const std::string& name, double timelineSeconds) const {
         // Check animated uniforms first

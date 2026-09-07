@@ -1,185 +1,173 @@
 #pragma once
-// Phase 6: Export Pipeline - Offline rendering and video encoding.
-// Renders the composition at arbitrary speed/quality, independent of real-time playback.
+// Export pipeline: H.264/HEVC encoding via MediaCodec
+// Renders timeline to video file with audio mixing
 
-#include <android/media/NdkMediaCodec.h>
-#include <android/media/NdkMediaFormat.h>
-#include <android/media/NdkMediaMuxer.h>
-#include <functional>
-#include <memory>
 #include <string>
 #include <vector>
+#include <memory>
+#include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <optional>
+#include <functional>
+
+#include <media/NdkMediaCodec.h>
+#include <media/NdkMediaMuxer.h>
+#include <media/NdkMediaFormat.h>
 
 #include "engine/core/GraphicsDevice.h"
-#include "engine/core/Types.h"
 #include "engine/graph/RenderGraph.h"
-#include "engine/graph/Node.h"
 #include "engine/timeline/Timeline.h"
+#include "engine/media/MediaEngine.h"
+#include "engine/audio/AudioEngine.h"
 
 namespace vfx {
 
-// Export configuration
 struct ExportConfig {
-    std::string outputPath;           // Output file path
-    uint32_t width = 1920;            // Output resolution
+    std::string outputPath;
+    uint32_t width = 1920;
     uint32_t height = 1080;
-    double frameRate = 30.0;          // Output frame rate
-    double startTime = 0.0;           // Timeline range to export
-    double endTime = 10.0;
-    int bitrateMbps = 20;             // Video bitrate
-    bool useHardwareEncoder = true;   // Use MediaCodec vs software
-    std::string codec = "video/avc";  // video/avc, video/hevc, video/vp9
-    int quality = 23;                 // CRF-like quality (lower = better)
-    bool includeAudio = false;        // Not implemented yet
-    int maxConcurrentFrames = 2;      // Parallel frame rendering
+    double frameRate = 30.0;
+    double duration = 10.0;
     
-    // Extended format support
-    enum class Format {
-        MP4,           // H.264/HEVC in MP4
-        MOV,           // ProRes in MOV
-        WEBM,          // VP9/AV1 in WebM
-        GIF,           // Animated GIF
-        PNG_SEQUENCE,  // PNG image sequence
-        EXR_SEQUENCE,  // EXR image sequence (HDR)
-    };
-    Format format = Format::MP4;
+    // Video
+    std::string videoCodec = "video/avc"; // "video/avc" (H.264) or "video/hevc" (H.265)
+    int bitrateMbps = 20;
+    int profile = 1; // H.264 High Profile
+    int level = 0;
+    int gopSize = 30;
     
-    // ProRes specific
-    enum class ProResProfile { Proxy, LT, Standard, HQ, HQ444 };
-    ProResProfile proresProfile = ProResProfile::Standard;
+    // Audio
+    std::string audioCodec = "audio/mp4a-latm"; // AAC
+    int audioBitrateKbps = 192;
+    int audioSampleRate = 48000;
+    int audioChannels = 2;
     
-    // GIF specific
-    int gifColors = 256;
-    bool gifDither = true;
-    int gifLoopCount = 0; // 0 = infinite
+    // Quality
+    bool hardwareAccelerated = true;
+    bool constantFrameRate = true;
     
-    // PNG/EXR sequence
-    std::string sequencePattern = "frame_%04d.png"; // printf-style pattern
-    
-    // WebM specific
-    bool webmAlpha = false; // Transparent WebM
+    // Output
+    bool includeAlpha = false;
+    std::string colorSpace = "bt709"; // bt709, bt2020, p3
+    std::string colorRange = "limited"; // limited, full
 };
 
-// Export progress callback
-using ExportProgressCallback = std::function<void(double progress, const std::string& status)>;
-
-// Export result
-struct ExportResult {
-    bool success = false;
-    std::string errorMessage;
+struct ExportProgress {
+    double progress = 0.0; // 0.0 - 1.0
+    uint64_t framesWritten = 0;
+    uint64_t totalFrames = 0;
     double elapsedSeconds = 0.0;
-    uint64_t framesEncoded = 0;
-    size_t outputFileSize = 0;
-    double averageFps = 0.0;
+    double estimatedRemainingSeconds = 0.0;
+    std::string currentOperation;
+    std::string errorMessage;
 };
 
-/**
- * ExportPipeline: Renders timeline to video file.
- * - Runs on dedicated thread pool
- * - Can render faster or slower than real-time
- * - Uses hardware encoder (MediaCodec) when available
- * - Supports arbitrary resolution/frame rate
- */
+using ProgressCallback = std::function<void(const ExportProgress&)>;
+
 class ExportPipeline {
 public:
     ExportPipeline(GraphicsDevice& device, const RenderGraph& renderGraph, 
-                   const NodeGraph& nodeGraph, const Timeline& timeline);
+                   const NodeGraph& nodeGraph, const Timeline& timeline,
+                   const MediaEngine& mediaEngine, AudioEngine* audioEngine = nullptr);
     ~ExportPipeline();
     
-    // Start export asynchronously
-    // Returns immediately, calls progress callback during export
-    void StartExport(const ExportConfig& config, ExportProgressCallback progressCb,
-                     std::function<void(ExportResult)> completionCb);
+    // Start async export
+    bool StartExport(const ExportConfig& config, ProgressCallback callback = nullptr);
     
-    // Cancel ongoing export
+    // Wait for completion (blocking)
+    bool WaitForCompletion();
+    
+    // Cancel in-progress export
     void Cancel();
     
-    // Check if export is running
-    [[nodiscard]] bool IsRunning() const;
+    // Check status
+    [[nodiscard]] bool IsRunning() const { return running_.load(); }
+    [[nodiscard]] bool IsCancelled() const { return cancelled_.load(); }
+    [[nodiscard]] ExportProgress GetProgress() const;
     
-    // Synchronous export (blocks until complete)
-    ExportResult ExportSync(const ExportConfig& config);
+    // Get error if any
+    [[nodiscard]] std::string GetError() const { return lastError_; }
 
 private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
+    struct FrameData {
+        TextureHandle texture;
+        double timelineTime = 0.0;
+        uint64_t frameIndex = 0;
+    };
+    
+    struct AudioChunk {
+        std::vector<float> samples;
+        int64_t presentationTimeUs = 0;
+    };
 
-/**
- * VideoEncoder: Hardware-accelerated video encoding via MediaCodec.
- * Wraps AMediaCodec for H.264/HEVC encoding from Vulkan/GPU frames.
- */
-class VideoEncoder {
-public:
-    VideoEncoder();
-    ~VideoEncoder();
+    void ExportThreadMain();
+    void VideoEncodeThreadMain();
+    void AudioEncodeThreadMain();
+    void MuxThreadMain();
     
-    // Initialize encoder
-    // width/height: output resolution
-    // frameRate: frames per second
-    // bitrateBps: target bitrate in bits per second
-    // mime: "video/avc", "video/hevc", "video/vp9"
-    bool Initialize(uint32_t width, uint32_t height, double frameRate,
-                    int bitrateBps, const std::string& mime);
+    bool InitializeVideoEncoder();
+    bool InitializeAudioEncoder();
+    bool InitializeMuxer();
+    void Cleanup();
     
-    // Encode a frame from GPU texture
-    // texture: already in GPU memory (Vulkan image)
-    // presentationTimeUs: timestamp in microseconds
-    // Returns true if frame was accepted
-    bool EncodeFrame(TextureHandle texture, int64_t presentationTimeUs);
+    void EncodeVideoFrame(const FrameData& frame);
+    void EncodeAudioChunk(const AudioChunk& chunk);
+    void FlushEncoders();
     
-    // Signal end of stream
-    void SignalEndOfStream();
+    // Render a single frame at timeline time
+    std::optional<FrameData> RenderFrame(double timelineTime);
     
-    // Drain encoded packets, write to muxer
-    // muxer: AMediaMuxer to write to
-    // trackIndex: video track index from muxer
-    // Returns true if more packets available
-    bool DrainOutput(AMediaMuxer* muxer, ssize_t trackIndex);
-    
-    // Flush any remaining frames
-    void Flush();
-    
-    [[nodiscard]] bool IsInitialized() const { return initialized_; }
+    // Get mixed audio for time range
+    std::optional<AudioChunk> GetMixedAudio(double startTime, double endTime);
 
-private:
-    AMediaCodec* codec_ = nullptr;
-    AMediaFormat* format_ = nullptr;
-    bool initialized_ = false;
-    bool eosSignaled_ = false;
-    uint32_t width_ = 0, height_ = 0;
-    int64_t frameIntervalUs_ = 0;
-};
-
-/**
- * MediaMuxer: Container writing (MP4/MOV)
- */
-class MediaMuxer {
-public:
-    MediaMuxer();
-    ~MediaMuxer();
+    GraphicsDevice& device_;
+    const RenderGraph& renderGraph_;
+    const NodeGraph& nodeGraph_;
+    const Timeline& timeline_;
+    const MediaEngine& mediaEngine_;
+    AudioEngine* audioEngine_ = nullptr;
     
-    // Create muxer for output file
-    // outputPath: file path (.mp4)
-    // Returns true on success
-    bool Initialize(const std::string& outputPath);
+    ExportConfig config_;
+    ProgressCallback progressCallback_;
     
-    // Add video track from encoder format
-    // Returns track index or -1 on failure
-    ssize_t AddVideoTrack(AMediaFormat* format);
+    std::atomic<bool> running_{false};
+    std::atomic<bool> cancelled_{false};
+    std::string lastError_;
     
-    // Write sample data
-    bool WriteSampleData(ssize_t trackIndex, const uint8_t* data, size_t size,
-                         int64_t presentationTimeUs, uint32_t flags);
+    std::jthread exportThread_;
+    std::jthread videoEncodeThread_;
+    std::jthread audioEncodeThread_;
+    std::jthread muxThread_;
+    std::stop_source stopSource_;
     
-    // Finalize and close file
-    bool Finalize();
+    // Synchronization
+    std::mutex queueMutex_;
+    std::condition_variable queueCV_;
+    std::queue<FrameData> frameQueue_;
+    std::queue<AudioChunk> audioQueue_;
+    std::atomic<bool> framesDone_{false};
+    std::atomic<bool> audioDone_{false};
     
-    [[nodiscard]] bool IsInitialized() const { return initialized_; }
-
-private:
+    // MediaCodec handles
+    AMediaCodec* videoEncoder_ = nullptr;
+    AMediaCodec* audioEncoder_ = nullptr;
     AMediaMuxer* muxer_ = nullptr;
-    bool initialized_ = false;
+    AMediaFormat* videoFormat_ = nullptr;
+    AMediaFormat* audioFormat_ = nullptr;
+    ANativeWindow* videoInputSurface_ = nullptr;
+    int videoTrackIndex_ = -1;
+    int audioTrackIndex_ = -1;
+    
+    ExportProgress progress_;
+    std::chrono::steady_clock::time_point startTime_;
+    
+    // Frame rendering
+    std::unique_ptr<RenderGraph::CompileResult> renderPlan_;
+    uint64_t totalFrames_ = 0;
+    uint64_t framesWritten_ = 0;
 };
 
 } // namespace vfx

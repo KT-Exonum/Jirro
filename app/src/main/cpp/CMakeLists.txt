@@ -28,6 +28,12 @@ find_program(GLSLANG_VALIDATOR
 set(SHADER_EMBEDDED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/shaders_embedded.h")
 set(SHADER_COMPILE_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/compile_shaders.py")
 
+file(GLOB SHADER_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag"
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.comp"
+)
+
 if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
     add_custom_command(
         OUTPUT  ${SHADER_EMBEDDED_HEADER}
@@ -37,8 +43,7 @@ if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
                 --output ${SHADER_EMBEDDED_HEADER}
                 --glslang-validator ${GLSLANG_VALIDATOR}
         DEPENDS ${SHADER_COMPILE_SCRIPT}
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert
-                ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag
+                ${SHADER_SOURCES}
         COMMENT "Compiling GLSL shaders to embedded SPIR-V header"
         VERBATIM
     )
@@ -56,12 +61,24 @@ endif()
 add_library(vfxengine SHARED
     jni/jni_bridge.cpp
     Engine.cpp
+    engine/core/RuntimeShaderCompiler.cpp
     engine/vulkan/VulkanDevice.cpp
     engine/graph/RenderGraph.cpp
     engine/media/MediaEngine.cpp
     engine/core/Profiler.cpp
     engine/export/ExportPipeline.cpp
     engine/export/ProjectSerializer.cpp
+    engine/text/TextRenderer.cpp
+    engine/expression/ExpressionEngine.cpp
+    engine/shape2d/Shape2D.cpp
+    engine/audio/AudioEngine.cpp
+    engine/audio/AudioOutput.cpp
+    engine/asset/AssetManager.cpp
+    engine/3d/Light.cpp
+    engine/3d/Material.cpp
+    engine/3d/Shadow.cpp
+    engine/3d/glTFLoader.cpp
+    engine/timeline/Timeline.cpp
     ${SHADER_EMBEDDED_HEADER}
 )
 
@@ -81,6 +98,11 @@ find_library(android-lib android)
 find_library(vulkan-lib vulkan)
 find_library(mediandk-lib mediandk)   # AMediaCodec / AMediaExtractor / AImageReader / AImage
 find_library(nativewindow-lib nativewindow) # ANativeWindow / AHardwareBuffer
+find_library(aaudio-lib aaudio)       # AAudio for low-latency audio output
+
+# HarfBuzz and FreeType for text shaping (NDK provides these)
+find_library(harfbuzz-lib harfbuzz)
+find_library(freetype-lib freetype)
 
 target_link_libraries(vfxengine
     ${log-lib}
@@ -88,6 +110,9 @@ target_link_libraries(vfxengine
     ${vulkan-lib}
     ${mediandk-lib}
     ${nativewindow-lib}
+    ${aaudio-lib}
+    ${harfbuzz-lib}
+    ${freetype-lib}
 )
 
 target_compile_options(vfxengine PRIVATE

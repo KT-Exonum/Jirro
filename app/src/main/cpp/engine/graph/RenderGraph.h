@@ -14,7 +14,9 @@
 
 #include "Node.h"
 #include "engine/core/GraphicsDevice.h"
+#include "engine/expression/ExpressionEngine.h"
 #include "engine/media/MediaEngine.h"
+#include "engine/graph/ParticleSystem.h"
 
 namespace vfx {
 
@@ -24,6 +26,11 @@ struct CompiledPass {
     std::vector<std::string> inputNodeIds; // already topo-resolved
     TextureHandle output; // assigned during Compile() from the pool
     bool isFinalOutput = false;
+    
+    // Particle system fields
+    bool isParticleNode = false;
+    bool isParticleCompute = false; // true for compute pass (ParticleEmitter/Forces)
+    uint32_t particleBufferHandle = 0; // storage buffer handle for particles
 };
 
 struct CompileResult {
@@ -65,19 +72,34 @@ public:
     // Executes a previously-compiled plan at a given timeline timestamp
     // (uniform evaluation is time-dependent; topology is not, so Compile()
     // and Execute() are split to avoid re-resolving dependencies every
-    // frame when only keyframed values changed). `mediaEngine` is optional
-    // (nullable) so RenderGraph unit tests and Phase-1-only callers don't
-    // need a real media pipeline just to exercise Shader/Blend passes;
-    // VideoSource passes simply produce no output when it's null.
+    // frame when only keyframed values changed). `mediaEngine` and
+    // `audioEngine` are optional (nullable) so unit tests and early-phase
+    // callers don't need a full pipeline. VideoSource passes produce no
+    // output when mediaEngine is null; audio visualization nodes render
+    // with fallback values when audioEngine is null.
     void Execute(const NodeGraph& graph, const CompileResult& plan, double timelineSeconds,
-                 MediaEngine* mediaEngine = nullptr);
+                 MediaEngine* mediaEngine = nullptr,
+                 ExpressionEngine* expressionEngine = nullptr,
+                 class AudioEngine* audioEngine = nullptr);
 
 private:
     void ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
-                      MediaEngine* mediaEngine);
+                      MediaEngine* mediaEngine,
+                      ExpressionEngine* expressionEngine,
+                      AudioEngine* audioEngine);
+    
+    // Particle system
+    void InitializeParticleSystem(const ParticleConfig& config);
+    void DispatchParticleCompute(const CompiledPass& pass, double deltaTime, const ParticleConfig& config);
+    void RenderParticles(const CompiledPass& pass, const ParticleConfig& config, TextureHandle outputTexture,
+                         const std::vector<TextureHandle>& inputTextures, const std::unordered_map<std::string, float>& uniforms);
+    ParticleSimParams PackSimParams(const ParticleConfig& config, double deltaTime, uint32_t frameIndex, uint32_t seed);
 
     // Load or create shader module from SPIR-V bytecode (cached by bytecode content)
     ShaderModuleHandle GetOrCreateShaderModule(const uint32_t* spirv, size_t wordCount);
+
+    // Expand groups by inlining member nodes
+    void ExpandGroups(const NodeGraph& graph, std::unordered_set<std::string>& reachable);
 
     GraphicsDevice& device_;
     TransientTexturePool texturePool_;
@@ -95,6 +117,20 @@ private:
     // rendering nothing on ticks where MediaEngine::TryGetFrame misses
     // (decode is asynchronous — see MediaEngine.h's threading note).
     std::unordered_map<std::string, TextureHandle> lastVideoFrameByNode_;
+
+    // Particle system state
+    struct ParticleSystemState {
+        BufferHandle particleBuffer = 0;          // storage buffer for particle data
+        BufferHandle simParamsBuffer = 0;         // uniform buffer for simulation params
+        BufferHandle indirectBuffer = 0;          // indirect draw buffer (VkDrawIndirectCommand)
+        PipelineHandle computePipeline = 0;       // particle simulation compute pipeline
+        uint32_t maxParticles = 10000;
+        uint32_t frameIndex = 0;
+        uint32_t seed = 12345;
+        bool initialized = false;
+    } particleState_;
+
+    double lastTimelineSeconds_ = 0.0;
 };
 
 } // namespace vfx

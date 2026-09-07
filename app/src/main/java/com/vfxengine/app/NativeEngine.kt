@@ -89,6 +89,30 @@ class NativeEngine {
         if (handle != 0L) nativeNewProject(handle, name)
     }
 
+    fun openProject(filePath: String) {
+        if (handle != 0L) nativeOpenProject(handle, filePath)
+    }
+
+    fun getRecentProjects(): String {
+        if (handle != 0L) return nativeGetRecentProjects(handle)
+        return "[]"
+    }
+
+    fun hasProject(): Boolean {
+        if (handle != 0L) return nativeHasProject(handle)
+        return false
+    }
+
+    fun getProjectName(): String {
+        if (handle != 0L) return nativeGetProjectName(handle)
+        return ""
+    }
+
+    fun isProjectModified(): Boolean {
+        if (handle != 0L) return nativeIsProjectModified(handle)
+        return false
+    }
+
     // Phase 6: Profiling
     fun getProfileStats(): String {
         if (handle != 0L) return nativeGetProfileStats(handle)
@@ -158,6 +182,11 @@ class NativeEngine {
         }
     }
 
+    // Expression engine
+    fun setExpression(nodeId: String, uniformName: String, script: String) {
+        if (handle != 0L) nativeSetExpression(handle, nodeId, uniformName, script)
+    }
+
     // Undo/Redo
     fun undo() {
         if (handle != 0L) nativeUndo(handle)
@@ -166,6 +195,91 @@ class NativeEngine {
     fun redo() {
         if (handle != 0L) nativeRedo(handle)
     }
+
+    // Audio output control
+    fun startAudioOutput() {
+        if (handle != 0L) nativeStartAudioOutput(handle)
+    }
+
+    fun stopAudioOutput() {
+        if (handle != 0L) nativeStopAudioOutput(handle)
+    }
+
+    // Timeline clip operations
+    fun splitClip(clipId: String, timelinePosition: Double) {
+        if (handle != 0L) nativeSplitClip(handle, clipId, timelinePosition)
+    }
+
+    fun trimClip(clipId: String, sourceIn: Double, sourceOut: Double) {
+        if (handle != 0L) nativeTrimClip(handle, clipId, sourceIn, sourceOut)
+    }
+
+    fun createTransition(fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String) {
+        if (handle != 0L) nativeCreateTransition(handle, fromClipId, toClipId, duration, blendShaderNodeId)
+    }
+
+    // Media import and thumbnail generation
+    fun importMedia(uri: String) {
+        if (handle != 0L) nativeImportMedia(handle, uri)
+    }
+
+    fun generateThumbnail(uri: String, timeMs: Long): String? {
+        if (handle != 0L) return nativeGenerateThumbnail(handle, uri, timeMs)
+        return null
+    }
+
+    fun getMediaMetadata(uri: String): String? {
+        if (handle != 0L) return nativeGetMediaMetadata(handle, uri)
+        return null
+    }
+
+    // Export
+    fun exportVideo(outputPath: String, width: Int, height: Int, frameRate: Double, startTime: Double, endTime: Double, bitrateMbps: Int, codec: String) {
+        if (handle != 0L) nativeExport(handle, outputPath, width, height, frameRate, startTime, endTime, bitrateMbps, codec)
+    }
+
+    // Audio output control
+    fun startAudioOutput() {
+        if (handle != 0L) nativeStartAudioOutput(handle)
+    }
+
+    fun stopAudioOutput() {
+        if (handle != 0L) nativeStopAudioOutput(handle)
+    }
+
+    // Profiling
+    fun getProfileStats(): String {
+        if (handle != 0L) return nativeGetProfileStats(handle)
+        return "{}"
+    }
+
+    // Shader compilation
+    fun compileShadersIfNeeded() {
+        if (handle != 0L) nativeCompileShadersIfNeeded(handle)
+    }
+
+    fun reloadShaders() {
+        if (handle != 0L) nativeReloadShaders(handle)
+    }
+
+    // Crash Recovery
+    fun enableCrashRecovery(enabled: Boolean, intervalSeconds: Int = 30) {
+        if (handle != 0L) nativeEnableCrashRecovery(handle, enabled, intervalSeconds)
+    }
+
+    // Thermal Adaptation
+    fun enableLowEndFallbacks(enabled: Boolean) {
+        if (handle != 0L) nativeEnableLowEndFallbacks(handle, enabled)
+    }
+
+    fun autoConfigureForDevice() {
+        if (handle != 0L) nativeAutoConfigureForDevice(handle)
+    }
+
+    // Media import and thumbnail generation
+    private external fun nativeImportMedia(handle: Long, uri: String)
+    private external fun nativeGenerateThumbnail(handle: Long, uri: String, timeMs: Long): String
+    private external fun nativeGetMediaMetadata(handle: Long, uri: String): String
 
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
@@ -181,6 +295,11 @@ class NativeEngine {
     private external fun nativeSaveProject(handle: Long, filePath: String)
     private external fun nativeLoadProject(handle: Long, filePath: String)
     private external fun nativeNewProject(handle: Long, name: String)
+    private external fun nativeOpenProject(handle: Long, filePath: String)
+    private external fun nativeGetRecentProjects(handle: Long): String
+    private external fun nativeHasProject(handle: Long): Boolean
+    private external fun nativeGetProjectName(handle: Long): String
+    private external fun nativeIsProjectModified(handle: Long): Boolean
     private external fun nativeGetProfileStats(handle: Long): String
 
     // Phase 6: Dev shader hot-reload
@@ -205,6 +324,23 @@ class NativeEngine {
     )
     private external fun nativeUndo(handle: Long)
     private external fun nativeRedo(handle: Long)
+    private external fun nativeSetExpression(handle: Long, nodeId: String, uniformName: String, script: String)
+
+    // Audio output control
+    private external fun nativeStartAudioOutput(handle: Long)
+    private external fun nativeStopAudioOutput(handle: Long)
+
+    // Timeline clip operations
+    private external fun nativeSplitClip(handle: Long, clipId: String, timelinePosition: Double)
+    private external fun nativeTrimClip(handle: Long, clipId: String, sourceIn: Double, sourceOut: Double)
+    private external fun nativeCreateTransition(handle: Long, fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String)
+
+    // Crash Recovery
+    private external fun nativeEnableCrashRecovery(handle: Long, enabled: Boolean, intervalSeconds: Int)
+
+    // Thermal Adaptation
+    private external fun nativeEnableLowEndFallbacks(handle: Long, enabled: Boolean)
+    private external fun nativeAutoConfigureForDevice(handle: Long)
 
     companion object {
         init {
