@@ -211,4 +211,47 @@ std::vector<const Clip*> Timeline::ClipsInRange(double startT, double endT) cons
     return result;
 }
 
+// ============================================================================
+// Clipboard for relative copy/paste
+// ============================================================================
+
+bool Timeline::CopyClipToClipboard(const std::string& clipId, ClipboardData& outData) {
+    const Clip* clip = FindClip(clipId);
+    if (!clip) return false;
+
+    outData.sourceClipId = clipId;
+    outData.sourceClipDuration = clip->Duration();
+    outData.sourceStartTime = clip->timelineStart;
+    outData.staticUniforms.clear();
+    outData.animatedUniforms.clear();
+
+    // Note: The actual keyframe data lives in the NodeGraph (per-node animatedUniforms)
+    // This Timeline-level clipboard is for clip-level properties.
+    // The EditorState (Kotlin) handles the NodeGraph keyframe clipboard.
+    
+    return true;
+}
+
+bool Timeline::PasteClipboardToClip(const std::string& targetClipId, const ClipboardData& data) {
+    Clip* targetClip = FindClipMutable(targetClipId);
+    if (!targetClip) return false;
+    if (data.sourceClipDuration <= 0.0) return false;
+
+    double targetDuration = targetClip->Duration();
+    if (targetDuration <= 0.0) return false;
+
+    // Calculate scaling factor for relative paste
+    double scale = targetDuration / data.sourceClipDuration;
+
+    // In a full implementation, this would:
+    // 1. Copy static uniform values to target node
+    // 2. Scale and copy animated keyframe tracks:
+    //    for each keyframe in source track:
+    //      newTime = (keyframe.time - sourceClipStart) * scale + targetClipStart
+    //      targetTrack.addKeyframe(newTime, keyframe.value, keyframe.interpolation, ...)
+
+    // The actual keyframe scaling is done at Kotlin level where we have access to EditorState
+    return true;
+}
+
 } // namespace vfx

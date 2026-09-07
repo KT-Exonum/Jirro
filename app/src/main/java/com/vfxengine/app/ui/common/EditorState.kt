@@ -472,6 +472,13 @@ class EditorState(
             val py = uuu * p0y + 3 * uu * t * p1y + 3 * u * tt * p2y + ttt * p3y
             return (prev.value + (next.value - prev.value) * py).toFloat()
         }
+
+        fun copy(): KeyframeTrack {
+            val copy = KeyframeTrack()
+            copy.keyframes.addAll(keyframes.map { it.copy() })
+            copy.procedural = this.procedural
+            return copy
+        }
     }
 
     // Undo/Redo
@@ -1317,6 +1324,127 @@ class EditorState(
     
     fun getProxyResolutionOptions(): List<String> {
         return listOf("270p", "360p", "540p", "720p", "1080p")
+    }
+
+    // ========================================================================
+    // Clipboard for relative copy/paste of keyframes and effects
+    // ========================================================================
+
+    /**
+     * Clipboard data for a copied clip including all animated uniform tracks
+     * and static uniform values. Supports relative paste scaling.
+     */
+    data class ClipboardData(
+        val sourceClipId: String,
+        val sourceClipDuration: Double,
+        val sourceTimelineStart: Double,
+        val animatedUniforms: Map<String, KeyframeTrack>,
+        val staticUniforms: Map<String, Float>,
+        val nodeType: NodeType
+    )
+
+    private var _clipboard = mutableStateOf<ClipboardData?>(null)
+    val clipboard: ClipboardData?
+        get() = _clipboard.value
+
+    /**
+     * Copy all keyframes and effects from a clip to clipboard.
+     * Captures animated uniform tracks + static uniform values.
+     */
+    fun copyClipToClipboard(clipId: String) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        val node = nodes.value[clip.nodeId] ?: return
+
+        val animated = node.animatedUniforms.mapValues { (k, v) -> k to v.copy() }
+        val static = node.uniforms.toMap()
+
+        _clipboard.value = ClipboardData(
+            sourceClipId = clipId,
+            sourceClipDuration = clip.duration,
+            sourceTimelineStart = clip.timelineStart,
+            animatedUniforms = animated,
+            staticUniforms = static,
+            nodeType = node.type
+        )
+    }
+
+    /**
+     * Paste clipboard data to target clip with RELATIVE SCALING.
+     * Keyframe times are scaled proportionally:
+     *   newTime = (keyframeTime - sourceStart) * (targetDuration / sourceDuration) + targetStart
+     * 
+     * This means:
+     * - Keyframe at 1s on a 10s clip → 0.1s on a 1s clip
+     * - Keyframe at 50% progress → 50% progress on target
+     * - All easing/interpolation/curve data preserved
+     */
+    fun pasteClipboardToClip(targetClipId: String) {
+        val clipboardData = _clipboard.value ?: return
+        val targetClip = clips.value.firstOrNull { it.id == targetClipId } ?: return
+        val targetNode = nodes.value[targetClip.nodeId] ?: return
+
+        // Only paste if node types are compatible
+        if (clipboardData.nodeType != targetNode.type) return
+
+        val sourceDuration = clipboardData.sourceClipDuration
+        val targetDuration = targetClip.duration
+
+        if (sourceDuration <= 0 || targetDuration <= 0) return
+
+        val scale = targetDuration / sourceDuration
+        val sourceStart = clipboardData.sourceTimelineStart
+        val targetStart = targetClip.timelineStart
+
+        // Paste static uniforms
+        clipboardData.staticUniforms.forEach { (name, value) ->
+            targetNode.uniforms[name] = value
+            nativeEngine.updateUniform(targetNode.id, name, value)
+        }
+
+        // Paste animated uniforms with RELATIVE TIME SCALING
+        clipboardData.animatedUniforms.forEach { (uniformName, sourceTrack) ->
+            val targetTrack = targetNode.animatedUniforms.getOrPut(uniformName) { KeyframeTrack() }
+            targetTrack.keyframes.clear()
+
+            sourceTrack.keyframes.forEach { kf ->
+                // Calculate relative time within source clip (0 to 1)
+                val relativeTime = (kf.time - sourceStart) / sourceDuration
+                
+                // Scale to target clip duration
+                val newTime = targetStart + relativeTime * targetDuration
+                
+                // Create new keyframe with scaled time, preserving all interpolation data
+                val newKf = Keyframe(
+                    time = newTime,
+                    value = kf.value,
+                    interpolation = kf.interpolation,
+                    inTangent = kf.inTangent,
+                    outTangent = kf.outTangent,
+                    customCurvePoints = kf.customCurvePoints.toMutableList()
+                )
+                targetTrack.keyframes.add(newKf)
+            }
+
+            // Sort keyframes by time
+            targetTrack.keyframes.sortBy { it.time }
+
+            // Update native engine with new keyframes
+            targetTrack.keyframes.forEach { kf ->
+                nativeEngine.addKeyframe(targetNode.id, uniformName, kf.time, kf.value)
+            }
+        }
+    }
+
+    /**
+     * Check if clipboard has data
+     */
+    fun hasClipboardData(): Boolean = _clipboard.value != null
+
+    /**
+     * Clear clipboard
+     */
+    fun clearClipboard() {
+        _clipboard.value = null
     }
 
     fun loadMediaFiles() {

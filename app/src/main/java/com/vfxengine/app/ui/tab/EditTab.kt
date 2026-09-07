@@ -534,6 +534,7 @@ fun QuickActionToolbar(
     val selectedClip = selectedClipId?.let { state.clips.value.firstOrNull { it.id == it } }
     val hasProxy = selectedClip?.proxyGenerated ?: false
     val useProxy = selectedClip?.useProxy ?: false
+    val canCopyPaste = selectedClipId != null && state.hasClipboardData()
     
     Card(
         modifier = Modifier
@@ -558,6 +559,16 @@ fun QuickActionToolbar(
             }
             ActionButton("Delete", android.R.drawable.ic_menu_delete) {
                 selectedClipId?.let { state.removeClip(it) }
+            }
+            
+            // Copy button
+            ActionButton("Copy", android.R.drawable.ic_menu_copy) {
+                selectedClipId?.let { state.copyClipToClipboard(it) }
+            }
+            
+            // Paste button - enabled when clipboard has data and clip selected
+            ActionButton("Paste", android.R.drawable.ic_menu_paste, enabled = canCopyPaste) {
+                selectedClipId?.let { state.pasteClipboardToClip(it) }
             }
             
             // Transition button - enabled when there are at least 2 clips

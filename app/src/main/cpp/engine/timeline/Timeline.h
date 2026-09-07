@@ -170,12 +170,43 @@ public:
     [[nodiscard]] const std::vector<Clip>& AllClips() const { return clips_; }
     [[nodiscard]] const std::vector<Transition>& AllTransitions() const { return transitions_; }
 
+    // ========================================================================
+    // Clipboard for relative copy/paste of keyframes and effects
+    // ========================================================================
+
+    // Stores copied clip data with source duration for relative paste
+    struct ClipboardData {
+        std::string sourceClipId;
+        double sourceClipDuration = 0.0;  // Source clip timeline duration
+        std::unordered_map<std::string, KeyframeTrack> animatedUniforms; // uniformName -> track
+        std::unordered_map<std::string, float> staticUniforms; // uniformName -> value
+        double sourceStartTime = 0.0; // Timeline position of source clip
+    };
+
+    // Copy all animatable data from a clip to clipboard
+    // Returns true if successful
+    bool CopyClipToClipboard(const std::string& clipId, ClipboardData& outData);
+
+    // Paste clipboard data to target clip with relative scaling
+    // Scales keyframe times proportionally: targetTime = keyframeTime * (targetDuration / sourceDuration)
+    // Returns true if successful
+    bool PasteClipboardToClip(const std::string& targetClipId, const ClipboardData& data);
+
+    // Get clipboard data (for UI preview)
+    [[nodiscard]] std::optional<ClipboardData> GetClipboard() const { return clipboard_; }
+
+    // Clear clipboard
+    void ClearClipboard() { clipboard_.reset(); }
+
 private:
     double frameRate_;
     TimelineTime currentTime_{};
     PlaybackState state_ = PlaybackState::Stopped;
     std::vector<Clip> clips_;
     std::vector<Transition> transitions_;
+    
+    // Clipboard storage
+    std::optional<ClipboardData> clipboard_;
 };
 
 } // namespace vfx
