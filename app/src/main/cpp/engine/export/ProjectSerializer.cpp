@@ -1046,4 +1046,22 @@ void ProjectManager::NotifyChanged() {
     if (onProjectChanged_) onProjectChanged_(projectPath_);
 }
 
+std::string ProjectManager::GetRecentProjectsJson() const {
+    // In a real implementation, this would read from a recents file
+    // For now, return empty array
+    return "[]";
+}
+
+bool ProjectManager::HasProject() const {
+    return currentProject_.has_value();
+}
+
+const std::string& ProjectManager::GetProjectName() const {
+    return projectName_;
+}
+
+bool ProjectManager::IsModified() const {
+    return modified_;
+}
+
 } // namespace vfx

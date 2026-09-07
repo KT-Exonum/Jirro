@@ -233,19 +233,6 @@ class NativeEngine {
         return null
     }
 
-    // Project save/load
-    fun saveProject(filePath: String) {
-        if (handle != 0L) nativeSaveProject(handle, filePath)
-    }
-
-    fun loadProject(filePath: String) {
-        if (handle != 0L) nativeLoadProject(handle, filePath)
-    }
-
-    fun newProject(name: String) {
-        if (handle != 0L) nativeNewProject(handle, name)
-    }
-
     // Export
     fun exportVideo(outputPath: String, width: Int, height: Int, frameRate: Double, startTime: Double, endTime: Double, bitrateMbps: Int, codec: String) {
         if (handle != 0L) nativeExport(handle, outputPath, width, height, frameRate, startTime, endTime, bitrateMbps, codec)

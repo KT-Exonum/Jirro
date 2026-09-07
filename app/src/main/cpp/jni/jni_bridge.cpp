@@ -245,14 +245,81 @@ Java_com_vfxengine_app_NativeEngine_nativeLoadProject(JNIEnv* env, jobject, jlon
 }
 
 JNIEXPORT void JNICALL
-Java_com_vfxengine_app_NativeEngine_nativeNewProject(JNIEnv*, jobject, jlong handle,
+Java_com_vfxengine_app_NativeEngine_nativeNewProject(JNIEnv* env, jobject, jlong handle,
                                                       jstring name) {
     auto* engine = GetEngine(handle);
     if (!engine) return;
     
-    // Get project manager and create new project
-    // For now, just log
-    __android_log_print(ANDROID_LOG_INFO, "ProjectManager", "New project requested");
+    const char* nameChars = env->GetStringUTFChars(name, nullptr);
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        pm->NewProject(nameChars);
+    }
+    env->ReleaseStringUTFChars(name, nameChars);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeOpenProject(JNIEnv* env, jobject, jlong handle,
+                                                       jstring filePath) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* pathChars = env->GetStringUTFChars(filePath, nullptr);
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        pm->OpenProject(pathChars);
+    }
+    env->ReleaseStringUTFChars(filePath, pathChars);
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGetRecentProjects(JNIEnv* env, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("[]");
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        // Return recent projects list as JSON
+        std::string json = pm->GetRecentProjectsJson();
+        return env->NewStringUTF(json.c_str());
+    }
+    return env->NewStringUTF("[]");
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeHasProject(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return JNI_FALSE;
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        return pm->HasProject() ? JNI_TRUE : JNI_FALSE;
+    }
+    return JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGetProjectName(JNIEnv* env, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("");
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        return env->NewStringUTF(pm->GetProjectName().c_str());
+    }
+    return env->NewStringUTF("");
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeIsProjectModified(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return JNI_FALSE;
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        return pm->IsModified() ? JNI_TRUE : JNI_FALSE;
+    }
+    return JNI_FALSE;
 }
 
 // Phase 6: Profiling

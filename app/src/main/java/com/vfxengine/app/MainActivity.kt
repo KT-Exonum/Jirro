@@ -32,6 +32,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // File picker for project files (.vfxproj)
+    private val pickProject = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val uri = result.data?.data
+            if (uri != null) {
+                nativeEngine.openProject(uri.toString())
+            }
+        }
+    }
+
+    // Save As project file picker
+    private val saveProjectAs = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val uri = result.data?.data
+            if (uri != null) {
+                nativeEngine.saveProject(uri.toString())
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         nativeEngine.create()
@@ -39,7 +59,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    EditorRoot(nativeEngine, ::pickMedia)
+                    EditorRoot(nativeEngine, ::pickMedia, ::pickProject, ::saveProjectAs)
                 }
             }
         }
