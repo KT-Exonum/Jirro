@@ -194,6 +194,6 @@ void main() {
     alpha *= uniforms.opacity;
     
     // Apply mask to input
-    vec4 input = texture(inputTexture, uv);
-    outColor = vec4(input.rgb, input.a * alpha);
+    vec4 src = texture(inputTexture, uv);
+    outColor = vec4(src.rgb, src.a * alpha);
 }

@@ -24,14 +24,16 @@ layout(set = 1, binding = 0) readonly buffer PathSegments {
 } pathSegs;
 
 // Output vertex buffer
+struct Vertex {
+    vec2 pos;
+    vec2 uv;
+    vec4 color;
+    int layerId;
+    int pathId;
+};
+
 layout(set = 1, binding = 1, std430) buffer Vertices {
-    struct Vertex {
-        vec2 pos;
-        vec2 uv;
-        vec4 color;
-        int layerId;
-        int pathId;
-    } vertices[];
+    Vertex vertices[];
 } vertexBuf;
 
 // Output index buffer
@@ -78,7 +80,7 @@ void main() {
     uint segIdx = gl_GlobalInvocationID.x;
     if (segIdx >= tess.segmentCount) return;
     
-    auto seg = pathSegs.segments[segIdx];
+    PathSegment seg = pathSegs.segments[segIdx];
     if (seg.cmd == 4) return; // Close - handled separately
     
     int steps = 2;
@@ -93,12 +95,13 @@ void main() {
     // Full implementation would use parallel prefix sum for vertex offsets
     
     // Placeholder: emit endpoint
-    if (gl_LocalInvocationIndex == 0) {
-        uint vIdx = atomicAdd(vertexBuf.vertices.length(), 1);
-        if (vIdx < tess.maxVertices) {
-            vertexBuf.vertices[vIdx] = Vertex{
-                seg.p2, vec2(0), vec4(1), seg.layerId, seg.pathId
-            };
-        }
+    if (segIdx < uint(tess.maxVertices)) {
+        Vertex v;
+        v.pos = seg.p2;
+        v.uv = vec2(0);
+        v.color = vec4(1);
+        v.layerId = seg.layerId;
+        v.pathId = seg.pathId;
+        vertexBuf.vertices[segIdx] = v;
     }
 }

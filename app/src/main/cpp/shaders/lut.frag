@@ -59,7 +59,8 @@ vec3 logCToLinear(vec3 c) {
 
 vec3 slogToLinear(vec3 c) {
     // Sony S-Log to linear (approximate)
-    return pow(10.0, (c * 0.432699 - 0.616596) / 0.6) - 0.037584;
+    vec3 exponent = (c * 0.432699 - 0.616596) / 0.6;
+    return pow(vec3(10.0), exponent) - 0.037584;
 }
 
 vec3 toLinear(vec3 c) {
@@ -91,8 +92,8 @@ vec3 sampleLUTTetrahedral(sampler3D lut, vec3 uv) {
 }
 
 void main() {
-    vec4 input = texture(uInputTexture, vUv);
-    vec3 color = input.rgb;
+    vec4 src = texture(uInputTexture, vUv);
+    vec3 color = src.rgb;
     
     // Convert to linear space
     color = toLinear(color);
@@ -128,5 +129,5 @@ void main() {
     lum = dot(result, vec3(0.2126, 0.7152, 0.0722));
     result = mix(vec3(lum), result, lutParams.uSaturation);
     
-    outColor = vec4(clamp(result, 0.0, 1.0), input.a);
+    outColor = vec4(clamp(result, 0.0, 1.0), src.a);
 }

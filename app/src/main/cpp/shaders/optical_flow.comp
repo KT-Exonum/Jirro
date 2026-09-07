@@ -145,12 +145,12 @@ vec2 lucasKanadeStep(sampler2D img0, sampler2D img1, vec2 uv, vec2 initFlow,
 
 // Build pyramid level (separable Gaussian blur)
 void buildPyramidLevel(sampler2D src, int level, vec2 uv, out vec4 color) {
-    PyramidLevel pl = uPyramidLevels[level];
+    PyramidLevel pl = params.uPyramidLevelData[level];
     if (level == 0) {
         color = texture(src, uv);
     } else {
         // Sample from previous level with 2x downscaling
-        PyramidLevel plPrev = uPyramidLevels[level - 1];
+        PyramidLevel plPrev = params.uPyramidLevelData[level - 1];
         vec2 uvPrev = uv * float(plPrev.width) / float(pl.width);
         color = texture(src, uvPrev); // Simplified - real impl would blur
     }
@@ -167,7 +167,7 @@ float checkConsistency(vec2 uv, vec2 forwardFlow, vec2 backwardFlow, float thres
     
     // Check consistency: forward(backward(x)) ≈ x
     float error = length(forwardFlow + backFlowAtWarp);
-    return step(error, threshold) ? 0.0 : 1.0; // 0 = visible, 1 = occluded
+    return error < threshold ? 0.0 : 1.0; // 0 = visible, 1 = occluded
 }
 
 void main() {
@@ -218,5 +218,5 @@ void main() {
     
     // Write outputs
     imageStore(uFlowOutput, gid, vec4(forwardFlow, backwardFlow));
-    imageStore(uOcclusionOutput, gid, vec2(forwardOcc, backwardOcc));
+    imageStore(uOcclusionOutput, gid, vec4(forwardOcc, backwardOcc, 0.0, 0.0));
 }

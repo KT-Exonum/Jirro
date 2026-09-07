@@ -514,4 +514,95 @@ std::optional<ExportPipeline::AudioChunk> ExportPipeline::GetMixedAudio(double s
     return chunk;
 }
 
+bool ExportPipeline::StartBatchExport(const std::vector<ExportConfig>& configs, ProgressCallback callback) {
+    if (running_.load()) {
+        lastError_ = "Export already in progress";
+        return false;
+    }
+    if (configs.empty()) {
+        lastError_ = "Empty batch export queue";
+        return false;
+    }
+    
+    batchQueue_ = configs;
+    batchCurrentIndex_ = 0;
+    batchCallback_ = std::move(callback);
+    batchMode_ = true;
+    batchTotalFrames_ = 0;
+    batchFramesCompleted_ = 0;
+    
+    for (const auto& cfg : batchQueue_) {
+        batchTotalFrames_ += static_cast<uint64_t>(cfg.duration * cfg.frameRate);
+    }
+    
+    progress_.totalFrames = batchTotalFrames_;
+    progress_.framesWritten = 0;
+    progress_.progress = 0.0;
+    progress_.currentOperation = "Starting batch export...";
+    progress_.errorMessage.clear();
+    
+    running_.store(true);
+    cancelled_.store(false);
+    lastError_.clear();
+    startTime_ = std::chrono::steady_clock::now();
+    
+    exportThread_ = std::jthread(&ExportPipeline::BatchExportThreadMain, this, stopSource_.get_token());
+    return true;
+}
+
+void ExportPipeline::BatchExportThreadMain(std::stop_token stopToken) {
+    LOGI("Starting batch export of %zu jobs", batchQueue_.size());
+    
+    for (size_t i = 0; i < batchQueue_.size() && !stopToken.stop_requested() && !cancelled_.load(); ++i) {
+        batchCurrentIndex_ = i;
+        const auto& cfg = batchQueue_[i];
+        
+        {
+            std::lock_guard<std::mutex> lock(queueMutex_);
+            progress_.currentOperation = "Exporting job " + std::to_string(i + 1) + " / " + std::to_string(batchQueue_.size()) + ": " + cfg.outputPath;
+            if (batchCallback_) batchCallback_(progress_);
+        }
+        
+        ExportConfig currentCfg = cfg;
+        ProgressCallback wrappedCallback = [this, currentCfg, i](const ExportProgress& p) {
+            if (batchCallback_) {
+                ExportProgress batchProgress = p;
+                batchProgress.framesWritten = batchFramesCompleted_ + p.framesWritten;
+                batchProgress.progress = batchTotalFrames_ > 0 ? static_cast<double>(batchProgress.framesWritten) / static_cast<double>(batchTotalFrames_) : 0.0;
+                auto elapsed = std::chrono::steady_clock::now() - startTime_;
+                batchProgress.elapsedSeconds = std::chrono::duration<double>(elapsed).count();
+                if (batchProgress.framesWritten > 0 && batchProgress.elapsedSeconds > 0) {
+                    batchProgress.estimatedRemainingSeconds = 
+                        batchProgress.elapsedSeconds * (batchTotalFrames_ - batchProgress.framesWritten) / batchProgress.framesWritten;
+                }
+                batchProgress.currentOperation = "Job " + std::to_string(i + 1) + "/" + std::to_string(batchQueue_.size()) + ": " + p.currentOperation;
+                batchCallback_(batchProgress);
+            }
+        };
+        
+        if (!StartExport(currentCfg, wrappedCallback)) {
+            LOGE("Batch export job %zu failed to start: %s", i, lastError_.c_str());
+            continue;
+        }
+        
+        WaitForCompletion();
+        
+        if (!lastError_.empty()) {
+            LOGE("Batch export job %zu failed: %s", i, lastError_.c_str());
+        }
+        
+        batchFramesCompleted_ += static_cast<uint64_t>(currentCfg.duration * currentCfg.frameRate);
+        
+        {
+            std::lock_guard<std::mutex> lock(queueMutex_);
+            progress_.framesWritten = batchFramesCompleted_;
+            progress_.progress = batchTotalFrames_ > 0 ? static_cast<double>(batchFramesCompleted_) / static_cast<double>(batchTotalFrames_) : 0.0;
+            if (batchCallback_) batchCallback_(progress_);
+        }
+    }
+    
+    running_.store(false);
+    LOGI("Batch export completed: %zu jobs", batchQueue_.size());
+}
+
 } // namespace vfx
