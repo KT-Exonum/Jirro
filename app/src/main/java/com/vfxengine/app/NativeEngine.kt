@@ -172,6 +172,28 @@ class NativeEngine {
         if (handle != 0L) nativeRedo(handle)
     }
 
+    // Audio output control
+    fun startAudioOutput() {
+        if (handle != 0L) nativeStartAudioOutput(handle)
+    }
+
+    fun stopAudioOutput() {
+        if (handle != 0L) nativeStopAudioOutput(handle)
+    }
+
+    // Timeline clip operations
+    fun splitClip(clipId: String, timelinePosition: Double) {
+        if (handle != 0L) nativeSplitClip(handle, clipId, timelinePosition)
+    }
+
+    fun trimClip(clipId: String, sourceIn: Double, sourceOut: Double) {
+        if (handle != 0L) nativeTrimClip(handle, clipId, sourceIn, sourceOut)
+    }
+
+    fun createTransition(fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String) {
+        if (handle != 0L) nativeCreateTransition(handle, fromClipId, toClipId, duration, blendShaderNodeId)
+    }
+
     private external fun nativeCreate(): Long
     private external fun nativeDestroy(handle: Long)
     private external fun nativeAttachSurface(handle: Long, surface: Surface)
@@ -211,6 +233,15 @@ class NativeEngine {
     private external fun nativeUndo(handle: Long)
     private external fun nativeRedo(handle: Long)
     private external fun nativeSetExpression(handle: Long, nodeId: String, uniformName: String, script: String)
+
+    // Audio output control
+    private external fun nativeStartAudioOutput(handle: Long)
+    private external fun nativeStopAudioOutput(handle: Long)
+
+    // Timeline clip operations
+    private external fun nativeSplitClip(handle: Long, clipId: String, timelinePosition: Double)
+    private external fun nativeTrimClip(handle: Long, clipId: String, sourceIn: Double, sourceOut: Double)
+    private external fun nativeCreateTransition(handle: Long, fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String)
 
     companion object {
         init {

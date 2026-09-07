@@ -55,6 +55,9 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
     var showProfiler by remember { mutableStateOf(false) }
     var currentTab by remember { mutableStateOf(EditorTab.Media) }
     
+    // Callback to switch tabs
+    val onTabSwitch = remember { { tab: EditorTab -> currentTab = tab } }
+    
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color(0xFF0F0F0F)
@@ -64,7 +67,7 @@ fun EditorRoot(engine: com.vfxengine.app.NativeEngine) {
                 // Tab content
                 when (currentTab) {
                     EditorTab.Media -> MediaTab(state)
-                    EditorTab.Timeline -> EditTab(state)
+                    EditorTab.Timeline -> EditTab(state, onTabSwitch)
                     EditorTab.Effects -> FusionTab(state)
                     EditorTab.Export -> DeliverTab(state, engine)
                 }

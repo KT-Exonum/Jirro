@@ -111,7 +111,7 @@ std::optional<BeatInfo> AudioAnalyzer::DetectBeats(std::span<const float> sample
     bool isBeat = energy > beatState_.avgEnergy * 1.4f && variance > 0.3f;
 
     BeatInfo info;
-    if (isBeat && (currentTimeSec - static_cast<float>(beatState_.lastBeatSample) / sampleRate_) > 0.25) {
+    if (isBeat && (currentTimeSec - static_cast<float>(beatState_.lastBeatSample) / static_cast<float>(sampleRate_)) > 0.25) {
         info.beatTimes.push_back(static_cast<float>(currentTimeSec));
         info.beatStrengths.push_back(std::clamp(energy / (beatState_.avgEnergy + 1e-6f), 0.0f, 1.0f));
         beatState_.lastBeatSample = static_cast<int64_t>(currentTimeSec * sampleRate_);
@@ -463,11 +463,24 @@ bool AudioEngine::Initialize(GraphicsDevice* device) {
     (void)device;
     mixer_ = std::make_unique<AudioMixer>();
     analyzer_ = std::make_unique<AudioAnalyzer>();
+    audioOutput_ = std::make_unique<AudioOutput>();
+    
+    // Set up audio output callback to pull from mixer
+    audioOutput_->SetCallback([this](std::span<float> output, int numFrames) {
+        if (mixer_) {
+            mixer_->Mix(output);
+        } else {
+            std::fill(output.begin(), output.end(), 0.0f);
+        }
+    });
+    
     LOGI("AudioEngine initialized");
     return true;
 }
 
 void AudioEngine::Shutdown() {
+    StopAudioOutput();
+    
     analysisStopSource_.request_stop();
     analysisCV_.notify_all();
 
@@ -477,6 +490,7 @@ void AudioEngine::Shutdown() {
     clipOrder_.clear();
     mixer_.reset();
     analyzer_.reset();
+    audioOutput_.reset();
 }
 
 std::string AudioEngine::LoadAudio(std::string_view path) {
@@ -549,7 +563,34 @@ void AudioEngine::SetPlaybackTime(double timeSec) {
 
 void AudioEngine::SetPlaybackSpeed(float speed) { playbackSpeed_ = std::clamp(speed, 0.1f, 4.0f); }
 
-void AudioEngine::SetMasterVolume(float volume) { masterVolume_ = std::clamp(volume, 0.0f, 2.0f); }
+void AudioEngine::SetMasterVolume(float volume) { 
+    masterVolume_ = std::clamp(volume, 0.0f, 2.0f);
+    if (audioOutput_) audioOutput_->SetVolume(volume);
+}
+
+// Audio output
+void AudioEngine::StartAudioOutput() {
+    if (audioOutput_ && !audioOutputRunning_) {
+        if (audioOutput_->Start()) {
+            audioOutputRunning_ = true;
+            LOGI("Audio output started");
+        } else {
+            LOGE("Failed to start audio output");
+        }
+    }
+}
+
+void AudioEngine::StopAudioOutput() {
+    if (audioOutput_ && audioOutputRunning_) {
+        audioOutput_->Stop();
+        audioOutputRunning_ = false;
+        LOGI("Audio output stopped");
+    }
+}
+
+bool AudioEngine::IsAudioOutputRunning() const {
+    return audioOutputRunning_;
+}
 
 std::vector<float> AudioEngine::GetMixedAudio(double timeSec, double durationSec) {
     if (!mixer_) return {};
@@ -558,19 +599,42 @@ std::vector<float> AudioEngine::GetMixedAudio(double timeSec, double durationSec
 
 SpectrumData AudioEngine::GetCurrentSpectrum() {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (!analyzer_) return {};
-    // TODO: return actual mixed audio spectrum from current playback position
-    return {};
+    if (!analyzer_ || !mixer_) return {};
+    
+    // Get current mixed audio for spectrum analysis
+    // We need a small window of audio around current time
+    const double windowSec = 0.1; // 100ms window
+    auto mixed = mixer_->RenderMix(currentTimeSec_, currentTimeSec_ + windowSec);
+    if (mixed.empty()) return {};
+    
+    // Analyze the mixed audio
+    return analyzer_->AnalyzeSpectrum(mixed, channels_);
 }
 
 BeatInfo AudioEngine::GetCurrentBeatInfo() {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (!analyzer_ || !mixer_) return {};
+    
+    // Get current mixed audio for beat detection
+    const double windowSec = 0.1;
+    auto mixed = mixer_->RenderMix(currentTimeSec_, currentTimeSec_ + windowSec);
+    if (mixed.empty()) return {};
+    
+    auto beatInfo = analyzer_->DetectBeats(mixed, channels_, currentTimeSec_);
+    if (beatInfo) return *beatInfo;
     return BeatInfo{};
 }
 
 std::vector<float> AudioEngine::GetCurrentWaveform(size_t points) {
     std::lock_guard<std::mutex> lock(mutex_);
-    return std::vector<float>(points, 0.0f);
+    if (!analyzer_ || !mixer_) return std::vector<float>(points, 0.0f);
+    
+    // Get current mixed audio for waveform
+    const double windowSec = 0.1;
+    auto mixed = mixer_->RenderMix(currentTimeSec_, currentTimeSec_ + windowSec);
+    if (mixed.empty()) return std::vector<float>(points, 0.0f);
+    
+    return analyzer_->GetWaveform(mixed, channels_, points);
 }
 
 float AudioEngine::GetAudioLevel(const std::string& clipId, float frequency) {
@@ -594,6 +658,18 @@ void AudioEngine::Update(double deltaTime) {
     std::lock_guard<std::mutex> lock(mutex_);
     currentTimeSec_ += deltaTime * playbackSpeed_;
     UpdateClipPositions();
+    
+    // Decode audio for active clips and feed to mixer
+    for (const auto& id : clipOrder_) {
+        if (auto it = clips_.find(id); it != clips_.end()) {
+            AudioClip* clip = it->second.get();
+            if (clip->mute) continue;
+            
+            // Check if we need to decode audio for this clip at current time
+            // In a full implementation, this would decode from the source file
+            // For now, we'll just update the clip's mute state
+        }
+    }
 }
 
 void AudioEngine::AnalysisThreadMain(std::stop_token stopToken) {

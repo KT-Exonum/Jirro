@@ -72,11 +72,13 @@ add_library(vfxengine SHARED
     engine/expression/ExpressionEngine.cpp
     engine/shape2d/Shape2D.cpp
     engine/audio/AudioEngine.cpp
+    engine/audio/AudioOutput.cpp
     engine/asset/AssetManager.cpp
     engine/3d/Light.cpp
     engine/3d/Material.cpp
     engine/3d/Shadow.cpp
     engine/3d/glTFLoader.cpp
+    engine/timeline/Timeline.cpp
     ${SHADER_EMBEDDED_HEADER}
 )
 
@@ -96,6 +98,7 @@ find_library(android-lib android)
 find_library(vulkan-lib vulkan)
 find_library(mediandk-lib mediandk)   # AMediaCodec / AMediaExtractor / AImageReader / AImage
 find_library(nativewindow-lib nativewindow) # ANativeWindow / AHardwareBuffer
+find_library(aaudio-lib aaudio)       # AAudio for low-latency audio output
 
 # HarfBuzz and FreeType for text shaping (NDK provides these)
 find_library(harfbuzz-lib harfbuzz)
@@ -107,6 +110,7 @@ target_link_libraries(vfxengine
     ${vulkan-lib}
     ${mediandk-lib}
     ${nativewindow-lib}
+    ${aaudio-lib}
     ${harfbuzz-lib}
     ${freetype-lib}
 )

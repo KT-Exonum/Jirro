@@ -150,6 +150,10 @@ void Engine::Tick() {
             // Phase 7+: Audio engine
             audioEngine_ = std::make_unique<AudioEngine>();
             audioEngine_->Initialize(device_.get());
+            // Start audio output for real-time playback
+            if (audioEngine_) {
+                audioEngine_->StartAudioOutput();
+            }
 
             // Runtime shader compilation: compile-on-first-run, cache for later
             shaderCompiler_ = std::make_unique<RuntimeShaderCompiler>();

@@ -301,6 +301,25 @@ public:
         });
     }
 
+    // Timeline clip operations (Split/Trim/Delete)
+    void QueueSplitClip(const std::string& clipId, double timelinePosition) {
+        QueueCommand([clipId, timelinePosition](Engine& engine) {
+            engine.timeline_->SplitClip(clipId, timelinePosition);
+        });
+    }
+
+    void QueueTrimClip(const std::string& clipId, double sourceIn, double sourceOut) {
+        QueueCommand([clipId, sourceIn, sourceOut](Engine& engine) {
+            engine.timeline_->TrimClip(clipId, sourceIn, sourceOut);
+        });
+    }
+
+    void QueueCreateTransition(const std::string& fromClipId, const std::string& toClipId, double duration, const std::string& blendShaderNodeId) {
+        QueueCommand([fromClipId, toClipId, duration, blendShaderNodeId](Engine& engine) {
+            engine.timeline_->CreateTransition(fromClipId, toClipId, duration, blendShaderNodeId);
+        });
+    }
+
     // Undo/Redo
     void QueueUndo(UndoCommand) {
         QueueCommand([](Engine& engine) { engine.Undo(); });
@@ -308,6 +327,19 @@ public:
 
     void QueueRedo(RedoCommand) {
         QueueCommand([](Engine& engine) { engine.Redo(); });
+    }
+
+    // Audio output control
+    void QueueStartAudioOutput() {
+        QueueCommand([](Engine& engine) {
+            if (engine.audioEngine_) engine.audioEngine_->StartAudioOutput();
+        });
+    }
+
+    void QueueStopAudioOutput() {
+        QueueCommand([](Engine& engine) {
+            if (engine.audioEngine_) engine.audioEngine_->StopAudioOutput();
+        });
     }
 
     // Profiling access

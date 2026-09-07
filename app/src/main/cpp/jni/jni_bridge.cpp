@@ -469,4 +469,58 @@ Java_com_vfxengine_app_NativeEngine_nativeRedo(JNIEnv*, jobject, jlong handle) {
     if (engine) engine->QueueRedo({});
 }
 
+// Audio output control
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeStartAudioOutput(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueStartAudioOutput();
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeStopAudioOutput(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueStopAudioOutput();
+}
+
+// Timeline clip operations
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSplitClip(JNIEnv* env, jobject, jlong handle,
+                                                     jstring clipId, jdouble timelinePosition) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* clipIdChars = env->GetStringUTFChars(clipId, nullptr);
+    engine->QueueSplitClip(clipIdChars, timelinePosition);
+    env->ReleaseStringUTFChars(clipId, clipIdChars);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeTrimClip(JNIEnv* env, jobject, jlong handle,
+                                                    jstring clipId, jdouble sourceIn, jdouble sourceOut) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* clipIdChars = env->GetStringUTFChars(clipId, nullptr);
+    engine->QueueTrimClip(clipIdChars, sourceIn, sourceOut);
+    env->ReleaseStringUTFChars(clipId, clipIdChars);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeCreateTransition(JNIEnv* env, jobject, jlong handle,
+                                                            jstring fromClipId, jstring toClipId,
+                                                            jdouble duration, jstring blendShaderNodeId) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* fromChars = env->GetStringUTFChars(fromClipId, nullptr);
+    const char* toChars = env->GetStringUTFChars(toClipId, nullptr);
+    const char* blendChars = env->GetStringUTFChars(blendShaderNodeId, nullptr);
+    
+    engine->QueueCreateTransition(fromChars, toChars, duration, blendChars);
+    
+    env->ReleaseStringUTFChars(fromClipId, fromChars);
+    env->ReleaseStringUTFChars(toClipId, toChars);
+    env->ReleaseStringUTFChars(blendShaderNodeId, blendChars);
+}
+
 } // extern "C"

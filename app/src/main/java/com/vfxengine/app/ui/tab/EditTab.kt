@@ -41,7 +41,10 @@ import com.vfxengine.app.ui.common.EditorState
  * Bottom: Selected item info + Open in node editor
  */
 @Composable
-fun EditTab(state: EditorState) {
+fun EditTab(
+    state: EditorState,
+    onTabSwitch: (EditorRoot.EditorTab) -> Unit
+) {
     var selectedClipId by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -77,7 +80,7 @@ fun EditTab(state: EditorState) {
             hasEffects = hasEffects,
             hasProxy = hasProxy,
             useProxy = useProxy,
-            onNodeEditorClick = { /* Open node editor */ },
+            onNodeEditorClick = { onTabSwitch(EditorRoot.EditorTab.Effects) },
             onProxyToggle = { if (selectedClip != null) state.toggleProxy(selectedClip.id) },
             onProxyGenerate = { if (selectedClip != null) state.generateProxy(selectedClip.id) }
         )
@@ -424,9 +427,18 @@ fun QuickActionToolbar(state: EditorState, selectedClipId: String?) {
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ActionButton("Split", android.R.drawable.ic_menu_crop)
-            ActionButton("Trim", android.R.drawable.ic_media_pause)
-            ActionButton("Delete", android.R.drawable.ic_menu_delete)
+            ActionButton("Split", android.R.drawable.ic_menu_crop) {
+                selectedClipId?.let { state.splitClip(it, state.currentTimeSeconds) }
+            }
+            ActionButton("Trim", android.R.drawable.ic_media_pause) {
+                selectedClipId?.let { 
+                    val clip = state.clips.value.firstOrNull { it.id == it }
+                    clip?.let { state.trimClip(it.id, it.sourceIn, it.sourceOut) }
+                }
+            }
+            ActionButton("Delete", android.R.drawable.ic_menu_delete) {
+                selectedClipId?.let { state.removeClip(it) }
+            }
             
             // Proxy button
             if (hasProxy) {
@@ -456,9 +468,9 @@ fun QuickActionToolbar(state: EditorState, selectedClipId: String?) {
 }
 
 @Composable
-fun ActionButton(label: String, iconRes: Int) {
+fun ActionButton(label: String, iconRes: Int, onClick: () -> Unit = {}) {
     androidx.compose.material3.TextButton(
-        onClick = { /* Action */ },
+        onClick = onClick,
         modifier = Modifier
             .weight(1f)
             .height(40.dp)

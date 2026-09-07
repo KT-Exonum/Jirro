@@ -21,6 +21,7 @@
 #include <media/NdkMediaFormat.h>
 
 #include "engine/core/GraphicsDevice.h"
+#include "AudioOutput.h"
 
 namespace vfx {
 
@@ -229,6 +230,11 @@ public:
     void SetPlaybackSpeed(float speed);
     void SetMasterVolume(float volume);
 
+    // Audio output
+    void StartAudioOutput();
+    void StopAudioOutput();
+    bool IsAudioOutputRunning() const;
+
     // Get mixed audio for current time (for export/render)
     [[nodiscard]] std::vector<float> GetMixedAudio(double timeSec, double durationSec);
 
@@ -248,6 +254,7 @@ public:
 private:
     std::unique_ptr<AudioMixer> mixer_;
     std::unique_ptr<AudioAnalyzer> analyzer_;
+    std::unique_ptr<AudioOutput> audioOutput_;
     std::unordered_map<std::string, std::unique_ptr<AudioDecoder>> decoders_;
     std::unordered_map<std::string, std::unique_ptr<AudioClip>> clips_;
     std::vector<std::string> clipOrder_;
@@ -257,6 +264,7 @@ private:
     double currentTimeSec_ = 0.0;
     float playbackSpeed_ = 1.0f;
     float masterVolume_ = 1.0f;
+    bool audioOutputRunning_ = false;
 
     // Analysis thread
     std::jthread analysisThread_;

@@ -66,12 +66,14 @@ bool ExportPipeline::StartExport(const ExportConfig& config, ProgressCallback ca
         return false;
     }
     
-    renderPlan_ = std::make_unique<CompileResult>(renderGraph_.Compile(nodeGraph_, outputNode->nodeId));
-    if (!renderPlan_ || renderPlan_->passes.empty()) {
+    CompileResult compileResult = renderGraph_.Compile(nodeGraph_, outputNode->nodeId);
+    if (!compileResult.Ok()) {
         lastError_ = "Failed to compile render graph";
         running_.store(false);
         return false;
     }
+    
+    renderPlan_ = std::make_unique<CompileResult>(std::move(compileResult));
     
     // Start threads
     exportThread_ = std::jthread(&ExportPipeline::ExportThreadMain, this, stopSource_.get_token());
@@ -271,6 +273,7 @@ bool ExportPipeline::InitializeVideoEncoder() {
         return false;
     }
     
+    // Create input surface ONCE, not per frame
     videoInputSurface_ = AMediaCodec_createInputSurface(videoEncoder_);
     if (!videoInputSurface_) {
         LOGE("Failed to create video input surface");
@@ -357,6 +360,8 @@ void ExportPipeline::Cleanup() {
 void ExportPipeline::EncodeVideoFrame(const FrameData& frame) {
     if (!videoEncoder_ || !videoInputSurface_) return;
     
+    // The actual rendering to the input surface happens in RenderFrame
+    // Here we just dequeue the encoded output
     AMediaCodecBufferInfo info{};
     info.presentationTimeUs = static_cast<int64_t>(frame.timelineTime * 1'000'000.0);
     info.flags = 0;
@@ -405,6 +410,7 @@ void ExportPipeline::EncodeAudioChunk(const AudioChunk& chunk) {
     AMediaCodec_queueInputBuffer(audioEncoder_, bufIndex, 0, static_cast<size_t>(bytesNeeded), 
                                  chunk.presentationTimeUs, 0);
     
+    // Drain output
     ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(audioEncoder_, &info, 10000);
     if (outIndex >= 0) {
         size_t outSize;
@@ -474,9 +480,15 @@ std::optional<ExportPipeline::FrameData> ExportPipeline::RenderFrame(double time
     TextureHandle outputTexture = acquired.value;
     
     // Execute render graph for this frame
-    // Note: In a full implementation, we'd also set up the device for off-screen rendering
-    // and use a framebuffer with the output texture.
-    // For now, we record the texture handle for the encoder to consume.
+    // We need a framebuffer with the output texture
+    // The render graph will render to this texture
+    if (device_.BeginFrame()) {
+        auto plan = renderGraph_.Compile(nodeGraph_, "output");
+        if (plan.Ok()) {
+            renderGraph_.Execute(nodeGraph_, plan, timelineTime, &mediaEngine_, nullptr, audioEngine_);
+        }
+        device_.EndFrame();
+    }
     
     FrameData frame;
     frame.texture = outputTexture;

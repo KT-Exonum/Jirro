@@ -276,7 +276,7 @@ class EditorState(
     sealed class DragState {
         data class MovingNode(val nodeId: String, val startX: Float, val startY: Float) : DragState()
         data class MovingNodes(val nodeIds: Set<String>, val startX: Float, val startY: Float) : DragState()
-        data class Connecting(val fromNodeId: String, val fromPort: String, val currentX: Float, val currentY: Float) : DragState()
+        data class Connecting(val fromNodeId: String, val fromPort: String, val currentX: Float, val currentY: Float, val isOutput: Boolean) : DragState()
         data class Panning(val startX: Float, val startY: Float, val offsetX: Float, val offsetY: Float) : DragState()
         data class MarqueeSelect(val startX: Float, val startY: Float, val currentX: Float, val currentY: Float) : DragState()
     }
@@ -1132,6 +1132,66 @@ class EditorState(
             generateProxy(clipId)
         }
         clip.useProxy = !clip.useProxy
+    }
+
+    // Timeline clip operations
+    fun splitClip(clipId: String, timelinePosition: Double) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        if (timelinePosition <= clip.timelineStart || timelinePosition >= clip.timelineStart + clip.duration) return
+        
+        // Calculate source time at split position
+        val clipDuration = clip.sourceOut - clip.sourceIn
+        val timelineDuration = clipDuration / Math.abs(clip.speed)
+        val progress = (timelinePosition - clip.timelineStart) / timelineDuration
+        val sourceSplit = clip.sourceIn + progress * clipDuration
+        
+        // Update original clip
+        val originalSourceOut = clip.sourceOut
+        clip.sourceOut = sourceSplit
+        
+        // Create new clip for second half
+        val newClip = Clip(
+            id = "${clipId}_split_${System.currentTimeMillis()}",
+            nodeId = clip.nodeId,
+            type = clip.type,
+            timelineStart = timelinePosition,
+            sourceIn = sourceSplit,
+            sourceOut = originalSourceOut,
+            speed = clip.speed,
+            layer = clip.layer,
+            color = clip.color
+        )
+        clips.value.add(newClip)
+        
+        // Call native engine
+        nativeEngine.splitClip(clipId, timelinePosition)
+    }
+
+    fun trimClip(clipId: String, newSourceIn: Double, newSourceOut: Double) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        if (newSourceIn >= newSourceOut) return
+        if (newSourceIn < 0) return
+        
+        val oldSourceIn = clip.sourceIn
+        val oldSourceOut = clip.sourceOut
+        
+        clip.sourceIn = newSourceIn
+        clip.sourceOut = newSourceOut
+        
+        // Call native engine
+        nativeEngine.trimClip(clipId, newSourceIn, newSourceOut)
+    }
+
+    fun createTransition(fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String = "blend") {
+        val fromClip = clips.value.firstOrNull { it.id == fromClipId } ?: return
+        val toClip = clips.value.firstOrNull { it.id == toClipId } ?: return
+        
+        // Position the "to" clip to overlap with "from"
+        val fromEnd = fromClip.timelineStart + (fromClip.sourceOut - fromClip.sourceIn) / Math.abs(fromClip.speed)
+        toClip.timelineStart = fromEnd - duration
+        
+        // Call native engine
+        nativeEngine.createTransition(fromClipId, toClipId, duration, blendShaderNodeId)
     }
 
     fun getProxyResolutionOptions(): List<String> {

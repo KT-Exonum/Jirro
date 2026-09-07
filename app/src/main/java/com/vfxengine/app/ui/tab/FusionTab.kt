@@ -859,8 +859,17 @@ fun FusionNodeCanvas(state: EditorState) {
                 is EditorState.DragState.Connecting -> {
                     val fromNode = state.nodes.value[drag.fromNodeId]
                     fromNode?.let { node ->
-                        val fromX = node.x + 180f + state.nodePanX * state.nodeZoom
-                        val fromY = node.y + 20 + node.outputs.indexOfFirst { it.name == drag.fromPort } * 36f * state.nodeZoom + state.nodePanY * state.nodeZoom
+                        val portIndex = if (drag.isOutput) {
+                            node.outputs.indexOfFirst { it.name == drag.fromPort }
+                        } else {
+                            node.inputs.indexOfFirst { it.name == drag.fromPort }
+                        }
+                        val fromX = if (drag.isOutput) {
+                            node.x + 180f + state.nodePanX * state.nodeZoom
+                        } else {
+                            node.x + state.nodePanX * state.nodeZoom
+                        }
+                        val fromY = node.y + 20 + portIndex * 36f * state.nodeZoom + state.nodePanY * state.nodeZoom
 
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val path = Path()
@@ -996,7 +1005,8 @@ fun FusionPort(
                             node.id,
                             port.name,
                             0f,
-                            0f
+                            0f,
+                            isOutput
                         )
                     },
                     onDrag = { change, dragAmount ->
@@ -1004,13 +1014,81 @@ fun FusionPort(
                             node.id,
                             port.name,
                             change.position.x,
-                            change.position.y
+                            change.position.y,
+                            isOutput
                         )
                     },
-                    onDragEnd = { state.dragState = null }
+                    onDragEnd = { 
+                        // Check if we're over a valid target port
+                        val targetPort = findTargetPortAtPosition(state, change.position.x, change.position.y)
+                        if (targetPort != null) {
+                            validateAndCreateConnection(state, node.id, port.name, targetPort)
+                        }
+                        state.dragState = null
+                    }
                 )
             }
     )
+}
+
+// Find a port at the given screen position
+fun findTargetPortAtPosition(state: EditorState, x: Float, y: Float): TargetPort? {
+    val zoom = state.nodeZoom
+    val panX = state.nodePanX
+    val panY = state.nodePanY
+    
+    for (node in state.nodes.value.values) {
+        val nodeLeft = node.x * zoom + panX
+        val nodeTop = node.y * zoom + panY
+        val nodeRight = nodeLeft + 200f * zoom
+        val nodeBottom = nodeTop + (maxOf(node.inputs.size, node.outputs.size) * 40f + 50f) * zoom
+        
+        if (x >= nodeLeft && x <= nodeRight && y >= nodeTop && y <= nodeBottom) {
+            // Check input ports (left side)
+            for ((index, port) in node.inputs.withIndex()) {
+                val portX = nodeLeft
+                val portY = nodeTop + 20f * zoom + index * 36f * zoom
+                val portSize = 16f * zoom
+                if (x >= portX && x <= portX + portSize && y >= portY && y <= portY + portSize) {
+                    return TargetPort(node.id, port.name, false)
+                }
+            }
+            // Check output ports (right side)
+            for ((index, port) in node.outputs.withIndex()) {
+                val portX = nodeRight - 16f * zoom
+                val portY = nodeTop + 20f * zoom + index * 36f * zoom
+                val portSize = 16f * zoom
+                if (x >= portX && x <= portX + portSize && y >= portY && y <= portY + portSize) {
+                    return TargetPort(node.id, port.name, true)
+                }
+            }
+        }
+    }
+    return null
+}
+
+data class TargetPort(val nodeId: String, val portName: String, val isOutput: Boolean)
+
+// Validate and create connection
+fun validateAndCreateConnection(state: EditorState, fromNodeId: String, fromPortName: String, target: TargetPort) {
+    // Can only connect output to input
+    if (!target.isOutput) {
+        val fromNode = state.nodes.value[fromNodeId]
+        val toNode = state.nodes.value[target.nodeId]
+        
+        if (fromNode != null && toNode != null) {
+            // Check if already connected
+            val alreadyConnected = state.connections.value.any { c ->
+                c.fromNodeId == fromNodeId && c.fromPort == fromPortName && c.toNodeId == target.nodeId && c.toPort == target.portName
+            }
+            
+            if (!alreadyConnected) {
+                // Basic type validation - for now allow any output to any input
+                // In a full implementation, check port.valueType compatibility
+                state.connect(fromNodeId, fromPortName, target.nodeId, target.portName)
+            }
+        }
+    }
 }
 
 @Composable
