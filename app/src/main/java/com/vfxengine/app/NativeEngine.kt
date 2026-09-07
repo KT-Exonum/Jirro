@@ -89,6 +89,30 @@ class NativeEngine {
         if (handle != 0L) nativeNewProject(handle, name)
     }
 
+    fun openProject(filePath: String) {
+        if (handle != 0L) nativeOpenProject(handle, filePath)
+    }
+
+    fun getRecentProjects(): String {
+        if (handle != 0L) return nativeGetRecentProjects(handle)
+        return "[]"
+    }
+
+    fun hasProject(): Boolean {
+        if (handle != 0L) return nativeHasProject(handle)
+        return false
+    }
+
+    fun getProjectName(): String {
+        if (handle != 0L) return nativeGetProjectName(handle)
+        return ""
+    }
+
+    fun isProjectModified(): Boolean {
+        if (handle != 0L) return nativeIsProjectModified(handle)
+        return false
+    }
+
     // Phase 6: Profiling
     fun getProfileStats(): String {
         if (handle != 0L) return nativeGetProfileStats(handle)
@@ -284,6 +308,11 @@ class NativeEngine {
     private external fun nativeSaveProject(handle: Long, filePath: String)
     private external fun nativeLoadProject(handle: Long, filePath: String)
     private external fun nativeNewProject(handle: Long, name: String)
+    private external fun nativeOpenProject(handle: Long, filePath: String)
+    private external fun nativeGetRecentProjects(handle: Long): String
+    private external fun nativeHasProject(handle: Long): Boolean
+    private external fun nativeGetProjectName(handle: Long): String
+    private external fun nativeIsProjectModified(handle: Long): Boolean
     private external fun nativeGetProfileStats(handle: Long): String
 
     // Phase 6: Dev shader hot-reload
