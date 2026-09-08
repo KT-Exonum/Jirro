@@ -10,6 +10,7 @@
 #include <numeric>
 #include <sstream>
 #include <thread>
+#include <cstring>
 
 #define LOG_TAG "Profiler"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -35,7 +36,7 @@ public:
         
         // Get timestamp period for ns conversion
         VkPhysicalDeviceProperties props{};
-        vkGetPhysicalDeviceProperties(device_->RawDevice(), &props);
+        vkGetPhysicalDeviceProperties(device_->PhysicalDevice(), &props);
         timestampPeriod_ = props.limits.timestampPeriod;
     }
     
@@ -50,7 +51,7 @@ public:
     [[nodiscard]] uint32_t Size() const { return size_; }
     
     void Reset(uint32_t firstQuery, uint32_t queryCount) {
-        vkCmdResetQueryPool(device_->RawDevice(), pool_, firstQuery, queryCount);
+        vkCmdResetQueryPool(device_->CurrentCommandBuffer(), pool_, firstQuery, queryCount);
     }
     
     // Get results (blocking)
@@ -97,11 +98,15 @@ bool Profiler::Initialize(VulkanDevice* device) {
         }
     }
     
-    // Initialize thermal manager
+    // Initialize thermal manager (API 30+)
+#if __ANDROID_API__ >= 30
     thermalManager_ = AThermal_acquireManager();
     if (!thermalManager_) {
         LOGI("AThermal_acquireManager returned null - thermal monitoring unavailable");
     }
+#else
+    LOGI("Thermal monitoring requires API 30+, skipping on this device");
+#endif
     
     LOGI("Profiler initialized: GPU timestamps=%s, CPU timing=%s, Memory tracking=%s",
          config_.enableGpuTimestamps ? "on" : "off",
@@ -112,10 +117,12 @@ bool Profiler::Initialize(VulkanDevice* device) {
 }
 
 void Profiler::Shutdown() {
+#if __ANDROID_API__ >= 30
     if (thermalManager_) {
         AThermal_releaseManager(thermalManager_);
         thermalManager_ = nullptr;
     }
+#endif
     timestampPool_.reset();
     device_ = nullptr;
 }
@@ -144,7 +151,7 @@ void Profiler::EndFrame() {
     for (const auto& [label, ts] : currentFrameData_->gpuTimestamps) {
         if (ts.valid) {
             currentFrameData_->stats.gpuTotalMs += ts.DurationMs();
-            if (label && strstr(label, "Compute")) {
+            if (!label.empty() && std::strstr(label.c_str(), "Compute")) {
                 currentFrameData_->stats.gpuComputeMs += ts.DurationMs();
             } else {
                 currentFrameData_->stats.gpuGraphicsMs += ts.DurationMs();
@@ -314,6 +321,7 @@ void Profiler::SetThermalCallback(ThermalCallback cb) {
 }
 
 void Profiler::UpdateThermalStatus() {
+#if __ANDROID_API__ >= 30
     if (!thermalManager_) return;
     
     int status = AThermal_getCurrentThermalStatus(thermalManager_);
@@ -331,6 +339,9 @@ void Profiler::UpdateThermalStatus() {
              status == ATHERMAL_STATUS_EMERGENCY ? "emergency" :
              status == ATHERMAL_STATUS_SHUTDOWN ? "shutdown" : "unknown");
     }
+#else
+    // Thermal monitoring not available on API < 30
+#endif
 }
 
 Profiler::PerformanceReport Profiler::GenerateReport(uint32_t frameCount) const {

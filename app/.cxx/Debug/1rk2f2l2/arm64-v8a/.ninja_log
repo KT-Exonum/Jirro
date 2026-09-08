@@ -1,0 +1,16 @@
+# ninja log v5
+1048	13535	8105333174868051	CMakeFiles/vfxengine.dir/engine/3d/Shadow.cpp.o	3b12b7323351f324
+663	14021	8105333178071998	CMakeFiles/vfxengine.dir/engine/audio/AudioOutput.cpp.o	38078f3e8d1872a0
+929	17264	8105333212130920	CMakeFiles/vfxengine.dir/engine/3d/Material.cpp.o	399315cfad65616f
+787	24891	8105333289707927	CMakeFiles/vfxengine.dir/engine/asset/AssetManager.cpp.o	743514b6dd749d1b
+318	25035	8105333291150192	CMakeFiles/vfxengine.dir/engine/core/Profiler.cpp.o	fd9f0a2804fa8e2f
+137	26783	8105333308508134	CMakeFiles/vfxengine.dir/engine/core/RuntimeShaderCompiler.cpp.o	bd7ac69d89d6a9f2
+204	28969	8105333330495720	CMakeFiles/vfxengine.dir/engine/media/MediaEngine.cpp.o	4f4001b8d0296daa
+13611	28978	8105333331473687	CMakeFiles/vfxengine.dir/engine/3d/Light.cpp.o	71770aa86d41ec66
+572	29631	8105333336646178	CMakeFiles/vfxengine.dir/engine/audio/AudioEngine.cpp.o	3d593b42b9b367e4
+487	29668	8105333337385380	CMakeFiles/vfxengine.dir/engine/export/ExportPipeline.cpp.o	26b71d10dc9747d
+14081	31363	8105333355280213	CMakeFiles/vfxengine.dir/engine/3d/glTFLoader.cpp.o	77156eb4ebed2b8b
+238	33513	8105333376088422	CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o	563e7adef5e6b747
+616	34349	8105333384385075	CMakeFiles/vfxengine.dir/engine/export/ProjectSerializer.cpp.o	60391937177ab001
+65	38314	8105333423966996	CMakeFiles/vfxengine.dir/Engine.cpp.o	54acc1b154a6d473
+4	38892	8105333430120936	CMakeFiles/vfxengine.dir/jni/jni_bridge.cpp.o	8e59fd89fa527762

@@ -136,6 +136,110 @@ class EditorState(
         ChromaKey("Chroma Key", 0xFFE91E63.toInt(), 44),
         // 3D Models
         MeshSource("Mesh Source", 0xFF9C27B0.toInt(), 45),
+        // Audio/Reactive
+        AudioReactive("Audio Reactive", 0xFFE91E63.toInt(), 46),
+        AudioSpectrum("Audio Spectrum", 0xFFE91E63.toInt(), 47),
+        AudioWaveform("Audio Waveform", 0xFFE91E63.toInt(), 48),
+        BeatDetect("Beat Detect", 0xFFE91E63.toInt(), 49),
+        // Text/Typography
+        TextAnimator("Text Animator", 0xFF795548.toInt(), 50),
+        TextPath("Text on Path", 0xFF795548.toInt(), 51),
+        Typewriter("Typewriter", 0xFF795548.toInt(), 52),
+        // Generators
+        Gradient("Gradient", 0xFF00BCD4.toInt(), 53),
+        Noise("Noise", 0xFF00BCD4.toInt(), 54),
+        Checkerboard("Checkerboard", 0xFF00BCD4.toInt(), 55),
+        SolidColor("Solid Color", 0xFF00BCD4.toInt(), 56),
+        // Distortion/Warping
+        Displace("Displace", 0xFF9C27B0.toInt(), 57),
+        TurbulentDisplace("Turbulent Displace", 0xFF9C27B0.toInt(), 58),
+        MeshWarp("Mesh Warp", 0xFF9C27B0.toInt(), 59),
+        LensDistortion("Lens Distortion", 0xFF9C27B0.toInt(), 60),
+        Spherize("Spherize", 0xFF9C27B0.toInt(), 61),
+        // Stylize
+        Glow("Glow", 0xFFFF9800.toInt(), 62),
+        DropShadow("Drop Shadow", 0xFFFF9800.toInt(), 63),
+        Outline("Outline", 0xFFFF9800.toInt(), 64),
+        Cartoon("Cartoon/Posterize", 0xFFFF9800.toInt(), 65),
+        Halftone("Halftone", 0xFFFF9800.toInt(), 66),
+        VHS("VHS/Damage", 0xFFFF9800.toInt(), 67),
+        // Time
+        Echo("Echo/Trails", 0xFF00BCD4.toInt(), 68),
+        FrameHold("Frame Hold", 0xFF00BCD4.toInt(), 69),
+        TimeOffset("Time Offset", 0xFF00BCD4.toInt(), 70),
+        // Utility
+        Switch("Switch", 0xFF9E9E9E.toInt(), 71),
+        Expression("Expression", 0xFF9E9E9E.toInt(), 72),
+        Value("Value", 0xFF9E9E9E.toInt(), 73),
+        Random("Random", 0xFF9E9E9E.toInt(), 74),
+        // Color Grading
+        LiftGammaGain("Lift/Gamma/Gain", 0xFFF44336.toInt(), 75),
+        ColorWheels("Color Wheels", 0xFFF44336.toInt(), 76),
+        Curves("RGB Curves", 0xFFF44336.toInt(), 77),
+        HueVsSat("Hue vs Sat", 0xFFF44336.toInt(), 78),
+        LUT("LUT", 0xFFF44336.toInt(), 79),
+        // Transitions
+        CrossDissolve("Cross Dissolve", 0xFF3F51B5.toInt(), 80),
+        DipToColor("Dip to Color", 0xFF3F51B5.toInt(), 81),
+        Slide("Slide", 0xFF3F51B5.toInt(), 82),
+        Push("Push", 0xFF3F51B5.toInt(), 83),
+        // 3D/Environment
+        EnvironmentLight("Environment Light", 0xFF673AB7.toInt(), 84),
+        Fog("Fog/Atmosphere", 0xFF673AB7.toInt(), 85),
+        // Tracking/Stabilize
+        Stabilize("Stabilize", 0xFF9C27B0.toInt(), 86),
+        CornerPin("Corner Pin", 0xFF9C27B0.toInt(), 87),
+        PlanarTracker("Planar Tracker", 0xFF9C27B0.toInt(), 88),
+        // Motion Effects (Alight Motion + DaVinci Resolve inspired)
+        // Transform Motion
+        Oscillate("Oscillate", 0xFFE91E63.toInt(), 89),
+        Shake("Shake", 0xFFE91E63.toInt(), 90),
+        RandomDisplacement("Random Displacement", 0xFFE91E63.toInt(), 91),
+        Pulse("Pulse", 0xFFE91E63.toInt(), 92),
+        Swing("Swing", 0xFFE91E63.toInt(), 93),
+        Bounce("Bounce", 0xFFE91E63.toInt(), 94),
+        Elastic("Elastic", 0xFFE91E63.toInt(), 95),
+        // Camera Motion
+        CameraShake("Camera Shake", 0xFF673AB7.toInt(), 96),
+        ZoomBlur("Zoom Blur", 0xFF673AB7.toInt(), 97),
+        RadialBlur("Radial Blur", 0xFF673AB7.toInt(), 98),
+        MotionBlur("Motion Blur", 0xFF673AB7.toInt(), 99),
+        DirectionalBlur("Directional Blur", 0xFF673AB7.toInt(), 100),
+        // Distortion Motion
+        Ripple("Ripple", 0xFF9C27B0.toInt(), 101),
+        Wave("Wave", 0xFF9C27B0.toInt(), 102),
+        Twist("Twist", 0xFF9C27B0.toInt(), 103),
+        Bulge("Bulge/Pinch", 0xFF9C27B0.toInt(), 104),
+        Vortex("Vortex", 0xFF9C27B0.toInt(), 105),
+        // Stylize Motion
+        Glitch("Glitch", 0xFFFF9800.toInt(), 106),
+        VHS("VHS", 0xFFFF9800.toInt(), 107),
+        Scanlines("Scanlines", 0xFFFF9800.toInt(), 108),
+        CRT("CRT", 0xFFFF9800.toInt(), 109),
+        ChromaticAberration("Chromatic Aberration", 0xFFFF9800.toInt(), 110),
+        RGBShift("RGB Shift", 0xFFFF9800.toInt(), 111),
+        // Time Motion
+        TimeStretch("Time Stretch", 0xFF00BCD4.toInt(), 112),
+        FrameBlend("Frame Blend", 0xFF00BCD4.toInt(), 113),
+        StopMotion("Stop Motion", 0xFF00BCD4.toInt(), 114),
+        PosterizeTime("Posterize Time", 0xFF00BCD4.toInt(), 115),
+        // Utility Motion
+        Wiggle("Wiggle", 0xFF9E9E9E.toInt(), 116),
+        Jitter("Jitter", 0xFF9E9E9E.toInt(), 117),
+        Drift("Drift", 0xFF9E9E9E.toInt(), 118),
+        Orbit("Orbit", 0xFF9E9E9E.toInt(), 119),
+        // Resolve FX inspired
+        CameraShakePro("Camera Shake Pro", 0xFF673AB7.toInt(), 120),
+        DynamicZoom("Dynamic Zoom", 0xFF673AB7.toInt(), 121),
+        FilmDamage("Film Damage", 0xFFFF9800.toInt(), 122),
+        FilmGrain("Film Grain", 0xFFFF9800.toInt(), 123),
+        Vignette("Vignette", 0xFFFF9800.toInt(), 124),
+        Letterbox("Letterbox", 0xFF9E9E9E.toInt(), 125),
+        // Advanced
+        BezierWarp("Bezier Warp", 0xFF9C27B0.toInt(), 126),
+        MeshWarpAdvanced("Mesh Warp", 0xFF9C27B0.toInt(), 127),
+        PolarCoordinates("Polar Coordinates", 0xFF9C27B0.toInt(), 128),
+        DisplacementMap("Displacement Map", 0xFF9C27B0.toInt(), 129),
     }
 
     data class Port(val name: String, val type: PortType) {
@@ -172,7 +276,7 @@ class EditorState(
     sealed class DragState {
         data class MovingNode(val nodeId: String, val startX: Float, val startY: Float) : DragState()
         data class MovingNodes(val nodeIds: Set<String>, val startX: Float, val startY: Float) : DragState()
-        data class Connecting(val fromNodeId: String, val fromPort: String, val currentX: Float, val currentY: Float) : DragState()
+        data class Connecting(val fromNodeId: String, val fromPort: String, val currentX: Float, val currentY: Float, val isOutput: Boolean) : DragState()
         data class Panning(val startX: Float, val startY: Float, val offsetX: Float, val offsetY: Float) : DragState()
         data class MarqueeSelect(val startX: Float, val startY: Float, val currentX: Float, val currentY: Float) : DragState()
     }
@@ -205,7 +309,10 @@ class EditorState(
     )
 
     val clips = remember { mutableStateOf(mutableListOf<Clip>()) }
-
+    
+    // Multi-select support
+    val selectedClipIds = remember { mutableStateOf(mutableSetOf<String>()) }
+    
     // Audio clip data
     data class AudioClip(
         val id: String,
@@ -252,26 +359,93 @@ class EditorState(
 
     enum class InterpolationType { Step, Linear, Bezier, Custom }
 
+    enum class ProceduralWaveType { Sine, Noise, Triangle, Square, Sawtooth }
+
+    data class ProceduralConfig(
+        var enabled: Boolean = false,
+        var frequency: Float = 1.0f,      // wiggles per second
+        var amplitude: Float = 10.0f,     // max displacement from base value
+        var octaves: Int = 1,             // fractal noise layers
+        var amplitudeMult: Float = 0.5f,  // per-octave amplitude falloff
+        var waveType: ProceduralWaveType = ProceduralWaveType.Noise,
+        var seed: Int = 0,                // for deterministic noise
+        var phase: Float = 0.0f,          // time offset
+    )
+
     data class KeyframeTrack(
-        val keyframes: MutableList<Keyframe> = mutableListOf()
+        val keyframes: MutableList<Keyframe> = mutableListOf(),
+        var procedural: ProceduralConfig = ProceduralConfig()
     ) {
         fun evaluate(time: Double): Float {
-            if (keyframes.isEmpty()) return 0f
-            if (keyframes.size == 1 || time <= keyframes.first().time) return keyframes.first().value
-            if (time >= keyframes.last().time) return keyframes.last().value
+            val baseValue = if (keyframes.isEmpty()) 0f
+            else if (keyframes.size == 1 || time <= keyframes.first().time) keyframes.first().value
+            else if (time >= keyframes.last().time) keyframes.last().value
+            else {
+                val next = keyframes.firstOrNull { it.time > time } ?: return keyframes.last().value
+                val prev = keyframes.lastOrNull { it.time <= time } ?: return keyframes.first().value
 
-            val next = keyframes.firstOrNull { it.time > time } ?: return keyframes.last().value
-            val prev = keyframes.lastOrNull { it.time <= time } ?: return keyframes.first().value
+                val span = next.time - prev.time
+                val t = if (span > 0) (time - prev.time) / span else 0.0
 
-            val span = next.time - prev.time
-            val t = if (span > 0) (time - prev.time) / span else 0.0
-
-            return when (prev.interpolation) {
-                InterpolationType.Step -> prev.value
-                InterpolationType.Linear -> prev.value + (next.value - prev.value) * t.toFloat()
-                InterpolationType.Bezier -> evaluateBezier(prev, next, t)
-                InterpolationType.Custom -> evaluateCustom(prev, next, t)
+                when (prev.interpolation) {
+                    InterpolationType.Step -> prev.value
+                    InterpolationType.Linear -> prev.value + (next.value - prev.value) * t.toFloat()
+                    InterpolationType.Bezier -> evaluateBezier(prev, next, t)
+                    InterpolationType.Custom -> evaluateCustom(prev, next, t)
+                }
             }
+
+            // Apply procedural on top
+            if (procedural.enabled) {
+                baseValue + evaluateProcedural(time, procedural)
+            } else {
+                baseValue
+            }
+        }
+
+        private fun evaluateProcedural(time: Double, config: ProceduralConfig): Float {
+            val t = (time + config.phase.toDouble()) * config.frequency
+            val seed = config.seed.toDouble()
+            val amp = config.amplitude
+            val octaves = config.octaves
+            val ampMult = config.amplitudeMult
+
+            var result = 0.0
+            var freq = t
+            var a = 1.0
+
+            for (i in 0 until octaves) {
+                val wave = when (config.waveType) {
+                    ProceduralWaveType.Sine -> kotlin.math.sin(freq * 2.0 * kotlin.math.PI)
+                    ProceduralWaveType.Noise -> simplexNoise1D(freq + seed * 1000.0 + i * 100.0)
+                    ProceduralWaveType.Triangle -> 2.0 * abs((freq % 1.0) - 0.5) - 0.5
+                    ProceduralWaveType.Square -> if (freq % 1.0 < 0.5) 1.0 else -1.0
+                    ProceduralWaveType.Sawtooth -> 2.0 * (freq % 1.0) - 1.0
+                }
+                result += wave * a
+                freq *= 2.0
+                a *= ampMult.toDouble()
+            }
+
+            return (result * amp).toFloat()
+        }
+
+        private fun simplexNoise1D(x: Double): Double {
+            // Simple 1D noise using hash-based gradient noise
+            val i = kotlin.math.floor(x).toLong()
+            val f = x - i.toDouble()
+            val u = f * f * (3.0 - 2.0 * f) // smoothstep
+            val a = hash11(i + config.seed.toLong())
+            val b = hash11(i + 1 + config.seed.toLong())
+            return a + (b - a) * u
+        }
+
+        private fun hash11(n: Long): Double {
+            var h = n
+            h = (h xor (h shr 16)) * 0x85ebca6bL
+            h = (h xor (h shr 13)) * 0xc2b2ae35L
+            h = h xor (h shr 16)
+            return (h.toDouble() / Long.MAX_VALUE) * 2.0 - 1.0
         }
 
         private fun evaluateBezier(prev: Keyframe, next: Keyframe, t: Double): Float {
@@ -284,9 +458,26 @@ class EditorState(
         }
 
         private fun evaluateCustom(prev: Keyframe, next: Keyframe, t: Double): Float {
-            // Custom curve evaluation using stored control points
-            // For now fall back to linear
-            prev.value + (next.value - prev.value) * t.toFloat()
+            val cp = prev.customCurvePoints
+            if (cp.size < 4) return prev.value + (next.value - prev.value) * t.toFloat()
+            val p0x = 0.0; val p0y = 0.0
+            val p1x = cp[0].toDouble(); val p1y = cp[1].toDouble()
+            val p2x = cp[2].toDouble(); val p2y = cp[3].toDouble()
+            val p3x = 1.0; val p3y = 1.0
+            val u = 1.0 - t
+            val uu = u * u
+            val uuu = uu * u
+            val tt = t * t
+            val ttt = tt * t
+            val py = uuu * p0y + 3 * uu * t * p1y + 3 * u * tt * p2y + ttt * p3y
+            return (prev.value + (next.value - prev.value) * py).toFloat()
+        }
+
+        fun copy(): KeyframeTrack {
+            val copy = KeyframeTrack()
+            copy.keyframes.addAll(keyframes.map { it.copy() })
+            copy.procedural = this.procedural
+            return copy
         }
     }
 
@@ -302,6 +493,9 @@ class EditorState(
         data class UpdateClip(val clipId: String, val propertyName: String, val oldValue: Any, val newValue: Any) : HistoryAction()
         data class CreateGroup(val group: NodeGroup) : HistoryAction()
         data class RemoveGroup(val group: NodeGroup) : HistoryAction()
+        data class AddKeyframe(val nodeId: String, val uniformName: String, val keyframe: Keyframe) : HistoryAction()
+        data class RemoveKeyframe(val nodeId: String, val uniformName: String, val keyframe: Keyframe) : HistoryAction()
+        data class UpdateKeyframe(val nodeId: String, val uniformName: String, val oldKeyframe: Keyframe, val newKeyframe: Keyframe) : HistoryAction()
         data class MultiAction(val actions: List<HistoryAction>) : HistoryAction()
     }
 
@@ -375,6 +569,25 @@ class EditorState(
             }
             is HistoryAction.CreateGroup -> groups.value[action.group.groupId] = action.group
             is HistoryAction.RemoveGroup -> groups.value.remove(action.group.groupId)
+            is HistoryAction.AddKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms.getOrPut(action.uniformName) { KeyframeTrack() }
+                track.keyframes.add(action.keyframe)
+                track.keyframes.sortBy { it.time }
+            }
+            is HistoryAction.RemoveKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                track.keyframes.removeAll { it.time == action.keyframe.time && it.value == action.keyframe.value }
+            }
+            is HistoryAction.UpdateKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                val idx = track.keyframes.indexOfFirst { it.time == action.newKeyframe.time && it.value == action.newKeyframe.value }
+                if (idx != -1) {
+                    track.keyframes[idx] = action.newKeyframe
+                }
+            }
             is HistoryAction.MultiAction -> action.actions.forEach { applyAction(it) }
         }
     }
@@ -414,6 +627,25 @@ class EditorState(
             }
             is HistoryAction.CreateGroup -> groups.value.remove(action.group.groupId)
             is HistoryAction.RemoveGroup -> groups.value[action.group.groupId] = action.group
+            is HistoryAction.AddKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                track.keyframes.removeAll { it.time == action.keyframe.time && it.value == action.keyframe.value }
+            }
+            is HistoryAction.RemoveKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms.getOrPut(action.uniformName) { KeyframeTrack() }
+                track.keyframes.add(action.keyframe)
+                track.keyframes.sortBy { it.time }
+            }
+            is HistoryAction.UpdateKeyframe -> {
+                val node = nodes.value[action.nodeId] ?: return
+                val track = node.animatedUniforms[action.uniformName] ?: return
+                val idx = track.keyframes.indexOfFirst { it.time == action.newKeyframe.time && it.value == action.newKeyframe.value }
+                if (idx != -1) {
+                    track.keyframes[idx] = action.oldKeyframe
+                }
+            }
             is HistoryAction.MultiAction -> action.actions.forEach { revertAction(it) }
         }
     }
@@ -567,6 +799,153 @@ class EditorState(
             NodeType.MeshSource -> {
                 node.outputs.add(Port("output", Port.PortType.Output))
             }
+            // Audio/Reactive
+            NodeType.AudioReactive, NodeType.AudioSpectrum, NodeType.AudioWaveform -> {
+                node.inputs.add(Port("audio", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.BeatDetect -> {
+                node.inputs.add(Port("audio", Port.PortType.Input))
+                node.outputs.add(Port("beat", Port.PortType.Output))
+                node.outputs.add(Port("envelope", Port.PortType.Output))
+            }
+            // Text/Typography
+            NodeType.TextAnimator -> {
+                node.inputs.add(Port("text", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.TextPath -> {
+                node.inputs.add(Port("text", Port.PortType.Input))
+                node.inputs.add(Port("path", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.Typewriter -> {
+                node.inputs.add(Port("text", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Generators
+            NodeType.Gradient, NodeType.Noise, NodeType.Checkerboard, NodeType.SolidColor -> {
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Distortion/Warping
+            NodeType.Displace, NodeType.TurbulentDisplace, NodeType.MeshWarp, NodeType.LensDistortion, NodeType.Spherize -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.inputs.add(Port("map", Port.PortType.Input)) // displacement map
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Stylize
+            NodeType.Glow, NodeType.DropShadow, NodeType.Outline, NodeType.Cartoon, NodeType.Halftone, NodeType.VHS -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Time
+            NodeType.Echo -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.FrameHold, NodeType.TimeOffset -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Utility
+            NodeType.Switch -> {
+                node.inputs.add(Port("A", Port.PortType.Input))
+                node.inputs.add(Port("B", Port.PortType.Input))
+                node.inputs.add(Port("switch", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.Expression -> {
+                node.inputs.add(Port("A", Port.PortType.Input))
+                node.inputs.add(Port("B", Port.PortType.Input))
+                node.inputs.add(Port("C", Port.PortType.Input))
+                node.inputs.add(Port("D", Port.PortType.Input))
+                node.outputs.add(Port("result", Port.PortType.Output))
+            }
+            NodeType.Value -> {
+                node.outputs.add(Port("value", Port.PortType.Output))
+            }
+            NodeType.Random -> {
+                node.outputs.add(Port("value", Port.PortType.Output))
+                node.outputs.add(Port("seed", Port.PortType.Output))
+            }
+            // Color Grading
+            NodeType.LiftGammaGain, NodeType.ColorWheels, NodeType.Curves, NodeType.HueVsSat, NodeType.LUT -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Transitions
+            NodeType.CrossDissolve, NodeType.DipToColor, NodeType.Slide, NodeType.Push -> {
+                node.inputs.add(Port("A", Port.PortType.Input))
+                node.inputs.add(Port("B", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // 3D/Environment
+            NodeType.EnvironmentLight, NodeType.Fog -> {
+                node.outputs.add(Port("environment", Port.PortType.Output))
+            }
+            // Tracking/Stabilize
+            NodeType.Stabilize -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+                node.outputs.add(Port("transform", Port.PortType.Output))
+            }
+            NodeType.CornerPin -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.PlanarTracker -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("cornerPin", Port.PortType.Output))
+                node.outputs.add(Port("transform", Port.PortType.Output))
+            }
+            // Motion Effects - Transform Motion
+            NodeType.Oscillate, NodeType.Shake, NodeType.RandomDisplacement, NodeType.Pulse,
+            NodeType.Swing, NodeType.Bounce, NodeType.Elastic -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Camera Motion
+            NodeType.CameraShake, NodeType.ZoomBlur, NodeType.RadialBlur,
+            NodeType.MotionBlur, NodeType.DirectionalBlur -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Distortion Motion
+            NodeType.Ripple, NodeType.Wave, NodeType.Twist, NodeType.Bulge, NodeType.Vortex -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Stylize Motion
+            NodeType.Glitch, NodeType.VHS, NodeType.Scanlines, NodeType.CRT,
+            NodeType.ChromaticAberration, NodeType.RGBShift -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Time Motion
+            NodeType.TimeStretch, NodeType.FrameBlend, NodeType.StopMotion, NodeType.PosterizeTime -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Utility Motion
+            NodeType.Wiggle, NodeType.Jitter, NodeType.Drift, NodeType.Orbit -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Resolve FX inspired
+            NodeType.CameraShakePro, NodeType.DynamicZoom -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            NodeType.FilmDamage, NodeType.FilmGrain, NodeType.Vignette, NodeType.Letterbox -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+            }
+            // Motion Effects - Advanced
+            NodeType.BezierWarp, NodeType.MeshWarpAdvanced, NodeType.PolarCoordinates, NodeType.DisplacementMap -> {
+                node.inputs.add(Port("input", Port.PortType.Input))
+                node.outputs.add(Port("output", Port.PortType.Output))
+                node.inputs.add(Port("map", Port.PortType.Input))
+            }
         }
         nodes.value[id] = node
         
@@ -698,19 +1077,38 @@ class EditorState(
     fun addKeyframe(nodeId: String, uniformName: String, time: Double, value: Float) {
         val node = nodes.value[nodeId] ?: return
         val track = node.animatedUniforms.getOrPut(uniformName) { KeyframeTrack() }
-        // Replace existing keyframe at same time or add new
         val existing = track.keyframes.firstOrNull { Math.abs(it.time - time) < 0.001 }
         if (existing != null) {
-            val oldValue = existing.value
+            val oldKf = existing.copy()
             existing.value = value
-            recordAction(HistoryAction.UpdateNode(nodeId, "keyframe_$uniformName", oldValue, value))
+            recordAction(HistoryAction.UpdateKeyframe(nodeId, uniformName, oldKf, existing.copy()))
         } else {
-            track.keyframes.add(Keyframe(time, value))
+            val kf = Keyframe(time, value)
+            track.keyframes.add(kf)
             track.keyframes.sortBy { it.time }
+            recordAction(HistoryAction.AddKeyframe(nodeId, uniformName, kf.copy()))
         }
-        // Also update static uniform as fallback
         node.uniforms[uniformName] = value
         nativeEngine.updateUniform(nodeId, uniformName, value)
+    }
+
+    fun removeKeyframe(nodeId: String, uniformName: String, keyframe: Keyframe) {
+        val node = nodes.value[nodeId] ?: return
+        val track = node.animatedUniforms[uniformName] ?: return
+        val removed = track.keyframes.firstOrNull { it.time == keyframe.time && it.value == keyframe.value } ?: return
+        track.keyframes.remove(removed)
+        recordAction(HistoryAction.RemoveKeyframe(nodeId, uniformName, removed.copy()))
+    }
+
+    fun updateKeyframe(nodeId: String, uniformName: String, oldKeyframe: Keyframe, newKeyframe: Keyframe) {
+        val node = nodes.value[nodeId] ?: return
+        val track = node.animatedUniforms[uniformName] ?: return
+        val idx = track.keyframes.indexOfFirst { it.time == oldKeyframe.time && it.value == oldKeyframe.value }
+        if (idx != -1) {
+            track.keyframes[idx] = newKeyframe.copy()
+            track.keyframes.sortBy { it.time }
+            recordAction(HistoryAction.UpdateKeyframe(nodeId, uniformName, oldKeyframe.copy(), newKeyframe.copy()))
+        }
     }
 
     fun addAudioClip(clipId: String) {
@@ -746,8 +1144,307 @@ class EditorState(
         clip.useProxy = !clip.useProxy
     }
 
+    // Timeline clip operations
+    fun splitClip(clipId: String, timelinePosition: Double) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        if (timelinePosition <= clip.timelineStart || timelinePosition >= clip.timelineStart + clip.duration) return
+        
+        // Calculate source time at split position
+        val clipDuration = clip.sourceOut - clip.sourceIn
+        val timelineDuration = clipDuration / Math.abs(clip.speed)
+        val progress = (timelinePosition - clip.timelineStart) / timelineDuration
+        val sourceSplit = clip.sourceIn + progress * clipDuration
+        
+        // Update original clip
+        val originalSourceOut = clip.sourceOut
+        clip.sourceOut = sourceSplit
+        
+        // Create new clip for second half
+        val newClip = Clip(
+            id = "${clipId}_split_${System.currentTimeMillis()}",
+            nodeId = clip.nodeId,
+            type = clip.type,
+            timelineStart = timelinePosition,
+            sourceIn = sourceSplit,
+            sourceOut = originalSourceOut,
+            speed = clip.speed,
+            layer = clip.layer,
+            color = clip.color
+        )
+        clips.value.add(newClip)
+        
+        // Call native engine
+        nativeEngine.splitClip(clipId, timelinePosition)
+    }
+
+    fun trimClip(clipId: String, newSourceIn: Double, newSourceOut: Double) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        if (newSourceIn >= newSourceOut) return
+        if (newSourceIn < 0) return
+        
+        val oldSourceIn = clip.sourceIn
+        val oldSourceOut = clip.sourceOut
+        
+        clip.sourceIn = newSourceIn
+        clip.sourceOut = newSourceOut
+        
+        // Call native engine
+        nativeEngine.trimClip(clipId, newSourceIn, newSourceOut)
+    }
+
+    fun createTransition(fromClipId: String, toClipId: String, duration: Double, blendShaderNodeId: String = "blend") {
+        val fromClip = clips.value.firstOrNull { it.id == fromClipId } ?: return
+        val toClip = clips.value.firstOrNull { it.id == toClipId } ?: return
+        
+        // Position the "to" clip to overlap with "from"
+        val fromEnd = fromClip.timelineStart + (fromClip.sourceOut - fromClip.sourceIn) / Math.abs(fromClip.speed)
+        toClip.timelineStart = fromEnd - duration
+        
+        // Call native engine
+        nativeEngine.createTransition(fromClipId, toClipId, duration, blendShaderNodeId)
+    }
+    
+    // Multi-select support
+    fun selectClip(clipId: String, extend: Boolean = false) {
+        if (extend) {
+            if (selectedClipIds.value.contains(clipId)) {
+                selectedClipIds.value.remove(clipId)
+            } else {
+                selectedClipIds.value.add(clipId)
+            }
+        } else {
+            selectedClipIds.value.clear()
+            selectedClipIds.value.add(clipId)
+        }
+    }
+    
+    fun selectAllClips() {
+        selectedClipIds.value.clear()
+        selectedClipIds.value.addAll(clips.value.map { it.id })
+    }
+    
+    fun clearSelection() {
+        selectedClipIds.value.clear()
+    }
+    
+    fun isClipSelected(clipId: String): Boolean = selectedClipIds.value.contains(clipId)
+    
+    val selectedClips: List<Clip>
+        get() = clips.value.filter { it.id in selectedClipIds.value }
+    
+    // Ripple delete - removes clip and shifts subsequent clips to close the gap
+    fun rippleDelete(clipId: String) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        val clipEnd = clip.timelineStart + clip.duration
+        
+        // Remove the clip
+        removeClip(clipId)
+        
+        // Shift all clips on the same track that start after this clip
+        val trackClips = clips.value.filter { it.layer == clip.layer && it.timelineStart > clip.timelineStart }
+        for (c in trackClips) {
+            updateClip(c.id, "timelineStart", c.timelineStart - clip.duration)
+            nativeEngine.updateClip(c.id, c.timelineStart, c.sourceIn, c.sourceOut, c.speed, c.layer, c.enabled, c.locked, true, false, false, false, false, false)
+        }
+    }
+    
+    // Ripple delete multiple clips
+    fun rippleDelete(clipIds: List<String>) {
+        // Sort by timeline position
+        val sortedClips = clipIds.mapNotNull { id -> clips.value.firstOrNull { it.id == id } }
+            .sortedBy { it.timelineStart }
+        
+        for (clipId in sortedClips.map { it.id }) {
+            rippleDelete(clipId)
+        }
+    }
+    
+    // Snap to nearest clip edge
+    fun snapToNearestClip(position: Double, currentClipId: String? = null): Double {
+        var nearest = position
+        var minDist = Double.MAX_VALUE
+        
+        for (clip in clips.value) {
+            if (clip.id == currentClipId) continue
+            if (!clip.enabled) continue
+            
+            val clipStart = clip.timelineStart
+            val clipEnd = clipStart + clip.duration
+            
+            // Check start edge
+            val distStart = abs(clipStart - position)
+            if (distStart < minDist) {
+                minDist = distStart
+                nearest = clipStart
+            }
+            
+            // Check end edge
+            val distEnd = abs(clipEnd - position)
+            if (distEnd < minDist) {
+                minDist = distEnd
+                nearest = clipEnd
+            }
+        }
+        
+        // Snap threshold: 0.5 seconds at current zoom
+        val snapThreshold = 0.5 / maxOf(1.0, timeScale / 100.0)
+        return if (minDist < snapThreshold) nearest else position
+    }
+    
+    // Snap to frame boundary (at 30fps)
+    fun snapToFrame(position: Double): Double {
+        val frameRate = 30.0
+        val frameTime = 1.0 / frameRate
+        val snapped = kotlin.math.round(position / frameTime) * frameTime
+        return snapped
+    }
+    
+    // Move clip with ripple (shifts subsequent clips)
+    fun moveClipRipple(clipId: String, newPosition: Double) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        val oldPosition = clip.timelineStart
+        val delta = newPosition - oldPosition
+        
+        if (abs(delta) < 0.001) return
+        
+        updateClip(clipId, "timelineStart", newPosition)
+        nativeEngine.updateClip(clipId, newPosition, clip.sourceIn, clip.sourceOut, clip.speed, clip.layer, clip.enabled, clip.locked, true, false, false, false, false, false)
+        
+        // Shift subsequent clips on same track
+        val trackClips = clips.value.filter { 
+            it.layer == clip.layer && it.timelineStart > oldPosition && it.id != clipId 
+        }.sortedBy { it.timelineStart }
+        
+        for (c in trackClips) {
+            val newPos = c.timelineStart + delta
+            updateClip(c.id, "timelineStart", newPos)
+            nativeEngine.updateClip(c.id, newPos, c.sourceIn, c.sourceOut, c.speed, c.layer, c.enabled, c.locked, true, false, false, false, false, false)
+        }
+    }
+    
     fun getProxyResolutionOptions(): List<String> {
         return listOf("270p", "360p", "540p", "720p", "1080p")
+    }
+
+    // ========================================================================
+    // Clipboard for relative copy/paste of keyframes and effects
+    // ========================================================================
+
+    /**
+     * Clipboard data for a copied clip including all animated uniform tracks
+     * and static uniform values. Supports relative paste scaling.
+     */
+    data class ClipboardData(
+        val sourceClipId: String,
+        val sourceClipDuration: Double,
+        val sourceTimelineStart: Double,
+        val animatedUniforms: Map<String, KeyframeTrack>,
+        val staticUniforms: Map<String, Float>,
+        val nodeType: NodeType
+    )
+
+    private var _clipboard = mutableStateOf<ClipboardData?>(null)
+    val clipboard: ClipboardData?
+        get() = _clipboard.value
+
+    /**
+     * Copy all keyframes and effects from a clip to clipboard.
+     * Captures animated uniform tracks + static uniform values.
+     */
+    fun copyClipToClipboard(clipId: String) {
+        val clip = clips.value.firstOrNull { it.id == clipId } ?: return
+        val node = nodes.value[clip.nodeId] ?: return
+
+        val animated = node.animatedUniforms.mapValues { (k, v) -> k to v.copy() }
+        val static = node.uniforms.toMap()
+
+        _clipboard.value = ClipboardData(
+            sourceClipId = clipId,
+            sourceClipDuration = clip.duration,
+            sourceTimelineStart = clip.timelineStart,
+            animatedUniforms = animated,
+            staticUniforms = static,
+            nodeType = node.type
+        )
+    }
+
+    /**
+     * Paste clipboard data to target clip with RELATIVE SCALING.
+     * Keyframe times are scaled proportionally:
+     *   newTime = (keyframeTime - sourceStart) * (targetDuration / sourceDuration) + targetStart
+     * 
+     * This means:
+     * - Keyframe at 1s on a 10s clip → 0.1s on a 1s clip
+     * - Keyframe at 50% progress → 50% progress on target
+     * - All easing/interpolation/curve data preserved
+     */
+    fun pasteClipboardToClip(targetClipId: String) {
+        val clipboardData = _clipboard.value ?: return
+        val targetClip = clips.value.firstOrNull { it.id == targetClipId } ?: return
+        val targetNode = nodes.value[targetClip.nodeId] ?: return
+
+        // Only paste if node types are compatible
+        if (clipboardData.nodeType != targetNode.type) return
+
+        val sourceDuration = clipboardData.sourceClipDuration
+        val targetDuration = targetClip.duration
+
+        if (sourceDuration <= 0 || targetDuration <= 0) return
+
+        val scale = targetDuration / sourceDuration
+        val sourceStart = clipboardData.sourceTimelineStart
+        val targetStart = targetClip.timelineStart
+
+        // Paste static uniforms
+        clipboardData.staticUniforms.forEach { (name, value) ->
+            targetNode.uniforms[name] = value
+            nativeEngine.updateUniform(targetNode.id, name, value)
+        }
+
+        // Paste animated uniforms with RELATIVE TIME SCALING
+        clipboardData.animatedUniforms.forEach { (uniformName, sourceTrack) ->
+            val targetTrack = targetNode.animatedUniforms.getOrPut(uniformName) { KeyframeTrack() }
+            targetTrack.keyframes.clear()
+
+            sourceTrack.keyframes.forEach { kf ->
+                // Calculate relative time within source clip (0 to 1)
+                val relativeTime = (kf.time - sourceStart) / sourceDuration
+                
+                // Scale to target clip duration
+                val newTime = targetStart + relativeTime * targetDuration
+                
+                // Create new keyframe with scaled time, preserving all interpolation data
+                val newKf = Keyframe(
+                    time = newTime,
+                    value = kf.value,
+                    interpolation = kf.interpolation,
+                    inTangent = kf.inTangent,
+                    outTangent = kf.outTangent,
+                    customCurvePoints = kf.customCurvePoints.toMutableList()
+                )
+                targetTrack.keyframes.add(newKf)
+            }
+
+            // Sort keyframes by time
+            targetTrack.keyframes.sortBy { it.time }
+
+            // Update native engine with new keyframes
+            targetTrack.keyframes.forEach { kf ->
+                nativeEngine.addKeyframe(targetNode.id, uniformName, kf.time, kf.value)
+            }
+        }
+    }
+
+    /**
+     * Check if clipboard has data
+     */
+    fun hasClipboardData(): Boolean = _clipboard.value != null
+
+    /**
+     * Clear clipboard
+     */
+    fun clearClipboard() {
+        _clipboard.value = null
     }
 
     fun loadMediaFiles() {

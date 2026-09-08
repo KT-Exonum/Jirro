@@ -1,8 +1,12 @@
 package com.vfxengine.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -18,6 +22,36 @@ import com.vfxengine.app.NativeEngine
 class MainActivity : ComponentActivity() {
     private val nativeEngine = NativeEngine()
 
+    // File picker for media import
+    private val pickMedia = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val uri = result.data?.data
+            if (uri != null) {
+                nativeEngine.importMedia(uri.toString())
+            }
+        }
+    }
+
+    // File picker for project files (.vfxproj)
+    private val pickProject = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val uri = result.data?.data
+            if (uri != null) {
+                nativeEngine.openProject(uri.toString())
+            }
+        }
+    }
+
+    // Save As project file picker
+    private val saveProjectAs = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            val uri = result.data?.data
+            if (uri != null) {
+                nativeEngine.saveProject(uri.toString())
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         nativeEngine.create()
@@ -25,7 +59,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    EditorRoot(nativeEngine)
+                    EditorRoot(nativeEngine, ::pickMedia, ::pickProject, ::saveProjectAs)
                 }
             }
         }

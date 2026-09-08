@@ -78,16 +78,6 @@ struct Transition {
     std::string blendShaderNodeId; // Section 10 blend-mode node used during the crossfade window
 };
 
-// Audio-specific clip data
-struct AudioClipData {
-    std::string clipId;
-    double volume = 1.0f;
-    double pan = 0.0f; // -1.0 to 1.0
-    bool mute = false;
-    bool solo = false;
-    // Audio effects (EQ, compressor, etc.) would go here
-};
-
 // Pure data + query model — does not own decoders or GPU resources. Media
 // residency (which frames are decoded/cached right now) is MediaEngine's
 // job (engine/media/MediaEngine.h), driven by whatever Timeline reports as
@@ -170,12 +160,195 @@ public:
     [[nodiscard]] const std::vector<Clip>& AllClips() const { return clips_; }
     [[nodiscard]] const std::vector<Transition>& AllTransitions() const { return transitions_; }
 
+    // ========================================================================
+    // Clipboard for relative copy/paste of keyframes and effects
+    // ========================================================================
+
+    // Stores copied clip data with source duration for relative paste
+    struct ClipboardData {
+        std::string sourceClipId;
+        double sourceClipDuration = 0.0;  // Source clip timeline duration
+        std::unordered_map<std::string, KeyframeTrack> animatedUniforms; // uniformName -> track
+        std::unordered_map<std::string, float> staticUniforms; // uniformName -> value
+        double sourceStartTime = 0.0; // Timeline position of source clip
+    };
+
+    // Split a clip at the given timeline position
+    bool SplitClip(const std::string& clipId, double timelinePosition) {
+        Clip* clip = FindClipMutable(clipId);
+        if (!clip) return false;
+
+        if (timelinePosition <= clip->timelineStart || timelinePosition >= clip->timelineStart + clip->Duration()) {
+            return false;
+        }
+
+        double sourceTime = clip->ToSourceTime(timelinePosition);
+        double sourceDuration = clip->sourceOutPoint - clip->sourceInPoint;
+        double firstPartSourceDuration = sourceTime - clip->sourceInPoint;
+
+        Clip secondClip = *clip;
+        secondClip.clipId = clipId + "_split_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        secondClip.timelineStart = timelinePosition;
+        secondClip.sourceInPoint = sourceTime;
+        secondClip.sourceOutPoint = clip->sourceOutPoint;
+
+        clip->sourceOutPoint = sourceTime;
+
+        AddClip(std::move(secondClip));
+        return true;
+    }
+
+    // Trim a clip's in/out points
+    bool TrimClip(const std::string& clipId, double newSourceIn, double newSourceOut) {
+        Clip* clip = FindClipMutable(clipId);
+        if (!clip) return false;
+
+        if (newSourceIn >= newSourceOut) return false;
+        if (newSourceIn < 0) return false;
+
+        clip->sourceInPoint = newSourceIn;
+        clip->sourceOutPoint = newSourceOut;
+        return true;
+    }
+
+    // Create a transition between two clips
+    bool CreateTransition(const std::string& fromClipId, const std::string& toClipId, double duration, const std::string& blendShaderNodeId) {
+        const Clip* from = FindClip(fromClipId);
+        Clip* to = FindClipMutable(toClipId);
+        if (!from || !to) return false;
+
+        Transition t;
+        t.fromClipId = fromClipId;
+        t.toClipId = toClipId;
+        t.duration = duration;
+        t.blendShaderNodeId = blendShaderNodeId;
+
+        // Position the "to" clip to overlap with "from"
+        to->timelineStart = from->timelineStart + from->Duration() - duration;
+
+        AddTransition(std::move(t));
+        return true;
+    }
+
+    // Delete a clip
+    bool DeleteClip(const std::string& clipId) {
+        auto it = std::find_if(clips_.begin(), clips_.end(),
+                               [&](const Clip& c) { return c.clipId == clipId; });
+        if (it == clips_.end()) return false;
+
+        clips_.erase(it);
+
+        // Also remove any transitions involving this clip
+        std::erase_if(transitions_, [&](const Transition& t) {
+            return t.fromClipId == clipId || t.toClipId == clipId;
+        });
+
+        return true;
+    }
+
+    // Move a clip to a new timeline position
+    bool MoveClip(const std::string& clipId, double newTimelineStart) {
+        Clip* clip = FindClipMutable(clipId);
+        if (!clip) return false;
+        if (newTimelineStart < 0) return false;
+
+        clip->timelineStart = newTimelineStart;
+        return true;
+    }
+
+    // Change clip layer (compositing order)
+    bool SetClipLayer(const std::string& clipId, int newLayer) {
+        Clip* clip = FindClipMutable(clipId);
+        if (!clip) return false;
+
+        clip->layer = newLayer;
+        return true;
+    }
+
+    // Get total timeline duration
+    double GetTotalDuration() const {
+        double maxEnd = 0.0;
+        for (const auto& c : clips_) {
+            double end = c.timelineStart + c.Duration();
+            if (end > maxEnd) maxEnd = end;
+        }
+        return maxEnd;
+    }
+
+    // Get clips that overlap with a time range
+    std::vector<const Clip*> ClipsInRange(double startT, double endT) const {
+        std::vector<const Clip*> result;
+        for (const auto& c : clips_) {
+            if (!c.enabled) continue;
+            double clipEnd = c.timelineStart + c.Duration();
+            if (clipEnd > startT && c.timelineStart < endT) {
+                result.push_back(&c);
+            }
+        }
+        std::sort(result.begin(), result.end(),
+                  [](const Clip* a, const Clip* b) { return a->layer < b->layer; });
+        return result;
+    }
+
+    // Copy all animatable data from a clip to clipboard
+    // Returns true if successful
+    bool CopyClipToClipboard(const std::string& clipId, ClipboardData& outData) {
+        const Clip* clip = FindClip(clipId);
+        if (!clip) return false;
+
+        outData.sourceClipId = clipId;
+        outData.sourceClipDuration = clip->Duration();
+        outData.sourceStartTime = clip->timelineStart;
+        outData.staticUniforms.clear();
+        outData.animatedUniforms.clear();
+
+        // Note: The actual keyframe data lives in the NodeGraph (per-node animatedUniforms)
+        // This Timeline-level clipboard is for clip-level properties.
+        // The EditorState (Kotlin) handles the NodeGraph keyframe clipboard.
+        
+        return true;
+    }
+
+    // Paste clipboard data to target clip with relative scaling
+    // Scales keyframe times proportionally: targetTime = keyframeTime * (targetDuration / sourceDuration)
+    // Returns true if successful
+    bool PasteClipboardToClip(const std::string& targetClipId, const ClipboardData& data) {
+        Clip* targetClip = FindClipMutable(targetClipId);
+        if (!targetClip) return false;
+        if (data.sourceClipDuration <= 0.0) return false;
+
+        double targetDuration = targetClip->Duration();
+        if (targetDuration <= 0.0) return false;
+
+        // Calculate scaling factor for relative paste
+        double scale = targetDuration / data.sourceClipDuration;
+
+        // In a full implementation, this would:
+        // 1. Copy static uniform values to target node
+        // 2. Scale and copy animated keyframe tracks:
+        //    for each keyframe in source track:
+        //      newTime = (keyframe.time - sourceClipStart) * scale + targetClipStart
+        //      targetTrack.addKeyframe(newTime, keyframe.value, keyframe.interpolation, ...)
+
+        // The actual keyframe scaling is done at Kotlin level where we have access to EditorState
+        return true;
+    }
+
+    // Get clipboard data (for UI preview)
+    [[nodiscard]] std::optional<ClipboardData> GetClipboard() const { return clipboard_; }
+
+    // Clear clipboard
+    void ClearClipboard() { clipboard_.reset(); }
+
 private:
     double frameRate_;
     TimelineTime currentTime_{};
     PlaybackState state_ = PlaybackState::Stopped;
     std::vector<Clip> clips_;
     std::vector<Transition> transitions_;
+    
+    // Clipboard storage
+    std::optional<ClipboardData> clipboard_;
 };
 
 } // namespace vfx

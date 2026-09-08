@@ -168,6 +168,7 @@ struct FrameCacheConfig {
     size_t maxBytes = 256 * 1024 * 1024; // Section 9: "configurable memory limits"
     int framesAhead = 2;
     int framesBehind = 2;
+    double frameRate = 30.0;
 };
 
 // Section 9: caches frames around the playhead, prioritizing current, then
@@ -249,12 +250,18 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         return currentBytes_;
     }
+    
+    // Decode audio file using MediaCodec, returns AudioClipData with decoded PCM
+    AudioClipData DecodeAudioWithMediaCodec(const std::string& filePath);
 
 private:
     Config config_;
     mutable std::mutex mutex_;
     size_t currentBytes_ = 0;
     std::unordered_map<std::string, AudioClipData> audioCache_;
+    
+    // Friend for MediaEngine to call private method
+    friend class MediaEngine;
 };
 
 // Request describing one clip the engine thread currently wants decoded
@@ -384,6 +391,12 @@ public:
         return audioCache_.GetAudio(clipId);
     }
 
+    // Generate thumbnail for media file at given time
+    std::string GenerateThumbnail(const std::string& filePath, double timeSeconds);
+    
+    // Get media metadata as JSON string
+    std::string GetMediaMetadata(const std::string& filePath);
+
 private:
     void MediaThreadMain();
     void DecodeAudioFile(const std::string& clipId, const std::string& filePath);
@@ -401,6 +414,7 @@ private:
     std::vector<ActiveProxyRequest> pendingProxyRequests_;
 
     std::thread mediaThread_;
+    std::atomic<bool> stopFlag_{false};
     std::atomic<bool> running_{false};
 };
 

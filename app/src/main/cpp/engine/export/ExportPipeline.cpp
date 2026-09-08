@@ -1,15 +1,16 @@
 #include "ExportPipeline.h"
 
 #include <android/log.h>
+#include <android/native_window.h>
 #include <media/NdkMediaCodec.h>
-#include <media/NdkMediaFormat.h>
 #include <media/NdkMediaMuxer.h>
+#include <media/NdkMediaFormat.h>
 
-#include <chrono>
-#include <condition_variable>
+#include <fcntl.h>
+
 #include <algorithm>
-#include <mutex>
-#include <queue>
+#include <chrono>
+#include <cmath>
 #include <thread>
 
 #define LOG_TAG "ExportPipeline"
@@ -18,411 +19,503 @@
 
 namespace vfx {
 
-// --- VideoEncoder Implementation ---
-
-VideoEncoder::VideoEncoder() = default;
-
-VideoEncoder::~VideoEncoder() {
-    if (codec_) {
-        AMediaCodec_stop(codec_);
-        AMediaCodec_delete(codec_);
-    }
-    if (format_) {
-        AMediaFormat_delete(format_);
-    }
+ExportPipeline::ExportPipeline(GraphicsDevice& device, RenderGraph& renderGraph,
+                               const NodeGraph& nodeGraph, const Timeline& timeline,
+                               const MediaEngine& mediaEngine, AudioEngine* audioEngine)
+    : device_(device), renderGraph_(renderGraph), nodeGraph_(nodeGraph),
+      timeline_(timeline), mediaEngine_(mediaEngine), audioEngine_(audioEngine) {
 }
-
-bool VideoEncoder::Initialize(uint32_t width, uint32_t height, double frameRate,
-                              int bitrateBps, const std::string& mime) {
-    width_ = width;
-    height_ = height;
-    frameIntervalUs_ = static_cast<int64_t>(1'000'000.0 / frameRate);
-    
-    codec_ = AMediaCodec_createEncoderByType(mime.c_str());
-    if (!codec_) {
-        LOGE("Failed to create encoder for mime: %s", mime.c_str());
-        return false;
-    }
-    
-    format_ = AMediaFormat_new();
-    AMediaFormat_setString(format_, AMEDIAFORMAT_KEY_MIME, mime.c_str());
-    AMediaFormat_setInt32(format_, AMEDIAFORMAT_KEY_WIDTH, static_cast<int32_t>(width));
-    AMediaFormat_setInt32(format_, AMEDIAFORMAT_KEY_HEIGHT, static_cast<int32_t>(height));
-    AMediaFormat_setInt32(format_, AMEDIAFORMAT_KEY_BIT_RATE, bitrateBps);
-    AMediaFormat_setInt32(format_, AMEDIAFORMAT_KEY_FRAME_RATE, static_cast<int32_t>(frameRate));
-    AMediaFormat_setInt32(format_, AMEDIAFORMAT_KEY_I_FRAME_INTERVAL, 30); // Keyframe every 30 frames
-    AMediaFormat_setInt32(format_, AMEDIAFORMAT_KEY_COLOR_FORMAT, 2130708361); // COLOR_FormatSurface
-    
-    if (AMediaCodec_configure(codec_, format_, nullptr, nullptr, AMEDIACODEC_CONFIGURE_FLAG_ENCODE) != AMEDIA_OK) {
-        LOGE("AMediaCodec_configure failed");
-        return false;
-    }
-    
-    // Create input surface for GPU frames
-    ANativeWindow* inputSurface = nullptr;
-    media_status_t status = AMediaCodec_createInputSurface(codec_, &inputSurface);
-    if (status != AMEDIA_OK || !inputSurface) {
-        LOGE("Failed to create input surface: %d", status);
-        return false;
-    }
-    
-    // Store surface for frame submission (in real impl, we'd use this)
-    // For now, we'll note that we need to blit to this surface
-    
-    if (AMediaCodec_start(codec_) != AMEDIA_OK) {
-        LOGE("AMediaCodec_start failed");
-        return false;
-    }
-    
-    initialized_ = true;
-    eosSignaled_ = false;
-    LOGI("VideoEncoder initialized: %ux%u @ %.1ffps, %d kbps, %s", width, height, frameRate, bitrateBps / 1000, mime.c_str());
-    return true;
-}
-
-bool VideoEncoder::EncodeFrame(TextureHandle texture, int64_t presentationTimeUs) {
-    if (!initialized_ || !codec_) return false;
-    
-    // In a real implementation:
-    // 1. Get input surface from codec
-    // 2. Blit the Vulkan texture to the input surface (via GPU blit)
-    // 3. Signal frame availability to encoder
-    
-    // This is a simplified version - actual implementation needs:
-    // - Vulkan->ANativeWindow blit (using VK_ANDROID_external_memory_android_hardware_buffer import in reverse)
-    // - Or render directly to a surface backed by the codec's input surface
-    
-    LOGI("EncodeFrame: texture=%u, time=%lld us", texture.index, presentationTimeUs);
-    return true;
-}
-
-void VideoEncoder::SignalEndOfStream() {
-    if (!initialized_ || eosSignaled_) return;
-    AMediaCodec_signalEndOfInputStream(codec_);
-    eosSignaled_ = true;
-}
-
-bool VideoEncoder::DrainOutput(AMediaMuxer* muxer, ssize_t trackIndex) {
-    if (!initialized_ || !muxer) return false;
-    
-    AMediaCodecBufferInfo info{};
-    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(codec_, &info, 10000); // 10ms timeout
-    
-    if (outIndex >= 0) {
-        size_t outSize = 0;
-        uint8_t* outData = AMediaCodec_getOutputBuffer(codec_, outIndex, &outSize);
-        if (outData && info.size > 0) {
-            uint32_t flags = 0;
-            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) flags |= 1;
-            if (info.flags & AMEDIACODEC_BUFFER_FLAG_KEY_FRAME) flags |= 2;
-            
-            bool success = AMediaMuxer_writeSampleData(muxer, trackIndex, outData, info.size,
-                                                        info.presentationTimeUs, flags) == AMEDIA_OK;
-            AMediaCodec_releaseOutputBuffer(codec_, outIndex, false);
-            return success;
-        }
-        AMediaCodec_releaseOutputBuffer(codec_, outIndex, false);
-        return true; // Try again
-    }
-    
-    return outIndex != AMEDIACODEC_INFO_TRY_AGAIN_LATER;
-}
-
-void VideoEncoder::Flush() {
-    if (!initialized_ || !codec_) return;
-    
-    if (!eosSignaled_) {
-        SignalEndOfStream();
-    }
-    
-    // Drain remaining frames
-    AMediaCodecBufferInfo info{};
-    while (true) {
-        ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(codec_, &info, 10000);
-        if (outIndex < 0) break;
-        AMediaCodec_releaseOutputBuffer(codec_, outIndex, false);
-        if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) break;
-    }
-}
-
-// --- MediaMuxer Implementation ---
-
-MediaMuxer::MediaMuxer() = default;
-
-MediaMuxer::~MediaMuxer() {
-    if (initialized_ && muxer_) {
-        AMediaMuxer_stop(muxer_);
-        AMediaMuxer_delete(muxer_);
-    }
-}
-
-bool MediaMuxer::Initialize(const std::string& outputPath) {
-    muxer_ = AMediaMuxer_new(outputPath.c_str(), AMEDIAMUXER_OUTPUT_FORMAT_MPEG_4);
-    if (!muxer_) {
-        LOGE("Failed to create media muxer for: %s", outputPath.c_str());
-        return false;
-    }
-    initialized_ = true;
-    return true;
-}
-
-ssize_t MediaMuxer::AddVideoTrack(AMediaFormat* format) {
-    if (!initialized_ || !muxer_ || !format) return -1;
-    return AMediaMuxer_addTrack(muxer_, format);
-}
-
-bool MediaMuxer::WriteSampleData(ssize_t trackIndex, const uint8_t* data, size_t size,
-                                 int64_t presentationTimeUs, uint32_t flags) {
-    if (!initialized_ || !muxer_) return false;
-    return AMediaMuxer_writeSampleData(muxer_, trackIndex, data, size, presentationTimeUs, flags) == AMEDIA_OK;
-}
-
-bool MediaMuxer::Finalize() {
-    if (!initialized_ || !muxer_) return false;
-    media_status_t status = AMediaMuxer_stop(muxer_);
-    AMediaMuxer_delete(muxer_);
-    muxer_ = nullptr;
-    initialized_ = false;
-    return status == AMEDIA_OK;
-}
-
-// --- ExportPipeline Implementation ---
-
-struct ExportPipeline::Impl {
-    GraphicsDevice& device;
-    const RenderGraph& renderGraph;
-    const NodeGraph& nodeGraph;
-    const Timeline& timeline;
-    
-    std::thread exportThread;
-    std::mutex mutex;
-    std::condition_variable cv;
-    bool running = false;
-    bool cancelled = false;
-    
-    ExportConfig config;
-    ExportProgressCallback progressCb;
-    std::function<void(ExportResult)> completionCb;
-    ExportResult result;
-    
-    std::unique_ptr<VideoEncoder> encoder;
-    std::unique_ptr<MediaMuxer> muxer;
-    ssize_t videoTrackIndex = -1;
-    
-    Impl(GraphicsDevice& d, const RenderGraph& rg, const NodeGraph& ng, const Timeline& tl)
-        : device(d), renderGraph(rg), nodeGraph(ng), timeline(tl) {}
-    
-    void Run() {
-        auto startTime = std::chrono::high_resolution_clock::now();
-        result = ExportResult{};
-        result.success = false;
-        
-        try {
-            // Calculate frame count
-            double duration = config.endTime - config.startTime;
-            uint64_t totalFrames = static_cast<uint64_t>(duration * config.frameRate);
-            if (totalFrames == 0) throw std::runtime_error("Zero frames to export");
-            
-            // Initialize encoder
-            encoder = std::make_unique<VideoEncoder>();
-            std::string mime;
-            std::string muxerFormat;
-            
-            switch (config.format) {
-                case ExportConfig::Format::MP4:
-                    mime = config.codec;
-                    muxerFormat = "mp4";
-                    break;
-                case ExportConfig::Format::MOV:
-                    mime = "video/prores"; // ProRes
-                    muxerFormat = "mov";
-                    break;
-                case ExportConfig::Format::WEBM:
-                    mime = config.codec; // video/vp9 or video/av1
-                    muxerFormat = "webm";
-                    break;
-                default:
-                    mime = config.codec;
-                    muxerFormat = "mp4";
-            }
-            
-            // For non-video formats (GIF, PNG sequence), we don't use MediaCodec
-            bool useVideoEncoder = (config.format != ExportConfig::Format::GIF &&
-                                   config.format != ExportConfig::Format::PNG_SEQUENCE &&
-                                   config.format != ExportConfig::Format::EXR_SEQUENCE);
-            
-            if (useVideoEncoder) {
-                encoder = std::make_unique<VideoEncoder>();
-                if (!encoder->Initialize(config.width, config.height, config.frameRate,
-                                         config.bitrateMbps * 1'000'000, mime)) {
-                    throw std::runtime_error("Failed to initialize encoder");
-                }
-            }
-            
-            // Initialize muxer for video formats
-            if (config.format == ExportConfig::Format::MP4 ||
-                config.format == ExportConfig::Format::MOV ||
-                config.format == ExportConfig::Format::WEBM) {
-                muxer = std::make_unique<MediaMuxer>();
-                if (!muxer->Initialize(config.outputPath)) {
-                    throw std::runtime_error("Failed to initialize muxer");
-                }
-                
-                AMediaFormat* format = AMediaFormat_new();
-                AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, mime.c_str());
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, static_cast<int32_t>(config.width));
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, static_cast<int32_t>(config.height));
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_FRAME_RATE, static_cast<int32_t>(config.frameRate));
-                AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_BIT_RATE, config.bitrateMbps * 1'000'000);
-                
-                videoTrackIndex = muxer->AddVideoTrack(format);
-                AMediaFormat_delete(format);
-                
-                if (videoTrackIndex < 0) {
-                    throw std::runtime_error("Failed to add video track to muxer");
-                }
-            }
-            
-            // Find output node
-            const std::string outputNodeId = "output";
-            const Node* outputNode = nodeGraph.FindNode(outputNodeId);
-            if (!outputNode) {
-                throw std::runtime_error("Output node not found");
-            }
-            
-            // Compile render graph
-            auto plan = renderGraph.Compile(nodeGraph, outputNodeId);
-            if (!plan.Ok()) {
-                throw std::runtime_error("Failed to compile render graph");
-            }
-            
-            // Render frames
-            for (uint64_t frameIdx = 0; frameIdx < totalFrames && !cancelled; ++frameIdx) {
-                double timelineTime = config.startTime + (frameIdx / config.frameRate);
-                
-                // Render frame at this timeline time
-                renderGraph.Execute(nodeGraph, plan, timelineTime, nullptr);
-                
-                // Get output texture (in real impl, from renderGraph's final pass)
-                // For now, we'd need to extract the final rendered texture
-                
-                // Encode frame
-                int64_t ptsUs = static_cast<int64_t>(timelineTime * 1'000'000);
-                // encoder->EncodeFrame(outputTexture, ptsUs);
-                
-                // Drain encoder output
-                while (encoder->DrainOutput(muxer->muxer_, videoTrackIndex)) {
-                    // Continue draining
-                }
-                
-                // Update progress
-                double progress = static_cast<double>(frameIdx) / totalFrames;
-                if (progressCb) {
-                    progressCb(progress, "Encoding frame " + std::to_string(frameIdx) + " / " + std::to_string(totalFrames));
-                }
-                
-                result.framesEncoded++;
-            }
-            
-            if (!cancelled) {
-                // Flush encoder for video formats
-                if (config.format == ExportConfig::Format::MP4 ||
-                    config.format == ExportConfig::Format::MOV ||
-                    config.format == ExportConfig::Format::WEBM) {
-                    encoder->Flush();
-                    while (encoder->DrainOutput(muxer->muxer_, videoTrackIndex)) {}
-                    
-                    // Finalize muxer
-                    if (!muxer->Finalize()) {
-                        throw std::runtime_error("Failed to finalize muxer");
-                    }
-                }
-                
-                result.success = true;
-            }
-            
-        } catch (const std::exception& e) {
-            result.errorMessage = e.what();
-            LOGE("Export failed: %s", e.what());
-        }
-        
-        auto endTime = std::chrono::high_resolution_clock::now();
-        result.elapsedSeconds = std::chrono::duration<double>(endTime - startTime).count();
-        result.averageFps = result.framesEncoded / std::max(result.elapsedSeconds, 0.001);
-        
-        // Get output file size
-        // (would need platform-specific file stat)
-        
-        if (completionCb) {
-            completionCb(result);
-        }
-        
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            running = false;
-        }
-        cv.notify_all();
-    }
-};
-
-ExportPipeline::ExportPipeline(GraphicsDevice& device, const RenderGraph& renderGraph,
-                               const NodeGraph& nodeGraph, const Timeline& timeline)
-    : impl_(std::make_unique<Impl>(device, renderGraph, nodeGraph, timeline)) {}
 
 ExportPipeline::~ExportPipeline() {
     Cancel();
-    if (impl_->exportThread.joinable()) {
-        impl_->exportThread.join();
-    }
+    if (exportThread_.joinable()) exportThread_.join();
+    if (videoEncodeThread_.joinable()) videoEncodeThread_.join();
+    if (audioEncodeThread_.joinable()) audioEncodeThread_.join();
+    if (muxThread_.joinable()) muxThread_.join();
+    Cleanup();
 }
 
-void ExportPipeline::StartExport(const ExportConfig& config, ExportProgressCallback progressCb,
-                                 std::function<void(ExportResult)> completionCb) {
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        if (impl_->running) return;
-        impl_->config = config;
-        impl_->progressCb = std::move(progressCb);
-        impl_->completionCb = std::move(completionCb);
-        impl_->running = true;
-        impl_->cancelled = false;
+bool ExportPipeline::StartExport(const ExportConfig& config, ProgressCallback callback) {
+    if (running_.load()) {
+        lastError_ = "Export already in progress";
+        return false;
     }
     
-    impl_->exportThread = std::thread(&Impl::Run, impl_.get());
+    config_ = config;
+    progressCallback_ = callback;
+    running_.store(true);
+    cancelled_.store(false);
+    framesDone_.store(false);
+    audioDone_.store(false);
+    framesWritten_ = 0;
+    lastError_.clear();
+    startTime_ = std::chrono::steady_clock::now();
+    
+    totalFrames_ = static_cast<uint64_t>(config.duration * config.frameRate);
+    progress_.totalFrames = totalFrames_;
+    
+    // Compile render graph
+    // Find output node
+    const Node* outputNode = nullptr;
+    for (const auto& [id, node] : nodeGraph_.AllNodes()) {
+        if (node.kind == NodeKind::Output) {
+            outputNode = &node;
+            break;
+        }
+    }
+    if (!outputNode) {
+        lastError_ = "No output node found in graph";
+        running_.store(false);
+        return false;
+    }
+    
+    CompileResult compileResult = renderGraph_.Compile(nodeGraph_, outputNode->nodeId);
+    if (!compileResult.Ok()) {
+        lastError_ = "Failed to compile render graph";
+        running_.store(false);
+        return false;
+    }
+    
+    renderPlan_ = std::make_unique<CompileResult>(std::move(compileResult));
+    
+    // Start threads
+    exportThread_ = std::thread(&ExportPipeline::ExportThreadMain, this);
+    videoEncodeThread_ = std::thread(&ExportPipeline::VideoEncodeThreadMain, this);
+    audioEncodeThread_ = std::thread(&ExportPipeline::AudioEncodeThreadMain, this);
+    muxThread_ = std::thread(&ExportPipeline::MuxThreadMain, this);
+    
+    return true;
+}
+
+bool ExportPipeline::WaitForCompletion() {
+    if (!running_.load()) return true;
+    
+    exportThread_.join();
+    videoEncodeThread_.join();
+    audioEncodeThread_.join();
+    muxThread_.join();
+    
+    Cleanup();
+    running_.store(false);
+    return lastError_.empty();
 }
 
 void ExportPipeline::Cancel() {
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        impl_->cancelled = true;
+    cancelled_.store(true);
+    stopSource_.store(true);
+    queueCV_.notify_all();
+}
+
+ExportProgress ExportPipeline::GetProgress() const {
+    return progress_;
+}
+
+void ExportPipeline::ExportThreadMain() {
+    auto frameDuration = 1.0 / config_.frameRate;
+    auto totalFrames = totalFrames_;
+    
+    LOGI("Starting export: %llu frames at %.2f fps", static_cast<unsigned long long>(totalFrames), config_.frameRate);
+    
+    for (uint64_t frameIdx = 0; frameIdx < totalFrames && !stopSource_.load() && !cancelled_.load(); ++frameIdx) {
+        double timelineTime = frameIdx * frameDuration;
+        
+        // Update progress
+        {
+            std::lock_guard<std::mutex> lock(queueMutex_);
+            progress_.framesWritten = frameIdx;
+            progress_.progress = static_cast<double>(frameIdx) / totalFrames;
+            auto elapsed = std::chrono::steady_clock::now() - startTime_;
+            progress_.elapsedSeconds = std::chrono::duration<double>(elapsed).count();
+            if (frameIdx > 0) {
+                progress_.estimatedRemainingSeconds = 
+                    progress_.elapsedSeconds * (totalFrames - frameIdx) / frameIdx;
+            }
+            progress_.currentOperation = "Rendering frame " + std::to_string(frameIdx + 1) + " / " + std::to_string(totalFrames);
+            if (progressCallback_) progressCallback_(progress_);
+        }
+        
+        // Render frame
+        auto frame = RenderFrame(timelineTime);
+        if (!frame) {
+            if (cancelled_.load()) break;
+            LOGE("Failed to render frame %lu", frameIdx);
+            continue;
+        }
+        
+        // Push to video queue
+        {
+            std::unique_lock<std::mutex> lock(queueMutex_);
+            queueCV_.wait(lock, [this] { return frameQueue_.size() < 30 || cancelled_.load() || !running_.load(); });
+            if (cancelled_.load() || !running_.load()) break;
+            frameQueue_.push(std::move(*frame));
+        }
+        queueCV_.notify_one();
     }
-    impl_->cv.notify_all();
+    
+    framesDone_.store(true);
+    queueCV_.notify_all();
+    LOGI("Export thread finished");
 }
 
-bool ExportPipeline::IsRunning() const {
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    return impl_->running;
+void ExportPipeline::VideoEncodeThreadMain() {
+    if (!InitializeVideoEncoder()) {
+        lastError_ = "Failed to initialize video encoder";
+        running_.store(false);
+        return;
+    }
+    
+    while (!stopSource_.load() && !cancelled_.load()) {
+        FrameData frame;
+        bool hasFrame = false;
+        
+        {
+            std::unique_lock<std::mutex> lock(queueMutex_);
+            queueCV_.wait(lock, [this] { return !frameQueue_.empty() || framesDone_.load() || cancelled_.load(); });
+            if (!frameQueue_.empty()) {
+                frame = std::move(frameQueue_.front());
+                frameQueue_.pop();
+                hasFrame = true;
+            }
+        }
+        queueCV_.notify_one();
+        
+        if (hasFrame) {
+            EncodeVideoFrame(frame);
+        }
+        
+        if (framesDone_.load() && frameQueue_.empty()) break;
+    }
+    
+    FlushEncoders();
+    audioDone_.store(true);
+    queueCV_.notify_all();
+    LOGI("Video encode thread finished");
 }
 
-ExportResult ExportPipeline::ExportSync(const ExportConfig& config) {
-    ExportResult result;
-    std::mutex m;
-    std::condition_variable cv;
-    bool done = false;
+void ExportPipeline::AudioEncodeThreadMain() {
+    if (!InitializeAudioEncoder()) {
+        lastError_ = "Failed to initialize audio encoder";
+        running_.store(false);
+        return;
+    }
     
-    StartExport(config,
-        [](double, const std::string&) {},
-        [&](ExportResult r) {
-            result = r;
-            std::lock_guard<std::mutex> lock(m);
-            done = true;
-            cv.notify_one();
-        });
+    double frameDuration = 1.0 / config_.frameRate;
+    int64_t frameDurationUs = static_cast<int64_t>(frameDuration * 1'000'000.0);
     
-    std::unique_lock<std::mutex> lock(m);
-    cv.wait(lock, [&] { return done; });
+    for (uint64_t frameIdx = 0; frameIdx < totalFrames_ && !stopSource_.load() && !cancelled_.load(); ++frameIdx) {
+        double startTime = frameIdx * frameDuration;
+        double endTime = startTime + frameDuration;
+        
+        auto audio = GetMixedAudio(startTime, endTime);
+        if (audio) {
+            EncodeAudioChunk(*audio);
+        }
+    }
     
-    return result;
+    audioDone_.store(true);
+    queueCV_.notify_all();
+    LOGI("Audio encode thread finished");
+}
+
+void ExportPipeline::MuxThreadMain() {
+    if (!InitializeMuxer()) {
+        lastError_ = "Failed to initialize muxer";
+        running_.store(false);
+        return;
+    }
+    
+    // Muxer runs until both video and audio are done
+    while (!stopSource_.load() && !cancelled_.load()) {
+        // MediaMuxer handles muxing automatically when we write sample data
+        // Just wait for completion
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        if (framesDone_.load() && audioDone_.load()) break;
+    }
+    
+    // Finalize
+    if (muxer_) {
+        AMediaMuxer_stop(muxer_);
+    }
+    
+    LOGI("Mux thread finished");
+}
+
+bool ExportPipeline::InitializeVideoEncoder() {
+    videoFormat_ = AMediaFormat_new();
+    AMediaFormat_setString(videoFormat_, AMEDIAFORMAT_KEY_MIME, config_.videoCodec.c_str());
+    AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_WIDTH, static_cast<int32_t>(config_.width));
+    AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_HEIGHT, static_cast<int32_t>(config_.height));
+    AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_BIT_RATE, config_.bitrateMbps * 1'000'000);
+    AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_FRAME_RATE, static_cast<int32_t>(config_.frameRate));
+    AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_I_FRAME_INTERVAL, config_.gopSize);
+    AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_COLOR_FORMAT, 2130708361); // COLOR_FormatSurface
+    
+    if (config_.videoCodec == "video/hevc") {
+        AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_PROFILE, 1); // Main profile
+    } else {
+        AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_PROFILE, config_.profile);
+    }
+    if (config_.level > 0) {
+        AMediaFormat_setInt32(videoFormat_, AMEDIAFORMAT_KEY_LEVEL, config_.level);
+    }
+    
+    videoEncoder_ = AMediaCodec_createEncoderByType(config_.videoCodec.c_str());
+    if (!videoEncoder_) {
+        LOGE("Failed to create video encoder for %s", config_.videoCodec.c_str());
+        return false;
+    }
+    
+    if (AMediaCodec_configure(videoEncoder_, videoFormat_, nullptr, nullptr, AMEDIACODEC_CONFIGURE_FLAG_ENCODE) != AMEDIA_OK) {
+        LOGE("Failed to configure video encoder");
+        return false;
+    }
+    
+    if (AMediaCodec_start(videoEncoder_) != AMEDIA_OK) {
+        LOGE("Failed to start video encoder");
+        return false;
+    }
+    
+    // Create input surface ONCE, not per frame
+    media_status_t status = AMediaCodec_createInputSurface(videoEncoder_, &videoInputSurface_);
+    if (status != AMEDIA_OK || !videoInputSurface_) {
+        LOGE("Failed to create video input surface: %d", status);
+        return false;
+    }
+    
+    return true;
+}
+
+bool ExportPipeline::InitializeAudioEncoder() {
+    audioFormat_ = AMediaFormat_new();
+    AMediaFormat_setString(audioFormat_, AMEDIAFORMAT_KEY_MIME, config_.audioCodec.c_str());
+    AMediaFormat_setInt32(audioFormat_, AMEDIAFORMAT_KEY_SAMPLE_RATE, config_.audioSampleRate);
+    AMediaFormat_setInt32(audioFormat_, AMEDIAFORMAT_KEY_CHANNEL_COUNT, config_.audioChannels);
+    AMediaFormat_setInt32(audioFormat_, AMEDIAFORMAT_KEY_BIT_RATE, config_.audioBitrateKbps * 1000);
+    AMediaFormat_setInt32(audioFormat_, AMEDIAFORMAT_KEY_AAC_PROFILE, 2); // AAC LC
+    
+    audioEncoder_ = AMediaCodec_createEncoderByType(config_.audioCodec.c_str());
+    if (!audioEncoder_) {
+        LOGE("Failed to create audio encoder");
+        return false;
+    }
+    
+    if (AMediaCodec_configure(audioEncoder_, audioFormat_, nullptr, nullptr, AMEDIACODEC_CONFIGURE_FLAG_ENCODE) != AMEDIA_OK) {
+        LOGE("Failed to configure audio encoder");
+        return false;
+    }
+    
+    if (AMediaCodec_start(audioEncoder_) != AMEDIA_OK) {
+        LOGE("Failed to start audio encoder");
+        return false;
+    }
+    
+    return true;
+}
+
+bool ExportPipeline::InitializeMuxer() {
+    muxer_ = AMediaMuxer_new(open(config_.outputPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0664),
+                              AMEDIAMUXER_OUTPUT_FORMAT_MPEG_4);
+    if (!muxer_) {
+        LOGE("Failed to create muxer for %s", config_.outputPath.c_str());
+        return false;
+    }
+    
+    videoTrackIndex_ = AMediaMuxer_addTrack(muxer_, videoFormat_);
+    audioTrackIndex_ = AMediaMuxer_addTrack(muxer_, audioFormat_);
+    
+    if (AMediaMuxer_start(muxer_) != AMEDIA_OK) {
+        LOGE("Failed to start muxer");
+        return false;
+    }
+    
+    return true;
+}
+
+void ExportPipeline::Cleanup() {
+    if (videoInputSurface_) {
+        ANativeWindow_release(videoInputSurface_);
+        videoInputSurface_ = nullptr;
+    }
+    if (videoEncoder_) {
+        AMediaCodec_stop(videoEncoder_);
+        AMediaCodec_delete(videoEncoder_);
+        videoEncoder_ = nullptr;
+    }
+    if (audioEncoder_) {
+        AMediaCodec_stop(audioEncoder_);
+        AMediaCodec_delete(audioEncoder_);
+        audioEncoder_ = nullptr;
+    }
+    if (muxer_) {
+        AMediaMuxer_delete(muxer_);
+        muxer_ = nullptr;
+    }
+    if (videoFormat_) {
+        AMediaFormat_delete(videoFormat_);
+        videoFormat_ = nullptr;
+    }
+    if (audioFormat_) {
+        AMediaFormat_delete(audioFormat_);
+        audioFormat_ = nullptr;
+    }
+}
+
+void ExportPipeline::EncodeVideoFrame(const FrameData& frame) {
+    if (!videoEncoder_ || !videoInputSurface_) return;
+    
+    // The actual rendering to the input surface happens in RenderFrame
+    // Here we just dequeue the encoded output
+    AMediaCodecBufferInfo info{};
+    info.presentationTimeUs = static_cast<int64_t>(frame.timelineTime * 1'000'000.0);
+    info.flags = 0;
+    info.size = 0;
+    info.offset = 0;
+    
+    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(videoEncoder_, &info, 10000);
+    if (outIndex >= 0) {
+        size_t outSize;
+        uint8_t* outData = AMediaCodec_getOutputBuffer(videoEncoder_, outIndex, &outSize);
+        if (outData && outSize > 0) {
+            AMediaMuxer_writeSampleData(muxer_, videoTrackIndex_, outData, &info);
+        }
+        AMediaCodec_releaseOutputBuffer(videoEncoder_, outIndex, false);
+    }
+    
+    framesWritten_++;
+}
+
+void ExportPipeline::EncodeAudioChunk(const AudioChunk& chunk) {
+    if (!audioEncoder_) return;
+    
+    ssize_t bufIndex = AMediaCodec_dequeueInputBuffer(audioEncoder_, 10000);
+    if (bufIndex < 0) return;
+    
+    size_t bufSize;
+    uint8_t* buf = AMediaCodec_getInputBuffer(audioEncoder_, bufIndex, &bufSize);
+    if (!buf) return;
+    
+    size_t sampleCount = chunk.samples.size();
+    size_t bytesNeeded = sampleCount * sizeof(int16_t);
+    if (bytesNeeded > bufSize) return;
+    
+    int16_t* int16Buf = reinterpret_cast<int16_t*>(buf);
+    for (size_t i = 0; i < sampleCount; ++i) {
+        float sample = std::clamp(chunk.samples[i], -1.0f, 1.0f);
+        int16Buf[i] = static_cast<int16_t>(sample * 32767.0f);
+    }
+    
+    AMediaCodecBufferInfo info{};
+    info.presentationTimeUs = chunk.presentationTimeUs;
+    info.flags = 0;
+    info.size = static_cast<size_t>(bytesNeeded);
+    info.offset = 0;
+    
+    AMediaCodec_queueInputBuffer(audioEncoder_, bufIndex, 0, static_cast<size_t>(bytesNeeded), 
+                                 chunk.presentationTimeUs, 0);
+    
+    // Drain output
+    ssize_t outIndex = AMediaCodec_dequeueOutputBuffer(audioEncoder_, &info, 10000);
+    if (outIndex >= 0) {
+        size_t outSize;
+        uint8_t* outData = AMediaCodec_getOutputBuffer(audioEncoder_, outIndex, &outSize);
+        if (outData && outSize > 0) {
+            AMediaMuxer_writeSampleData(muxer_, audioTrackIndex_, outData, &info);
+        }
+        AMediaCodec_releaseOutputBuffer(audioEncoder_, outIndex, false);
+    }
+}
+
+void ExportPipeline::FlushEncoders() {
+    // Flush video encoder
+    if (videoEncoder_) {
+        AMediaCodec_signalEndOfInputStream(videoEncoder_);
+        while (true) {
+            AMediaCodecBufferInfo info{};
+            ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(videoEncoder_, &info, 10000);
+            if (outIdx < 0) break;
+            if (info.size > 0) {
+                size_t outSize;
+                uint8_t* outData = AMediaCodec_getOutputBuffer(videoEncoder_, outIdx, &outSize);
+                if (outData && outSize > 0) {
+                    AMediaMuxer_writeSampleData(muxer_, videoTrackIndex_, outData, &info);
+                }
+            }
+            AMediaCodec_releaseOutputBuffer(videoEncoder_, outIdx, false);
+            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) break;
+        }
+    }
+    
+    // Flush audio encoder
+    if (audioEncoder_) {
+        AMediaCodec_signalEndOfInputStream(audioEncoder_);
+        while (true) {
+            AMediaCodecBufferInfo info{};
+            ssize_t outIdx = AMediaCodec_dequeueOutputBuffer(audioEncoder_, &info, 10000);
+            if (outIdx < 0) break;
+            if (info.size > 0) {
+                size_t outSize;
+                uint8_t* outData = AMediaCodec_getOutputBuffer(audioEncoder_, outIdx, &outSize);
+                if (outData && outSize > 0) {
+                    AMediaMuxer_writeSampleData(muxer_, audioTrackIndex_, outData, &info);
+                }
+            }
+            AMediaCodec_releaseOutputBuffer(audioEncoder_, outIdx, false);
+            if (info.flags & AMEDIACODEC_BUFFER_FLAG_END_OF_STREAM) break;
+        }
+    }
+}
+
+std::optional<ExportPipeline::FrameData> ExportPipeline::RenderFrame(double timelineTime) {
+    if (!renderPlan_) return std::nullopt;
+    
+    // Create output texture for this frame
+    TextureDesc outputDesc;
+    outputDesc.width = config_.width;
+    outputDesc.height = config_.height;
+    outputDesc.format = PixelFormat::RGBA8Unorm;
+    outputDesc.usage = TextureUsage::ColorAttachmentAndSampled;
+    outputDesc.transient = true;
+    outputDesc.debugName = "export_frame_" + std::to_string(framesWritten_);
+    
+    auto acquired = device_.CreateTexture(outputDesc);
+    if (!acquired) return std::nullopt;
+    
+    TextureHandle outputTexture = acquired.value;
+    
+    // Execute render graph for this frame
+    // We need a framebuffer with the output texture
+    // The render graph will render to this texture
+    if (device_.BeginFrame()) {
+        auto plan = renderGraph_.Compile(nodeGraph_, "output");
+        if (plan.Ok()) {
+            renderGraph_.Execute(nodeGraph_, plan, timelineTime, &mediaEngine_, nullptr, audioEngine_);
+        }
+        device_.EndFrame();
+    }
+    
+    FrameData frame;
+    frame.texture = outputTexture;
+    frame.timelineTime = timelineTime;
+    frame.frameIndex = framesWritten_;
+    
+    return frame;
+}
+
+std::optional<ExportPipeline::AudioChunk> ExportPipeline::GetMixedAudio(double startTime, double endTime) {
+    AudioChunk chunk;
+    chunk.presentationTimeUs = static_cast<int64_t>(startTime * 1'000'000.0);
+    
+    if (audioEngine_) {
+        auto mixed = audioEngine_->GetMixedAudio(startTime, endTime - startTime);
+        if (!mixed.empty()) {
+            chunk.samples = std::move(mixed);
+            return chunk;
+        }
+    }
+    
+    // Fallback: iterate timeline clips and mix manually (stub)
+    return chunk;
 }
 
 } // namespace vfx

@@ -5,6 +5,8 @@
 // calling (UI) thread.
 
 #include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
+#include <android/log.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
 
@@ -56,12 +58,33 @@ Java_com_vfxengine_app_NativeEngine_nativeDetachSurface(JNIEnv*, jobject, jlong 
 // Dev hot-reload: store the APK's AAssetManager so VulkanDevice can read
 // pre-compiled .spv shaders from assets/ at runtime.
 JNIEXPORT void JNICALL
-Java_com_vfxengine_app_NativeEngine_nativeSetAssetManager(JNIEnv*, jobject, jlong handle,
-                                                           jobject javaAssetManager) {
+Java_com_vfxengine_app_NativeEngine_nativeSetAssetManager(JNIEnv* env, jobject, jlong handle,
+                                                             jobject javaAssetManager) {
     auto* engine = GetEngine(handle);
     if (!engine) return;
     AAssetManager* mgr = AAssetManager_fromJava(env, javaAssetManager);
     engine->SetAssetManager(mgr);
+}
+
+// Runtime shader compilation: set the cache directory for compiled SPIR-V.
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetShaderCacheDir(JNIEnv* env, jobject, jlong handle,
+                                                              jstring cacheDir) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    const char* dirChars = env->GetStringUTFChars(cacheDir, nullptr);
+    engine->SetShaderCacheDirectory(dirChars);
+    env->ReleaseStringUTFChars(cacheDir, dirChars);
+}
+
+// Trigger compile-on-first-run if cache is missing/stale.
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeCompileShadersIfNeeded(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->QueueCommand([](vfx::Engine& eng) {
+        eng.CompileShadersIfNeeded();
+    });
 }
 
 // Dev hot-reload: trigger re-compilation/reload of all shaders from assets.
@@ -89,6 +112,33 @@ Java_com_vfxengine_app_NativeEngine_nativeUpdateUniform(JNIEnv* env, jobject, jl
     env->ReleaseStringUTFChars(uniformName, uniformChars);
 
     engine->QueueUniformUpdate(std::move(cmd));
+}
+
+// Phase 7+: Set expression on a node for procedural animation
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSetExpression(JNIEnv* env, jobject, jlong handle,
+                                                         jstring nodeId, jstring uniformName,
+                                                         jstring expression) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+
+    const char* nodeIdChars = env->GetStringUTFChars(nodeId, nullptr);
+    const char* uniformChars = env->GetStringUTFChars(uniformName, nullptr);
+    const char* exprChars = env->GetStringUTFChars(expression, nullptr);
+
+    engine->QueueCommand([nodeId = std::string(nodeIdChars), 
+                          uniformName = std::string(uniformChars),
+                          exprScript = std::string(exprChars)](vfx::Engine& eng) {
+        if (auto* node = eng.Graph().FindNodeMutable(nodeId)) {
+            vfx::Expression expr;
+            expr.script = exprScript;
+            node->expressions[uniformName] = std::move(expr);
+        }
+    });
+
+    env->ReleaseStringUTFChars(nodeId, nodeIdChars);
+    env->ReleaseStringUTFChars(uniformName, uniformChars);
+    env->ReleaseStringUTFChars(expression, exprChars);
 }
 
 JNIEXPORT void JNICALL
@@ -197,14 +247,81 @@ Java_com_vfxengine_app_NativeEngine_nativeLoadProject(JNIEnv* env, jobject, jlon
 }
 
 JNIEXPORT void JNICALL
-Java_com_vfxengine_app_NativeEngine_nativeNewProject(JNIEnv*, jobject, jlong handle,
+Java_com_vfxengine_app_NativeEngine_nativeNewProject(JNIEnv* env, jobject, jlong handle,
                                                       jstring name) {
     auto* engine = GetEngine(handle);
     if (!engine) return;
     
-    // Get project manager and create new project
-    // For now, just log
-    __android_log_print(ANDROID_LOG_INFO, "ProjectManager", "New project requested");
+    const char* nameChars = env->GetStringUTFChars(name, nullptr);
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        pm->NewProject(nameChars);
+    }
+    env->ReleaseStringUTFChars(name, nameChars);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeOpenProject(JNIEnv* env, jobject, jlong handle,
+                                                       jstring filePath) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* pathChars = env->GetStringUTFChars(filePath, nullptr);
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        pm->OpenProject(pathChars);
+    }
+    env->ReleaseStringUTFChars(filePath, pathChars);
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGetRecentProjects(JNIEnv* env, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("[]");
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        // Return recent projects list as JSON
+        std::string json = pm->GetRecentProjectsJson();
+        return env->NewStringUTF(json.c_str());
+    }
+    return env->NewStringUTF("[]");
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeHasProject(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return JNI_FALSE;
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        return pm->HasProject() ? JNI_TRUE : JNI_FALSE;
+    }
+    return JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGetProjectName(JNIEnv* env, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("");
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        return env->NewStringUTF(pm->GetProjectName().c_str());
+    }
+    return env->NewStringUTF("");
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeIsProjectModified(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return JNI_FALSE;
+    
+    auto* pm = engine->GetProjectManager();
+    if (pm) {
+        return pm->IsModified() ? JNI_TRUE : JNI_FALSE;
+    }
+    return JNI_FALSE;
 }
 
 // Phase 6: Profiling
@@ -352,7 +469,7 @@ Java_com_vfxengine_app_NativeEngine_nativeAddClip(JNIEnv* env, jobject, jlong ha
     vfx::AddClipCommand cmd;
     cmd.clipId = clipIdChars;
     cmd.sourceNodeId = sourceNodeChars;
-    cmd.type = static_cast<vfx::Timeline::ClipType>(type);
+    cmd.type = static_cast<vfx::ClipType>(type);
     cmd.timelineStart = timelineStart;
     cmd.sourceInPoint = sourceIn;
     cmd.sourceOutPoint = sourceOut;
@@ -419,6 +536,135 @@ JNIEXPORT void JNICALL
 Java_com_vfxengine_app_NativeEngine_nativeRedo(JNIEnv*, jobject, jlong handle) {
     auto* engine = GetEngine(handle);
     if (engine) engine->QueueRedo({});
+}
+
+// Audio output control
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeStartAudioOutput(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueStartAudioOutput();
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeStopAudioOutput(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (engine) engine->QueueStopAudioOutput();
+}
+
+// Timeline clip operations
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeSplitClip(JNIEnv* env, jobject, jlong handle,
+                                                     jstring clipId, jdouble timelinePosition) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* clipIdChars = env->GetStringUTFChars(clipId, nullptr);
+    engine->QueueSplitClip(clipIdChars, timelinePosition);
+    env->ReleaseStringUTFChars(clipId, clipIdChars);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeTrimClip(JNIEnv* env, jobject, jlong handle,
+                                                    jstring clipId, jdouble sourceIn, jdouble sourceOut) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* clipIdChars = env->GetStringUTFChars(clipId, nullptr);
+    engine->QueueTrimClip(clipIdChars, sourceIn, sourceOut);
+    env->ReleaseStringUTFChars(clipId, clipIdChars);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeCreateTransition(JNIEnv* env, jobject, jlong handle,
+                                                            jstring fromClipId, jstring toClipId,
+                                                            jdouble duration, jstring blendShaderNodeId) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* fromChars = env->GetStringUTFChars(fromClipId, nullptr);
+    const char* toChars = env->GetStringUTFChars(toClipId, nullptr);
+    const char* blendChars = env->GetStringUTFChars(blendShaderNodeId, nullptr);
+    
+    engine->QueueCreateTransition(fromChars, toChars, duration, blendChars);
+    
+    env->ReleaseStringUTFChars(fromClipId, fromChars);
+    env->ReleaseStringUTFChars(toClipId, toChars);
+    env->ReleaseStringUTFChars(blendShaderNodeId, blendChars);
+}
+
+// Media import and thumbnails
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeImportMedia(JNIEnv* env, jobject, jlong handle,
+                                                       jstring uri) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    
+    const char* uriChars = env->GetStringUTFChars(uri, nullptr);
+    engine->QueueCommand([uri = std::string(uriChars)](vfx::Engine& eng) {
+        // Add media to project
+        if (eng.GetMediaEngine()) {
+            // TODO: implement media import via MediaEngine
+        }
+        if (eng.GetAudioEngine()) {
+            // TODO: implement audio import via AudioEngine
+        }
+    });
+    env->ReleaseStringUTFChars(uri, uriChars);
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGenerateThumbnail(JNIEnv* env, jobject, jlong handle,
+                                                             jstring uri, jlong timeMs) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("");
+    
+    const char* uriChars = env->GetStringUTFChars(uri, nullptr);
+    
+    // Generate thumbnail using media engine
+    std::string thumbPath = engine->GetMediaEngine() ? engine->GetMediaEngine()->GenerateThumbnail(uriChars, timeMs / 1000.0) : "";
+    
+    env->ReleaseStringUTFChars(uri, uriChars);
+    return env->NewStringUTF(thumbPath.c_str());
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeGetMediaMetadata(JNIEnv* env, jobject, jlong handle,
+                                                            jstring uri) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return env->NewStringUTF("{}");
+    
+    const char* uriChars = env->GetStringUTFChars(uri, nullptr);
+    
+    // Get media metadata using media engine
+    std::string metadata = engine->GetMediaEngine() ? engine->GetMediaEngine()->GetMediaMetadata(uriChars) : "{}";
+    
+    env->ReleaseStringUTFChars(uri, uriChars);
+    return env->NewStringUTF(metadata.c_str());
+}
+
+// Crash Recovery
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeEnableCrashRecovery(JNIEnv*, jobject, jlong handle,
+                                                               jboolean enabled, jint intervalSeconds) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->EnableCrashRecovery(enabled == JNI_TRUE, intervalSeconds);
+}
+
+// Thermal Adaptation
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeEnableLowEndFallbacks(JNIEnv*, jobject, jlong handle,
+                                                                 jboolean enabled) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->EnableLowEndFallbacks(enabled == JNI_TRUE);
+}
+
+JNIEXPORT void JNICALL
+Java_com_vfxengine_app_NativeEngine_nativeAutoConfigureForDevice(JNIEnv*, jobject, jlong handle) {
+    auto* engine = GetEngine(handle);
+    if (!engine) return;
+    engine->AutoConfigureForDevice();
 }
 
 } // extern "C"

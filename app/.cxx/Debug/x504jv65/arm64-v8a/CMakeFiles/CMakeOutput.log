@@ -1,0 +1,15 @@
+The target system is: Android - 1 - aarch64
+The host system is: Windows - 10.0.26200 - AMD64
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+Compiler: C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/bin/clang++.exe 
+Build flags: 
+Id flags: -c;--target=aarch64-none-linux-android28 
+
+The output was:
+0
+
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.o"
+
+The CXX compiler identification is Clang, found in "C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/.cxx/Debug/x504jv65/arm64-v8a/CMakeFiles/3.22.1-g37088a8-dirty/CompilerIdCXX/CMakeCXXCompilerId.o"
+

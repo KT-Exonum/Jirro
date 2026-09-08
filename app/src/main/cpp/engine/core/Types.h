@@ -18,6 +18,8 @@ struct Handle {
     uint32_t index = 0;
     uint32_t generation = 0;
 
+    constexpr Handle(uint32_t i = 0, uint32_t g = 0) : index(i), generation(g) {}
+
     [[nodiscard]] constexpr bool IsValid() const noexcept { return generation != 0; }
     friend constexpr bool operator==(const Handle&, const Handle&) noexcept = default;
 };
@@ -52,6 +54,18 @@ enum class TextureUsage : uint8_t {
     ColorAttachmentAndSampled,
     Storage,
 };
+
+enum class BufferUsage : uint8_t {
+    Uniform,
+    Vertex,
+    Index,
+    Storage,
+    Indirect,
+};
+
+inline BufferUsage operator|(BufferUsage a, BufferUsage b) {
+    return static_cast<BufferUsage>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+}
 
 struct TextureDesc {
     uint32_t width = 0;

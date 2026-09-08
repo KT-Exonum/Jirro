@@ -1,0 +1,222 @@
+// Optical Flow Compute Shader - Pyramid Lucas-Kanade / Farneback-style dense optical flow
+// Computes dense motion vectors between two frames for frame blending, stabilization, etc.
+
+#version 450
+#extension GL_KHR_vulkan_memory_model : enable
+#extension GL_EXT_shader_atomic_int64 : enable
+
+// Workgroup size: 16x16 = 256 threads
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+struct PyramidLevel {
+    int width;
+    int height;
+    int offset; // Offset in the pyramid texture array
+};
+
+layout(set = 0, binding = 0) uniform sampler2D uFrame0;      // Previous frame
+layout(set = 0, binding = 1) uniform sampler2D uFrame1;      // Current frame
+layout(set = 0, binding = 2) uniform sampler2D uPyramid0;    // Frame0 pyramid (texture array)
+layout(set = 0, binding = 3) uniform sampler2D uPyramid1;    // Frame1 pyramid (texture array)
+
+layout(set = 0, binding = 4) uniform OpticalFlowParams {
+    int uPyramidLevels;         // Number of pyramid levels (typically 5)
+    int uWindowSize;            // Window size for Lucas-Kanade (5, 7, 9)
+    int uIterations;            // Iterations per level (typically 3-5)
+    float uAlpha;               // Smoothing parameter
+    float uMinEigenValue;       // Minimum eigenvalue threshold
+    float uMaxFlow;             // Maximum flow magnitude
+    int uWidth;
+    int uHeight;
+    float uScale;               // Pyramid scale factor (0.5)
+} params;
+
+layout(set = 0, binding = 5) uniform PyramidLevel uPyramidLevels[8];
+
+// Output: RG = forward flow (frame0 -> frame1), BA = backward flow (frame1 -> frame0)
+layout(set = 0, binding = 6, rgba32f) uniform image2D uFlowOutput;
+// Output: R = forward occlusion, G = backward occlusion
+layout(set = 0, binding = 7, rg32f) uniform image2D uOcclusionOutput;
+
+// Shared memory for window
+shared float sWindow[16][16][2]; // Ix, Iy per thread
+
+// Gaussian weights for 5x5 window
+const float gauss5[5] = float[](0.0625, 0.25, 0.375, 0.25, 0.0625);
+
+// Sample pyramid level
+vec2 samplePyramid(sampler2D pyr, int level, vec2 uv) {
+    if (level >= params.uPyramidLevels) level = params.uPyramidLevels - 1;
+    PyramidLevel pl = uPyramidLevels[level];
+    // Assuming pyramid stored as texture array or mip chain
+    return texture(pyr, uv).rg; // Using RG channels for gradient
+}
+
+// Compute image gradients (Ix, Iy) using Sobel
+vec2 computeGradient(sampler2D img, vec2 uv, float invWidth, float invHeight) {
+    vec2 grad;
+    grad.x = (texture(img, uv + vec2(invWidth, 0.0)).r - texture(img, uv - vec2(invWidth, 0.0)).r) * 0.5;
+    grad.y = (texture(img, uv + vec2(0.0, invHeight)).r - texture(img, uv - vec2(0.0, invHeight)).r) * 0.5;
+    return grad;
+}
+
+// Compute temporal gradient (It)
+float computeTemporalGrad(sampler2D img0, sampler2D img1, vec2 uv) {
+    return texture(img1, uv).r - texture(img0, uv).r;
+}
+
+// Lucas-Kanade step at single pyramid level
+vec2 lucasKanadeStep(sampler2D img0, sampler2D img1, vec2 uv, vec2 initFlow, 
+                     int level, int windowSize, int iterations) {
+    vec2 flow = initFlow;
+    PyramidLevel pl = uPyramidLevels[level];
+    float invW = 1.0 / float(pl.width);
+    float invH = 1.0 / float(pl.height);
+    int halfWin = windowSize / 2;
+    
+    for (int iter = 0; iter < iterations; iter++) {
+        float Axx = 0.0, Axy = 0.0, Ayy = 0.0;
+        float Bx = 0.0, By = 0.0;
+        float weightSum = 0.0;
+        
+        // Accumulate over window
+        for (int dy = -halfWin; dy <= halfWin; dy++) {
+            for (int dx = -halfWin; dx <= halfWin; dx++) {
+                vec2 offset = vec2(float(dx), float(dy)) * vec2(invW, invH);
+                vec2 sampleUv = uv + flow + offset;
+                
+                // Clamp
+                sampleUv = clamp(sampleUv, vec2(0.0), vec2(1.0));
+                
+                // Spatial gradients at warped location
+                vec2 grad = computeGradient(img0, sampleUv, invW, invH);
+                float Ix = grad.x;
+                float Iy = grad.y;
+                
+                // Temporal gradient
+                float It = computeTemporalGrad(img0, img1, sampleUv);
+                
+                // Gaussian weight
+                float wx = gauss5[dx + halfWin];
+                float wy = gauss5[dy + halfWin];
+                float w = wx * wy;
+                
+                Axx += w * Ix * Ix;
+                Axy += w * Ix * Iy;
+                Ayy += w * Iy * Iy;
+                Bx += w * Ix * It;
+                By += w * Iy * It;
+                weightSum += w;
+            }
+        }
+        
+        if (weightSum < 0.001) break;
+        
+        // Normalize
+        Axx /= weightSum; Axy /= weightSum; Ayy /= weightSum;
+        Bx /= weightSum; By /= weightSum;
+        
+        // Solve: [Axx Axy] [du] = [-Bx]
+        //        [Axy Ayy] [dv]   [-By]
+        float det = Axx * Ayy - Axy * Axy;
+        float minEigen = 0.5 * (Axx + Ayy - sqrt((Axx - Ayy)*(Axx - Ayy) + 4.0*Axy*Axy));
+        
+        if (det > params.uMinEigenValue && minEigen > params.uMinEigenValue) {
+            float du = (-Ayy * Bx + Axy * By) / det;
+            float dv = (Axy * Bx - Axx * By) / det;
+            flow += vec2(du, dv);
+        } else {
+            // Singular or near-singular - add regularization
+            float lambda = params.uAlpha;
+            float du = (- (Ayy + lambda) * Bx + Axy * By) / (det + lambda * (Axx + Ayy) + lambda * lambda);
+            float dv = (Axy * Bx - (Axx + lambda) * By) / (det + lambda * (Axx + Ayy) + lambda * lambda);
+            flow += vec2(du, dv);
+        }
+        
+        // Clamp flow magnitude
+        float mag = length(flow);
+        if (mag > params.uMaxFlow) {
+            flow *= params.uMaxFlow / mag;
+        }
+    }
+    
+    return flow;
+}
+
+// Build pyramid level (separable Gaussian blur)
+void buildPyramidLevel(sampler2D src, int level, vec2 uv, out vec4 color) {
+    PyramidLevel pl = uPyramidLevels[level];
+    if (level == 0) {
+        color = texture(src, uv);
+    } else {
+        // Sample from previous level with 2x downscaling
+        PyramidLevel plPrev = uPyramidLevels[level - 1];
+        vec2 uvPrev = uv * float(plPrev.width) / float(pl.width);
+        color = texture(src, uvPrev); // Simplified - real impl would blur
+    }
+}
+
+// Forward-backward consistency check for occlusion
+float checkConsistency(vec2 uv, vec2 forwardFlow, vec2 backwardFlow, float threshold) {
+    // Warp backward flow to forward frame
+    vec2 uvWarped = uv + forwardFlow;
+    uvWarped = clamp(uvWarped, vec2(0.0), vec2(1.0));
+    
+    // Sample backward flow at warped location
+    vec2 backFlowAtWarp = backwardFlow; // Simplified - would sample from flow field
+    
+    // Check consistency: forward(backward(x)) ≈ x
+    float error = length(forwardFlow + backFlowAtWarp);
+    return step(error, threshold) ? 0.0 : 1.0; // 0 = visible, 1 = occluded
+}
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    
+    // Process at full resolution (level 0)
+    if (gid.x >= params.uWidth || gid.y >= params.uHeight) return;
+    
+    vec2 uv = (vec2(gid) + 0.5) / vec2(params.uWidth, params.uHeight);
+    
+    // Initialize flow at coarsest level
+    vec2 forwardFlow = vec2(0.0);
+    vec2 backwardFlow = vec2(0.0);
+    
+    // Coarse-to-fine pyramid
+    for (int level = params.uPyramidLevels - 1; level >= 0; level--) {
+        PyramidLevel pl = uPyramidLevels[level];
+        
+        // Scale UV to this level
+        vec2 uvLevel = uv * vec2(float(pl.width), float(pl.height)) / vec2(params.uWidth, params.uHeight);
+        uvLevel = clamp(uvLevel, vec2(0.0), vec2(1.0));
+        
+        // Scale flow from previous level
+        if (level < params.uPyramidLevels - 1) {
+            float scale = float(uPyramidLevels[level].width) / float(uPyramidLevels[level + 1].width);
+            forwardFlow *= scale;
+            backwardFlow *= scale;
+        }
+        
+        // Lucas-Kanade at this level
+        forwardFlow = lucasKanadeStep(uFrame0, uFrame1, uvLevel, forwardFlow, level, 
+                                      params.uWindowSize, params.uIterations);
+        backwardFlow = lucasKanadeStep(uFrame1, uFrame0, uvLevel, backwardFlow, level, 
+                                       params.uWindowSize, params.uIterations);
+    }
+    
+    // Scale flow to output resolution (pixels per frame)
+    forwardFlow *= vec2(params.uWidth, params.uHeight);
+    backwardFlow *= vec2(params.uWidth, params.uHeight);
+    
+    // Clamp
+    forwardFlow = clamp(forwardFlow, -params.uMaxFlow, params.uMaxFlow);
+    backwardFlow = clamp(backwardFlow, -params.uMaxFlow, params.uMaxFlow);
+    
+    // Occlusion detection (simplified)
+    float forwardOcc = checkConsistency(uv, forwardFlow, backwardFlow, 2.0);
+    float backwardOcc = checkConsistency(uv, backwardFlow, forwardFlow, 2.0);
+    
+    // Write outputs
+    imageStore(uFlowOutput, gid, vec4(forwardFlow, backwardFlow));
+    imageStore(uOcclusionOutput, gid, vec2(forwardOcc, backwardOcc));
+}

@@ -1,0 +1,147 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.vfxengine.app"
+4    android:versionCode="1"
+5    android:versionName="0.2.0-phase2" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="29"
+9        android:targetSdkVersion="35" />
+10
+11    <!--
+12         Required: Vulkan 1.1 is the primary backend. required="false" lets the
+13         app install on GLES-only devices; capability is re-checked at runtime
+14         and the engine falls back to OpenGLDevice (see GraphicsDevice.h).
+15    -->
+16    <uses-feature
+16-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:7:5-10:36
+17        android:name="android.hardware.vulkan.version"
+17-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:8:9-55
+18        android:required="false"
+18-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:10:9-33
+19        android:version="0x00401000" />
+19-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:9:9-37
+20
+21    <permission
+21-->[androidx.core:core:1.13.1] C:\Users\jwats\.gradle\caches\transforms-4\0a1fa8a95530696a8d735173f12296f5\transformed\core-1.13.1\AndroidManifest.xml:22:5-24:47
+22        android:name="com.vfxengine.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+22-->[androidx.core:core:1.13.1] C:\Users\jwats\.gradle\caches\transforms-4\0a1fa8a95530696a8d735173f12296f5\transformed\core-1.13.1\AndroidManifest.xml:23:9-81
+23        android:protectionLevel="signature" />
+23-->[androidx.core:core:1.13.1] C:\Users\jwats\.gradle\caches\transforms-4\0a1fa8a95530696a8d735173f12296f5\transformed\core-1.13.1\AndroidManifest.xml:24:9-44
+24
+25    <uses-permission android:name="com.vfxengine.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+25-->[androidx.core:core:1.13.1] C:\Users\jwats\.gradle\caches\transforms-4\0a1fa8a95530696a8d735173f12296f5\transformed\core-1.13.1\AndroidManifest.xml:26:5-97
+25-->[androidx.core:core:1.13.1] C:\Users\jwats\.gradle\caches\transforms-4\0a1fa8a95530696a8d735173f12296f5\transformed\core-1.13.1\AndroidManifest.xml:26:22-94
+26
+27    <application
+27-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:12:5-29:19
+28        android:allowBackup="false"
+28-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:13:9-36
+29        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+29-->[androidx.core:core:1.13.1] C:\Users\jwats\.gradle\caches\transforms-4\0a1fa8a95530696a8d735173f12296f5\transformed\core-1.13.1\AndroidManifest.xml:28:18-86
+30        android:debuggable="true"
+31        android:extractNativeLibs="false"
+32        android:hardwareAccelerated="true"
+32-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:16:9-43
+33        android:label="VFX Engine"
+33-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:14:9-35
+34        android:largeHeap="true"
+34-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:17:9-33
+35        android:theme="@style/Theme.Material3.DayNight.NoActionBar" >
+35-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:15:9-68
+36        <activity
+36-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:19:9-28:20
+37            android:name="com.vfxengine.app.MainActivity"
+37-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:20:13-41
+38            android:configChanges="orientation|screenSize|keyboardHidden"
+38-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:23:13-74
+39            android:exported="true"
+39-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:21:13-36
+40            android:screenOrientation="landscape" >
+40-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:22:13-50
+41            <intent-filter>
+41-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:24:13-27:29
+42                <action android:name="android.intent.action.MAIN" />
+42-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:25:17-69
+42-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:25:25-66
+43
+44                <category android:name="android.intent.category.LAUNCHER" />
+44-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:26:17-77
+44-->C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\src\main\AndroidManifest.xml:26:27-74
+45            </intent-filter>
+46        </activity>
+47        <activity
+47-->[androidx.compose.ui:ui-tooling-android:1.7.0] C:\Users\jwats\.gradle\caches\transforms-4\5156d51180156060ab26a8b9c9c9b302\transformed\ui-tooling-release\AndroidManifest.xml:23:9-25:39
+48            android:name="androidx.compose.ui.tooling.PreviewActivity"
+48-->[androidx.compose.ui:ui-tooling-android:1.7.0] C:\Users\jwats\.gradle\caches\transforms-4\5156d51180156060ab26a8b9c9c9b302\transformed\ui-tooling-release\AndroidManifest.xml:24:13-71
+49            android:exported="true" />
+49-->[androidx.compose.ui:ui-tooling-android:1.7.0] C:\Users\jwats\.gradle\caches\transforms-4\5156d51180156060ab26a8b9c9c9b302\transformed\ui-tooling-release\AndroidManifest.xml:25:13-36
+50
+51        <provider
+51-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+52            android:name="androidx.startup.InitializationProvider"
+52-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+53            android:authorities="com.vfxengine.app.androidx-startup"
+53-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+54            android:exported="false" >
+54-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+55            <meta-data
+55-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+56                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+56-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+57                android:value="androidx.startup" />
+57-->[androidx.emoji2:emoji2:1.3.0] C:\Users\jwats\.gradle\caches\transforms-4\286521fd53d59a27a5041591217b530d\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+58            <meta-data
+58-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\jwats\.gradle\caches\transforms-4\d2676e6561df77275e3ef45c2abaa3cf\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:29:13-31:52
+59                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+59-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\jwats\.gradle\caches\transforms-4\d2676e6561df77275e3ef45c2abaa3cf\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:30:17-78
+60                android:value="androidx.startup" />
+60-->[androidx.lifecycle:lifecycle-process:2.8.6] C:\Users\jwats\.gradle\caches\transforms-4\d2676e6561df77275e3ef45c2abaa3cf\transformed\lifecycle-process-2.8.6\AndroidManifest.xml:31:17-49
+61            <meta-data
+61-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+62                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+62-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+63                android:value="androidx.startup" />
+63-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+64        </provider>
+65
+66        <receiver
+66-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+67            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+67-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+68            android:directBootAware="false"
+68-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+69            android:enabled="true"
+69-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+70            android:exported="true"
+70-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+71            android:permission="android.permission.DUMP" >
+71-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+72            <intent-filter>
+72-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+73                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+74            </intent-filter>
+75            <intent-filter>
+75-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+76                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+77            </intent-filter>
+78            <intent-filter>
+78-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+79                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+80            </intent-filter>
+81            <intent-filter>
+81-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+82                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\jwats\.gradle\caches\transforms-4\675e5d0ec0a4d050bca367f7b11a7e7e\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+83            </intent-filter>
+84        </receiver>
+85    </application>
+86
+87</manifest>

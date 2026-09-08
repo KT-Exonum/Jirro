@@ -28,12 +28,22 @@
 #include "engine/core/CommandQueue.h"
 #include "engine/core/GraphicsDevice.h"
 #include "engine/core/Profiler.h"
+#include "engine/core/RuntimeShaderCompiler.h"
 #include "engine/export/ExportPipeline.h"
 #include "engine/export/ProjectSerializer.h"
 #include "engine/graph/Node.h"
 #include "engine/graph/RenderGraph.h"
 #include "engine/media/MediaEngine.h"
+#include "engine/audio/AudioEngine.h"
 #include "engine/timeline/Timeline.h"
+
+#ifdef ENGINE_ENABLE_EXPRESSION_ENGINE
+#include "engine/expression/ExpressionEngine.h"
+#endif
+
+#ifdef ENGINE_ENABLE_TEXT_RENDERING
+#include "engine/text/TextRenderer.h"
+#endif
 
 namespace vfx {
 
@@ -48,6 +58,14 @@ struct UpdateUniformCommand {
 };
 
 // Phase 6: Export command
+struct ExportResult {
+    bool success = false;
+    std::string errorMessage;
+    uint64_t framesEncoded = 0;
+    double elapsedSeconds = 0.0;
+    double averageFps = 0.0;
+};
+
 struct ExportCommand {
     std::string outputPath;
     uint32_t width = 1920;
@@ -110,7 +128,7 @@ struct RemoveGroupCommand {
 struct AddClipCommand {
     std::string clipId;
     std::string sourceNodeId;
-    Timeline::ClipType type = Timeline::ClipType::Video;
+    ClipType type = ClipType::Video;
     double timelineStart = 0.0;
     double sourceInPoint = 0.0;
     double sourceOutPoint = 0.0;
@@ -160,7 +178,7 @@ public:
     // Convenience wrapper matching Section 12's example call shape:
     //   engine->QueueCommand(UpdateUniform{node_id, uniform_name, value});
     void QueueUniformUpdate(UpdateUniformCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             if (Node* node = engine.graph_.FindNodeMutable(cmd.nodeId)) {
                 node->uniformFloats[cmd.uniformName] = cmd.value;
             }
@@ -202,20 +220,20 @@ public:
 
     // Phase 6: Export command
     void QueueExport(ExportCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.StartExport(std::move(cmd));
         });
     }
 
     // Phase 6: Project commands
     void QueueSaveProject(SaveProjectCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.SaveProject(std::move(cmd));
         });
     }
 
     void QueueLoadProject(LoadProjectCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.LoadProject(std::move(cmd));
         });
     }
@@ -224,6 +242,18 @@ public:
     // load .spv shaders from the APK's assets/ folder at runtime.
     void SetAssetManager(AAssetManager* mgr) { assetManager_ = mgr; }
 
+    // Runtime shader compilation: set the directory where compiled SPIR-V is cached.
+    void SetShaderCacheDirectory(std::string_view cacheDir) {
+        if (shaderCompiler_) shaderCompiler_->SetCacheDirectory(cacheDir);
+    }
+
+    // Trigger compilation of all shaders (compile-on-first-run).
+    void CompileShadersIfNeeded() {
+        if (shaderCompiler_ && assetManager_) {
+            shaderCompiler_->CompileAllShaders([](const std::string&, ShaderCompileResult) {});
+        }
+    }
+
     // Reload all shaders from assets (dev builds only, guarded by
     // ENGINE_DEV_SHADER_HOTLOAD). Falls back to embedded bytecode when
     // asset loading fails for any individual shader.
@@ -231,57 +261,76 @@ public:
 
     // Phase 7+: Node graph commands
     void QueueAddNode(AddNodeCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.AddNode(std::move(cmd));
         });
     }
 
     void QueueRemoveNode(RemoveNodeCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.RemoveNode(std::move(cmd));
         });
     }
 
     void QueueConnectNodes(ConnectNodesCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.ConnectNodes(std::move(cmd));
         });
     }
 
     void QueueSetNodeParent(SetNodeParentCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.SetNodeParent(std::move(cmd));
         });
     }
 
     void QueueCreateGroup(CreateGroupCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.CreateGroup(std::move(cmd));
         });
     }
 
     void QueueRemoveGroup(RemoveGroupCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.RemoveGroup(std::move(cmd));
         });
     }
 
     // Timeline clip commands
     void QueueAddClip(AddClipCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.AddClip(std::move(cmd));
         });
     }
 
     void QueueRemoveClip(RemoveClipCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.RemoveClip(std::move(cmd));
         });
     }
 
     void QueueUpdateClip(UpdateClipCommand cmd) {
-        QueueCommand([cmd = std::move(cmd)](Engine& engine) {
+        QueueCommand([cmd = std::move(cmd)](Engine& engine) mutable {
             engine.UpdateClip(std::move(cmd));
+        });
+    }
+
+    // Timeline clip operations (Split/Trim/Delete)
+    void QueueSplitClip(const std::string& clipId, double timelinePosition) {
+        QueueCommand([clipId, timelinePosition](Engine& engine) {
+            engine.timeline_->SplitClip(clipId, timelinePosition);
+        });
+    }
+
+    void QueueTrimClip(const std::string& clipId, double sourceIn, double sourceOut) {
+        QueueCommand([clipId, sourceIn, sourceOut](Engine& engine) {
+            engine.timeline_->TrimClip(clipId, sourceIn, sourceOut);
+        });
+    }
+
+    void QueueCreateTransition(const std::string& fromClipId, const std::string& toClipId, double duration, const std::string& blendShaderNodeId) {
+        QueueCommand([fromClipId, toClipId, duration, blendShaderNodeId](Engine& engine) {
+            engine.timeline_->CreateTransition(fromClipId, toClipId, duration, blendShaderNodeId);
         });
     }
 
@@ -294,6 +343,19 @@ public:
         QueueCommand([](Engine& engine) { engine.Redo(); });
     }
 
+    // Audio output control
+    void QueueStartAudioOutput() {
+        QueueCommand([](Engine& engine) {
+            if (engine.audioEngine_) engine.audioEngine_->StartAudioOutput();
+        });
+    }
+
+    void QueueStopAudioOutput() {
+        QueueCommand([](Engine& engine) {
+            if (engine.audioEngine_) engine.audioEngine_->StopAudioOutput();
+        });
+    }
+
     // Profiling access
     [[nodiscard]] Profiler* GetProfiler() { return profiler_.get(); }
     [[nodiscard]] const Profiler* GetProfiler() const { return profiler_.get(); }
@@ -301,6 +363,44 @@ public:
     // Project manager access
     [[nodiscard]] ProjectManager* GetProjectManager() { return projectManager_.get(); }
     [[nodiscard]] const ProjectManager* GetProjectManager() const { return projectManager_.get(); }
+
+    // Phase 7+: Expression engine access
+#ifdef ENGINE_ENABLE_EXPRESSION_ENGINE
+    [[nodiscard]] ExpressionEngine* GetExpressionEngine() { return expressionEngine_.get(); }
+    [[nodiscard]] const ExpressionEngine* GetExpressionEngine() const { return expressionEngine_.get(); }
+#endif
+
+    // Phase 2: Media engine access
+    [[nodiscard]] MediaEngine* GetMediaEngine() { return mediaEngine_.get(); }
+    [[nodiscard]] const MediaEngine* GetMediaEngine() const { return mediaEngine_.get(); }
+
+    // Phase 7+: Audio engine access
+    [[nodiscard]] AudioEngine* GetAudioEngine() { return audioEngine_.get(); }
+    [[nodiscard]] const AudioEngine* GetAudioEngine() const { return audioEngine_.get(); }
+
+    // Crash Recovery
+    void EnableCrashRecovery(bool enabled, int intervalSeconds = 30);
+    
+    // Thermal Adaptation
+    void SetThermalCallback(std::function<void(bool)> callback);
+    void EnableLowEndFallbacks(bool enabled);
+    void AutoConfigureForDevice();
+
+    // Low-end fallbacks
+    struct LowEndSettings {
+        bool useSimpleShaders = true;
+        int maxParticles = 1000;
+        bool enableShadows = false;
+        bool enableMSAA = false;
+        bool useBilinearFiltering = true;
+        int maxTextureSize = 1024;
+        bool enableComputeShaders = false;
+        int maxLights = 1;
+        bool enablePostProcess = false;
+        float renderScale = 0.75f;
+    };
+    void ApplyLowEndSettings(const LowEndSettings& settings);
+    LowEndSettings GetRecommendedLowEndSettings();
 
     NodeGraph& Graph() { return graph_; }
     Timeline* GetTimeline() { return timeline_.get(); }
@@ -316,6 +416,9 @@ private:
     void LoadProject(LoadProjectCommand&& cmd);
     void UpdateThermalAdaptation();
 
+    // Crash Recovery & Auto-Save
+    void CheckCrashRecovery();
+    
     // Phase 7+: Node graph operations
     void AddNode(AddNodeCommand&& cmd);
     void RemoveNode(RemoveNodeCommand&& cmd);
@@ -331,6 +434,7 @@ private:
 
     std::atomic<bool> running_{false};
     std::thread engineThread_;
+    std::atomic<bool> engineStopFlag_{false};
 
     CommandQueue commandQueue_;
 
@@ -345,8 +449,24 @@ private:
     std::unique_ptr<ExportPipeline> exportPipeline_;
     std::unique_ptr<ProjectManager> projectManager_;
 
+    // Phase 7+: Expression engine for procedural animation
+#ifdef ENGINE_ENABLE_EXPRESSION_ENGINE
+    std::unique_ptr<ExpressionEngine> expressionEngine_;
+#endif
+
+    // Audio engine for decoding, mixing, and analysis
+    std::unique_ptr<class AudioEngine> audioEngine_;
+
+#ifdef ENGINE_ENABLE_TEXT_RENDERING
+    // Text rendering
+    std::unique_ptr<TextRenderer> textRenderer_;
+#endif
+
     // Dev hot-reload: non-owning pointer to the APK's AAssetManager.
     AAssetManager* assetManager_ = nullptr;
+
+    // Runtime shader compilation (compile-on-first-run, cache for later)
+    std::unique_ptr<RuntimeShaderCompiler> shaderCompiler_;
 
     std::mutex windowMutex_;
     ANativeWindow* pendingWindow_ = nullptr;
@@ -354,6 +474,21 @@ private:
 
     std::chrono::steady_clock::time_point lastTickTime_{};
     double masterSpeed_ = 1.0; // Phase 4: master timeline speed (negative = reverse)
+
+    // Crash Recovery
+    bool crashRecoveryEnabled_ = false;
+    int crashRecoveryIntervalSec_ = 30;
+    std::chrono::steady_clock::time_point lastCrashRecoverySave_{};
+
+    // Thermal Adaptation
+    bool thermalThrottlingActive_ = false;
+    bool disableExpensiveEffects_ = false;
+    float renderScale_ = 1.0f;
+    std::function<void(bool)> onThermalStateChange_;
+
+    // Low-End Fallbacks
+    bool lowEndFallbacksEnabled_ = false;
+    LowEndSettings lowEndSettings_;
 };
 
 } // namespace vfx

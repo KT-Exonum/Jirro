@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "engine/vulkan/VulkanDevice.h"
+
 namespace vfx {
 
 // GPU timestamp query result
@@ -74,6 +76,7 @@ struct ProfileFrameStats {
     uint64_t frameIndex = 0;
     double frameTimeMs = 0.0;
     double fps = 0.0;
+    uint32_t framesAnalyzed = 0;
 };
 
 // Profiling configuration
@@ -139,7 +142,7 @@ public:
     void SetThermalCallback(ThermalCallback cb);
     void UpdateThermalStatus();
     int GetThermalStatus() const { return thermalStatus_; }
-    bool IsThrottling() const { return thermalStatus_ >= ATHERMAL_STATUS_WARNING; }
+    bool IsThrottling() const { return thermalStatus_ >= ATHERMAL_STATUS_SEVERE; }
     
     // Performance analysis
     struct PerformanceReport {

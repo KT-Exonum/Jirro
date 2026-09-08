@@ -50,6 +50,21 @@ struct SerializedNode {
     std::string sourceFilePath;     // For VideoSource/ImageSource
     int blendMode = 0;              // For Blend
     std::vector<uint32_t> spirvFragment; // For Shader
+    // Audio config (for AudioReactive, AudioWaveform, AudioSpectrum)
+    std::string audioSourceClipId;
+    float audioSensitivity = 1.0f;
+    float audioSmoothing = 0.8f;
+    float audioFrequencyMin = 20.0f;
+    float audioFrequencyMax = 20000.0f;
+    int audioFftSize = 1024;
+    bool audioUseBeatDetection = true;
+    float audioBeatThreshold = 0.5f;
+    int audioWaveformPoints = 512;
+    int audioSpectrumBars = 64;
+    float audioBarWidth = 2.0f;
+    float audioBarGap = 1.0f;
+    uint32_t audioBarColor = 0xFF00FF00;
+    uint32_t audioBackgroundColor = 0x00000000;
 };
 
 // Serializable connection
@@ -128,6 +143,7 @@ public:
     static std::string GetAutosavePath(const std::string& projectPath);
     static bool SaveAutosave(const ProjectData& data, const std::string& projectPath);
     static bool LoadAutosave(ProjectData& data, const std::string& projectPath);
+    static std::string GetCurrentTimestamp();
     
     // Recent projects management
     static std::vector<std::string> GetRecentProjects();
@@ -170,12 +186,14 @@ public:
     // Current project state
     [[nodiscard]] bool HasProject() const { return currentProject_.has_value(); }
     [[nodiscard]] const std::string& GetProjectPath() const { return projectPath_; }
+    [[nodiscard]] std::string GetProjectDir() const { return projectPath_; }
     [[nodiscard]] const std::string& GetProjectName() const { return projectName_; }
+    [[nodiscard]] std::string GetRecentProjectsJson() const;
     [[nodiscard]] bool IsModified() const { return modified_; }
     
     // Access to project data for engine sync
-    [[nodiscard]] const ProjectData& GetData() const { return projectData_; }
-    [[nodiscard]] ProjectData& GetMutableData() { return projectData_; }
+    [[nodiscard]] const ProjectData& GetData() const { return *currentProject_; }
+    [[nodiscard]] ProjectData& GetMutableData() { return *currentProject_; }
     
     // Mark project as modified
     void SetModified(bool modified = true) { modified_ = modified; }

@@ -1,0 +1,396 @@
+ninja: Entering directory `C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\.cxx\Debug\662v706w\arm64-v8a'
+[1/2] Building CXX object CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:88:85: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineCacheCreateInfo cacheInfo{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
+                                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:97:65: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:108:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkInstanceCreateInfo createInfo{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+                                                                          ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:188:81: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDeviceQueueCreateInfo queueInfo{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+                                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:214:76: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES};
+                                                                           ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:217:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDeviceCreateInfo createInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+                                                                      ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:258:84: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSwapchainCreateInfoKHR createInfo{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+                                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:285:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+                                                                               ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:333:76: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkRenderPassCreateInfo rpInfo{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+                                                                           ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:347:81: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VkFramebufferCreateInfo fbInfo{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+                                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:363:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+                                                                               ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:369:89: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkCommandBufferAllocateInfo allocInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+                                                                                        ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:377:74: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSemaphoreCreateInfo semInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:378:68: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:399:86: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+                                                                                     ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:417:106: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo uniformLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:431:104: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo paramLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:445:103: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo texLayoutInfo1{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                      ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:455:103: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo texLayoutInfo2{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                      ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:470:104: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo ycbcrLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:480:104: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo mixedLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:494:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+                                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:517:106: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+                                                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:526:96: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineLayoutCreateInfo computeLayoutInfo2{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+                                                                                               ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:559:93: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VkDescriptorSetAllocateInfo allocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+                                                                                            ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:588:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkShaderModuleCreateInfo vsInfo{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+                                                                               ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:593:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkShaderModuleCreateInfo fsInfo{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+                                                                               ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:599:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    stages[0] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:603:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    stages[1] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:612:66: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+                                                                 ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:615:68: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:622:62: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+                                                             ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:629:67: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+                                                                  ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:636:65: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:645:65: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:649:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+                                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:654:94: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkGraphicsPipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+                                                                                             ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:690:83: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+                                                                                  ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:694:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkRenderPassBeginInfo rpBegin{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+                                                                          ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:717:58: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:728:68: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPresentInfoKHR presentInfo{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:795:68: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:815:74: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:827:76: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+                                                                           ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:881:68: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkBufferCreateInfo bufInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:897:74: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:934:78: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+                                                                             ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1021:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    stages[0] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1025:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    stages[1] = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1031:111: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineVertexInputStateCreateInfo vertexInput{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+                                                                                                              ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1033:117: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+                                                                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1037:106: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineViewportStateCreateInfo viewportState{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+                                                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1041:113: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineRasterizationStateCreateInfo rasterizer{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+                                                                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1047:110: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineMultisampleStateCreateInfo multisample{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+                                                                                                             ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1056:108: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineColorBlendStateCreateInfo colorBlend{VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+                                                                                                           ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1062:103: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineDynamicStateCreateInfo dynamicState{VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+                                                                                                      ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1071:97: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineRenderingCreateInfo renderingInfo{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+                                                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1075:94: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkGraphicsPipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+                                                                                             ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1114:98: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkPipelineShaderStageCreateInfo stageInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+                                                                                                 ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1124:92: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkComputePipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+                                                                                           ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1329:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                                                                            ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1351:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkWriteDescriptorSet paramWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                                                                          ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1375:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+            textureWrites[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                                                                      ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1461:72: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1473:90: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+                                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1480:67: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
+                                                                  ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1546:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                                                                            ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1576:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkWriteDescriptorSet paramWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+                                                                          ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1615:72: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+                                                                       ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1626:90: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+                                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1633:67: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
+                                                                  ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1657:73: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageMemoryBarrier barrier2{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+                                                                        ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1676:103: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSamplerYcbcrConversionCreateInfo convInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO};
+                                                                                                      ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1702:90: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSamplerYcbcrConversionInfo convInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
+                                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1705:74: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSamplerCreateInfo samplerInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1745:76: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID};
+                                                                           ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1747:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID};
+                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1759:85: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkExternalFormatANDROID externalFormat{VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID};
+                                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1762:101: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkExternalMemoryImageCreateInfo extImageInfo{VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
+                                                                                                    ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1768:68: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+                                                                   ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1790:70: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+        VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID};
+                                                                     ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1793:97: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkMemoryDedicatedAllocateInfo dedicatedInfo{VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO};
+                                                                                                ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1800:74: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+                                                                         ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1837:94: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkSamplerYcbcrConversionInfo viewConvInfo{VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO};
+                                                                                             ^
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1840:76: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+    VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+                                                                           ^
+85 warnings generated.
+[2/2] Linking CXX shared library C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\build\intermediates\cxx\Debug\662v706w\obj\arm64-v8a\libvfxengine.so
+FAILED: C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/build/intermediates/cxx/Debug/662v706w/obj/arm64-v8a/libvfxengine.so 
+cmd.exe /C "cd . && C:\Users\jwats\AppData\Local\Android\Sdk\ndk\26.1.10909125\toolchains\llvm\prebuilt\windows-x86_64\bin\clang++.exe --target=aarch64-none-linux-android28 --sysroot=C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot -fPIC -g -DANDROID -fdata-sections -ffunction-sections -funwind-tables -fstack-protector-strong -no-canonical-prefixes -D_FORTIFY_SOURCE=2 -Wformat -Werror=format-security  -std=c++20 -fno-limit-debug-info  -Wl,--build-id=sha1 -Wl,--no-rosegment -Wl,--no-undefined-version -Wl,--fatal-warnings -Wl,--no-undefined -Qunused-arguments -shared -Wl,-soname,libvfxengine.so -o C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\build\intermediates\cxx\Debug\662v706w\obj\arm64-v8a\libvfxengine.so CMakeFiles/vfxengine.dir/jni/jni_bridge.cpp.o CMakeFiles/vfxengine.dir/Engine.cpp.o CMakeFiles/vfxengine.dir/engine/core/RuntimeShaderCompiler.cpp.o CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o CMakeFiles/vfxengine.dir/engine/media/MediaEngine.cpp.o CMakeFiles/vfxengine.dir/engine/core/Profiler.cpp.o CMakeFiles/vfxengine.dir/engine/export/ExportPipeline.cpp.o CMakeFiles/vfxengine.dir/engine/export/ProjectSerializer.cpp.o CMakeFiles/vfxengine.dir/engine/audio/AudioEngine.cpp.o CMakeFiles/vfxengine.dir/engine/audio/AudioOutput.cpp.o CMakeFiles/vfxengine.dir/engine/asset/AssetManager.cpp.o CMakeFiles/vfxengine.dir/engine/3d/Light.cpp.o CMakeFiles/vfxengine.dir/engine/3d/Material.cpp.o CMakeFiles/vfxengine.dir/engine/3d/Shadow.cpp.o CMakeFiles/vfxengine.dir/engine/3d/glTFLoader.cpp.o  C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28/liblog.so  C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28/libandroid.so  C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28/libvulkan.so  C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28/libmediandk.so  C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28/libnativewindow.so  C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/28/libaaudio.so  -latomic -lm && cd ."
+ld.lld: error: undefined symbol: vkCmdBeginRendering
+>>> referenced by VulkanDevice.cpp:1486 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1486)
+>>>               CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o:(vfx::VulkanDevice::DrawFullscreenPass(vfx::Handle<vfx::PipelineTag>, std::__ndk1::span<vfx::Handle<vfx::TextureTag> const, 18446744073709551615ul>, vfx::Handle<vfx::TextureTag>, std::__ndk1::unordered_map<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, float, std::__ndk1::hash<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::equal_to<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::allocator<std::__ndk1::pair<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const, float>>> const&))
+>>> referenced by VulkanDevice.cpp:1639 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1639)
+>>>               CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o:(vfx::VulkanDevice::DrawParticlePass(vfx::Handle<vfx::PipelineTag>, vfx::GraphicsDevice::ParticleDrawParams const&, vfx::Handle<vfx::TextureTag>, std::__ndk1::unordered_map<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, float, std::__ndk1::hash<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::equal_to<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::allocator<std::__ndk1::pair<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const, float>>> const&))
+
+ld.lld: error: undefined symbol: vkCmdEndRendering
+>>> referenced by VulkanDevice.cpp:1493 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1493)
+>>>               CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o:(vfx::VulkanDevice::DrawFullscreenPass(vfx::Handle<vfx::PipelineTag>, std::__ndk1::span<vfx::Handle<vfx::TextureTag> const, 18446744073709551615ul>, vfx::Handle<vfx::TextureTag>, std::__ndk1::unordered_map<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, float, std::__ndk1::hash<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::equal_to<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::allocator<std::__ndk1::pair<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const, float>>> const&))
+>>> referenced by VulkanDevice.cpp:1655 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/vulkan/VulkanDevice.cpp:1655)
+>>>               CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o:(vfx::VulkanDevice::DrawParticlePass(vfx::Handle<vfx::PipelineTag>, vfx::GraphicsDevice::ParticleDrawParams const&, vfx::Handle<vfx::TextureTag>, std::__ndk1::unordered_map<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>, float, std::__ndk1::hash<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::equal_to<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>>>, std::__ndk1::allocator<std::__ndk1::pair<std::__ndk1::basic_string<char, std::__ndk1::char_traits<char>, std::__ndk1::allocator<char>> const, float>>> const&))
+
+ld.lld: error: undefined symbol: vfx::kParticleSimCompSpirv
+>>> referenced by RenderGraph.cpp:791 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:791)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::InitializeParticleSystem(vfx::ParticleConfig const&))
+>>> referenced by RenderGraph.cpp:791 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:791)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::InitializeParticleSystem(vfx::ParticleConfig const&))
+
+ld.lld: error: undefined symbol: vfx::kParticleSimCompSpirvWords
+>>> referenced by RenderGraph.cpp:791 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:791)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::InitializeParticleSystem(vfx::ParticleConfig const&))
+>>> referenced by RenderGraph.cpp:791 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:791)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::InitializeParticleSystem(vfx::ParticleConfig const&))
+
+ld.lld: error: undefined symbol: vfx::kFullscreenVertSpirv
+>>> referenced by RenderGraph.cpp:622 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:622)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::ExecutePass(vfx::NodeGraph const&, vfx::CompiledPass const&, double, vfx::MediaEngine const*, vfx::ExpressionEngine*, vfx::AudioEngine*))
+>>> referenced by RenderGraph.cpp:622 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:622)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::ExecutePass(vfx::NodeGraph const&, vfx::CompiledPass const&, double, vfx::MediaEngine const*, vfx::ExpressionEngine*, vfx::AudioEngine*))
+>>> referenced by RenderGraph.cpp:392 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:392)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::ResolveShaderEntry(vfx::NodeKind, vfx::BlendMode))
+>>> referenced 35 more times
+
+ld.lld: error: undefined symbol: vfx::kFullscreenVertSpirvWords
+>>> referenced by RenderGraph.cpp:622 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:622)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::ExecutePass(vfx::NodeGraph const&, vfx::CompiledPass const&, double, vfx::MediaEngine const*, vfx::ExpressionEngine*, vfx::AudioEngine*))
+>>> referenced by RenderGraph.cpp:622 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:622)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::RenderGraph::ExecutePass(vfx::NodeGraph const&, vfx::CompiledPass const&, double, vfx::MediaEngine const*, vfx::ExpressionEngine*, vfx::AudioEngine*))
+>>> referenced by RenderGraph.cpp:392 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:392)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::ResolveShaderEntry(vfx::NodeKind, vfx::BlendMode))
+>>> referenced 35 more times
+
+ld.lld: error: undefined symbol: vfx::kBlendNormalFragSpirv
+>>> referenced by RenderGraph.cpp:376 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:376)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:376 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:376)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:251 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:251)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetShaderRegistry()::$_0::operator()() const)
+>>> referenced 15 more times
+
+ld.lld: error: undefined symbol: vfx::kBlendNormalFragSpirvWords
+>>> referenced by RenderGraph.cpp:376 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:376)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:376 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:376)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:251 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:251)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetShaderRegistry()::$_0::operator()() const)
+>>> referenced 15 more times
+
+ld.lld: error: undefined symbol: vfx::kBlendMultiplyFragSpirv
+>>> referenced by RenderGraph.cpp:377 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:377)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:377 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:377)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendMultiplyFragSpirvWords
+>>> referenced by RenderGraph.cpp:377 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:377)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:377 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:377)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendScreenFragSpirv
+>>> referenced by RenderGraph.cpp:378 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:378)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:378 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:378)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendScreenFragSpirvWords
+>>> referenced by RenderGraph.cpp:378 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:378)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:378 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:378)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendOverlayFragSpirv
+>>> referenced by RenderGraph.cpp:379 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:379)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:379 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:379)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendOverlayFragSpirvWords
+>>> referenced by RenderGraph.cpp:379 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:379)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:379 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:379)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendAddFragSpirv
+>>> referenced by RenderGraph.cpp:380 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:380)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:380 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:380)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendAddFragSpirvWords
+>>> referenced by RenderGraph.cpp:380 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:380)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:380 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:380)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendSubtractFragSpirv
+>>> referenced by RenderGraph.cpp:381 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:381)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:381 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:381)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kBlendSubtractFragSpirvWords
+>>> referenced by RenderGraph.cpp:381 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:381)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:381 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:381)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetBlendFragRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kVectorSourceVertSpirv
+>>> referenced by RenderGraph.cpp:253 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:253)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetShaderRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:253 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:253)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetShaderRegistry()::$_0::operator()() const)
+
+ld.lld: error: undefined symbol: vfx::kVectorSourceVertSpirvWords
+>>> referenced by RenderGraph.cpp:253 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:253)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetShaderRegistry()::$_0::operator()() const)
+>>> referenced by RenderGraph.cpp:253 (C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/engine/graph/RenderGraph.cpp:253)
+>>>               CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o:(vfx::GetShaderRegistry()::$_0::operator()() const)
+
+ld.lld: error: too many errors emitted, stopping now (use --error-limit=0 to see all errors)
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+ninja: build stopped: subcommand failed.

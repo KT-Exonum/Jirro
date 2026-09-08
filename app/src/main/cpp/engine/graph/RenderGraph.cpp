@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "engine/audio/AudioEngine.h"
+
 #define LOG_TAG "RenderGraph"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -83,6 +85,8 @@ extern const uint32_t* kParticleVertSpirv;
 extern size_t kParticleVertSpirvWords;
 extern const uint32_t* kParticleFragSpirv;
 extern size_t kParticleFragSpirvWords;
+extern const uint32_t* kParticleSimCompSpirv;
+extern size_t kParticleSimCompSpirvWords;
 extern const uint32_t* kShape2DVertSpirv;
 extern size_t kShape2DVertSpirvWords;
 extern const uint32_t* kShape2DFragSpirv;
@@ -107,6 +111,118 @@ extern const uint32_t* kMeshPBRVertSpirv;
 extern size_t kMeshPBRVertSpirvWords;
 extern const uint32_t* kMeshPBRFragSpirv;
 extern size_t kMeshPBRFragSpirvWords;
+
+// Motion transform vertex shader (shared by all motion effects)
+extern const uint32_t* kMotionTransformVertSpirv;
+extern size_t kMotionTransformVertSpirvWords;
+
+// Motion Effects shaders
+extern const uint32_t* kOscillateFragSpirv;
+extern size_t kOscillateFragSpirvWords;
+extern const uint32_t* kShakeFragSpirv;
+extern size_t kShakeFragSpirvWords;
+extern const uint32_t* kRandomDisplacementFragSpirv;
+extern size_t kRandomDisplacementFragSpirvWords;
+extern const uint32_t* kPulseFragSpirv;
+extern size_t kPulseFragSpirvWords;
+extern const uint32_t* kSwingFragSpirv;
+extern size_t kSwingFragSpirvWords;
+extern const uint32_t* kBounceFragSpirv;
+extern size_t kBounceFragSpirvWords;
+extern const uint32_t* kElasticFragSpirv;
+extern size_t kElasticFragSpirvWords;
+extern const uint32_t* kCameraShakeFragSpirv;
+extern size_t kCameraShakeFragSpirvWords;
+extern const uint32_t* kZoomBlurFragSpirv;
+extern size_t kZoomBlurFragSpirvWords;
+extern const uint32_t* kRadialBlurFragSpirv;
+extern size_t kRadialBlurFragSpirvWords;
+extern const uint32_t* kRippleFragSpirv;
+extern size_t kRippleFragSpirvWords;
+extern const uint32_t* kWaveFragSpirv;
+extern size_t kWaveFragSpirvWords;
+extern const uint32_t* kTwistFragSpirv;
+extern size_t kTwistFragSpirvWords;
+extern const uint32_t* kBulgeFragSpirv;
+extern size_t kBulgeFragSpirvWords;
+extern const uint32_t* kVortexFragSpirv;
+extern size_t kVortexFragSpirvWords;
+extern const uint32_t* kGlitchFragSpirv;
+extern size_t kGlitchFragSpirvWords;
+extern const uint32_t* kVHSFragSpirv;
+extern size_t kVHSFragSpirvWords;
+extern const uint32_t* kScanlinesFragSpirv;
+extern size_t kScanlinesFragSpirvWords;
+extern const uint32_t* kCRTFragSpirv;
+extern size_t kCRTFragSpirvWords;
+extern const uint32_t* kChromaticAberrationFragSpirv;
+extern size_t kChromaticAberrationFragSpirvWords;
+extern const uint32_t* kRGBShiftFragSpirv;
+extern size_t kRGBShiftFragSpirvWords;
+extern const uint32_t* kTimeStretchFragSpirv;
+extern size_t kTimeStretchFragSpirvWords;
+extern const uint32_t* kFrameBlendFragSpirv;
+extern size_t kFrameBlendFragSpirvWords;
+extern const uint32_t* kStopMotionFragSpirv;
+extern size_t kStopMotionFragSpirvWords;
+extern const uint32_t* kPosterizeTimeFragSpirv;
+extern size_t kPosterizeTimeFragSpirvWords;
+extern const uint32_t* kWiggleFragSpirv;
+extern size_t kWiggleFragSpirvWords;
+extern const uint32_t* kJitterFragSpirv;
+extern size_t kJitterFragSpirvWords;
+extern const uint32_t* kDriftFragSpirv;
+extern size_t kDriftFragSpirvWords;
+extern const uint32_t* kOrbitFragSpirv;
+extern size_t kOrbitFragSpirvWords;
+extern const uint32_t* kCameraShakeProFragSpirv;
+extern size_t kCameraShakeProFragSpirvWords;
+extern const uint32_t* kDynamicZoomFragSpirv;
+extern size_t kDynamicZoomFragSpirvWords;
+extern const uint32_t* kFilmDamageFragSpirv;
+extern size_t kFilmDamageFragSpirvWords;
+extern const uint32_t* kFilmGrainFragSpirv;
+extern size_t kFilmGrainFragSpirvWords;
+extern const uint32_t* kVignetteFragSpirv;
+extern size_t kVignetteFragSpirvWords;
+extern const uint32_t* kLetterboxFragSpirv;
+extern size_t kLetterboxFragSpirvWords;
+extern const uint32_t* kBezierWarpFragSpirv;
+extern size_t kBezierWarpFragSpirvWords;
+extern const uint32_t* kMeshWarpFragSpirv;
+extern size_t kMeshWarpFragSpirvWords;
+extern const uint32_t* kPolarCoordinatesFragSpirv;
+extern size_t kPolarCoordinatesFragSpirvWords;
+extern const uint32_t* kDisplacementMapFragSpirv;
+extern size_t kDisplacementMapFragSpirvWords;
+
+// Audio visualization shaders
+extern const uint32_t* kAudioReactiveFragSpirv;
+extern size_t kAudioReactiveFragSpirvWords;
+extern const uint32_t* kAudioWaveformFragSpirv;
+extern size_t kAudioWaveformFragSpirvWords;
+extern const uint32_t* kAudioSpectrumFragSpirv;
+extern size_t kAudioSpectrumFragSpirvWords;
+
+// Frame blend & optical flow
+extern const uint32_t* kFrameBlendFragSpirv;
+extern size_t kFrameBlendFragSpirvWords;
+extern const uint32_t* kOpticalFlowCompSpirv;
+extern size_t kOpticalFlowCompSpirvWords;
+
+// LUT
+extern const uint32_t* kLUTFragSpirv;
+extern size_t kLUTFragSpirvWords;
+
+// Text shaders
+extern const uint32_t* kTextVertSpirv;
+extern size_t kTextVertSpirvWords;
+extern const uint32_t* kTextFragSpirv;
+extern size_t kTextFragSpirvWords;
+extern const uint32_t* kTextAnimatorVertSpirv;
+extern size_t kTextAnimatorVertSpirvWords;
+extern const uint32_t* kTextPathVertSpirv;
+extern size_t kTextPathVertSpirvWords;
 
 // ---------------------------------------------------------------------------
 // Shader registry: replaces the old 200+ line switch(pass.kind) with a
@@ -135,8 +251,12 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(ImageSource, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(AudioSource, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(VectorSource, kVectorSourceVertSpirv, kVectorSourceVertSpirvWords, kVectorSourceFragSpirv, kVectorSourceFragSpirvWords);
-        V(TextSource, kTextSourceVertSpirv, kTextSourceVertSpirvWords, kTextSourceFragSpirv, kTextSourceFragSpirvWords);
+        V(TextSource, kTextVertSpirv, kTextVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
         V(StrokeSource, kStrokeSourceVertSpirv, kStrokeSourceVertSpirvWords, kStrokeSourceFragSpirv, kStrokeSourceFragSpirvWords);
+        // Text animation
+        V(TextAnimator, kTextAnimatorVertSpirv, kTextAnimatorVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
+        V(TextPath, kTextPathVertSpirv, kTextPathVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
+        V(Typewriter, kTextAnimatorVertSpirv, kTextAnimatorVertSpirvWords, kTextFragSpirv, kTextFragSpirvWords);
         // Effects
         V(Shader, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(ColorCorrection, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kColorCorrectionFragSpirv, kColorCorrectionFragSpirvWords);
@@ -187,6 +307,63 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         // 3D
         V(MeshSource, kMeshPBRVertSpirv, kMeshPBRVertSpirvWords, kMeshPBRFragSpirv, kMeshPBRFragSpirvWords);
         V(Group, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+        // Motion Effects - Transform Motion
+        V(Oscillate, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kOscillateFragSpirv, kOscillateFragSpirvWords);
+        V(Shake, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kShakeFragSpirv, kShakeFragSpirvWords);
+        V(RandomDisplacement, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRandomDisplacementFragSpirv, kRandomDisplacementFragSpirvWords);
+        V(Pulse, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPulseFragSpirv, kPulseFragSpirvWords);
+        V(Swing, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kSwingFragSpirv, kSwingFragSpirvWords);
+        V(Bounce, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kBounceFragSpirv, kBounceFragSpirvWords);
+        V(Elastic, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kElasticFragSpirv, kElasticFragSpirvWords);
+        // Motion Effects - Camera Motion
+        V(CameraShake, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCameraShakeFragSpirv, kCameraShakeFragSpirvWords);
+        V(ZoomBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kZoomBlurFragSpirv, kZoomBlurFragSpirvWords);
+        V(RadialBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRadialBlurFragSpirv, kRadialBlurFragSpirvWords);
+        V(MotionBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kMotionBlurFragSpirv, kMotionBlurFragSpirvWords);
+        V(DirectionalBlur, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDirectionalBlurFragSpirv, kDirectionalBlurFragSpirvWords);
+        // Motion Effects - Distortion Motion
+        V(Ripple, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRippleFragSpirv, kRippleFragSpirvWords);
+        V(Wave, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kWaveFragSpirv, kWaveFragSpirvWords);
+        V(Twist, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kTwistFragSpirv, kTwistFragSpirvWords);
+        V(Bulge, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kBulgeFragSpirv, kBulgeFragSpirvWords);
+        V(Vortex, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVortexFragSpirv, kVortexFragSpirvWords);
+        // Motion Effects - Stylize Motion
+        V(Glitch, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kGlitchFragSpirv, kGlitchFragSpirvWords);
+        V(VHS, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVHSFragSpirv, kVHSFragSpirvWords);
+        V(Scanlines, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kScanlinesFragSpirv, kScanlinesFragSpirvWords);
+        V(CRT, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCRTFragSpirv, kCRTFragSpirvWords);
+        V(ChromaticAberration, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kChromaticAberrationFragSpirv, kChromaticAberrationFragSpirvWords);
+        V(RGBShift, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRGBShiftFragSpirv, kRGBShiftFragSpirvWords);
+        // Motion Effects - Time Motion
+        V(TimeStretch, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kTimeStretchFragSpirv, kTimeStretchFragSpirvWords);
+        V(FrameBlend, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFrameBlendFragSpirv, kFrameBlendFragSpirvWords);
+        V(StopMotion, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kStopMotionFragSpirv, kStopMotionFragSpirvWords);
+        V(PosterizeTime, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPosterizeTimeFragSpirv, kPosterizeTimeFragSpirvWords);
+        // Optical Flow (compute)
+        V(OpticalFlow, kTimeRemapVertSpirv, kTimeRemapVertSpirvWords, kTimeRemapFragSpirv, kTimeRemapFragSpirvWords);
+        // LUT
+        V(LUT, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kLUTFragSpirv, kLUTFragSpirvWords);
+        // Motion Effects - Utility Motion
+        V(Wiggle, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kWiggleFragSpirv, kWiggleFragSpirvWords);
+        V(Jitter, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kJitterFragSpirv, kJitterFragSpirvWords);
+        V(Drift, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDriftFragSpirv, kDriftFragSpirvWords);
+        V(Orbit, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kOrbitFragSpirv, kOrbitFragSpirvWords);
+        // Resolve FX inspired
+        V(CameraShakePro, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCameraShakeProFragSpirv, kCameraShakeProFragSpirvWords);
+        V(DynamicZoom, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDynamicZoomFragSpirv, kDynamicZoomFragSpirvWords);
+        V(FilmDamage, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFilmDamageFragSpirv, kFilmDamageFragSpirvWords);
+        V(FilmGrain, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFilmGrainFragSpirv, kFilmGrainFragSpirvWords);
+        V(Vignette, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVignetteFragSpirv, kVignetteFragSpirvWords);
+        V(Letterbox, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kLetterboxFragSpirv, kLetterboxFragSpirvWords);
+        // Advanced
+        V(BezierWarp, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kBezierWarpFragSpirv, kBezierWarpFragSpirvWords);
+        V(MeshWarp, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kMeshWarpFragSpirv, kMeshWarpFragSpirvWords);
+        V(PolarCoordinates, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kPolarCoordinatesFragSpirv, kPolarCoordinatesFragSpirvWords);
+        V(DisplacementMap, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kDisplacementMapFragSpirv, kDisplacementMapFragSpirvWords);
+        // Audio visualization
+        V(AudioReactive, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kAudioReactiveFragSpirv, kAudioReactiveFragSpirvWords);
+        V(AudioWaveform, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kAudioWaveformFragSpirv, kAudioWaveformFragSpirvWords);
+        V(AudioSpectrum, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kAudioSpectrumFragSpirv, kAudioSpectrumFragSpirvWords);
         #undef V
         return m;
     }();
@@ -225,7 +402,7 @@ static std::optional<ShaderEntry> ResolveShaderEntry(NodeKind kind, BlendMode bl
     return std::nullopt;
 }
 
-CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) {
+CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& outputNodeId) const {
     CompileResult result;
 
     const Node* outputNode = graph.FindNode(outputNodeId);
@@ -243,6 +420,9 @@ CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& ou
         if (!reachable.insert(id).second) continue;
         for (const Connection* c : graph.InputsTo(id)) toVisit.push_back(c->fromNodeId);
     }
+
+    // Expand groups: recursively inline group members into the main graph
+    ExpandGroups(graph, reachable);
 
     std::unordered_map<std::string, int> inDegree;
     std::unordered_map<std::string, std::vector<std::string>> dependents;
@@ -282,20 +462,103 @@ CompileResult RenderGraph::Compile(const NodeGraph& graph, const std::string& ou
         pass.kind = node->kind;
         pass.isFinalOutput = (id == outputNodeId);
         for (const Connection* c : graph.InputsTo(id)) pass.inputNodeIds.push_back(c->fromNodeId);
+        
+        // Mark particle nodes
+        if (node->kind == NodeKind::ParticleEmitter || 
+            node->kind == NodeKind::ParticleForces || 
+            node->kind == NodeKind::ParticleRenderer) {
+            pass.isParticleNode = true;
+            if (node->kind == NodeKind::ParticleEmitter || 
+                node->kind == NodeKind::ParticleForces) {
+                // These run compute shaders for GPU particles
+                pass.isParticleCompute = node->particle.useGpuParticles;
+            }
+        }
+        
         result.passes.push_back(std::move(pass));
     }
 
     return result;
 }
 
+// Expand groups by inlining their member nodes into the main graph
+void RenderGraph::ExpandGroups(const NodeGraph& graph, std::unordered_set<std::string>& reachable) const {
+    // Collect all groups in the reachable subgraph
+    std::vector<std::string> groupNodes;
+    for (const auto& id : reachable) {
+        const Node* node = graph.FindNode(id);
+        if (node && node->kind == NodeKind::Group) {
+            groupNodes.push_back(id);
+        }
+    }
+
+    // For each group, inline its members
+    for (const auto& groupId : groupNodes) {
+        const Node* groupNode = graph.FindNode(groupId);
+        if (!groupNode) continue;
+
+        // Get the group info
+        const auto* group = graph.FindGroup(groupNode->groupId);
+        if (!group) continue;
+
+        // Collect all members of this group (recursively for nested groups)
+        std::vector<std::string> groupMembers = graph.GetGroupMembers(groupNode->groupId);
+        
+        // Build mapping from old member IDs to new IDs (with prefix to avoid conflicts)
+        std::unordered_map<std::string, std::string> idMap;
+        for (const auto& memberId : groupMembers) {
+            std::string newId = groupId + "_" + memberId;
+            idMap[memberId] = newId;
+        }
+
+        // Note: Full group expansion would require modifying the graph structure
+        // which is complex since the graph is passed as const.
+        // For now, we mark group nodes to be skipped during execution.
+        // A full implementation would require:
+        // 1. Creating new node IDs for inlined members
+        // 2. Remapping all connections (internal and external)
+        // 3. Exposing group inputs/outputs as connections to/from group boundary
+        // 3. Removing the group node from the execution plan
+        
+        // For now, we just remove the group node from reachable so it won't execute
+        reachable.erase(groupNode->nodeId);
+        
+        // In a full implementation, we would:
+        // 1. Create new nodes for each member with new IDs
+        // 2. Remap internal connections
+        // 3. Connect external inputs to group's exposed inputs
+        // 4. Connect group's exposed outputs to external outputs
+        // 5. Add the new nodes to the reachable set
+    }
+}
+
 void RenderGraph::Execute(const NodeGraph& graph, const CompileResult& plan, double timelineSeconds,
-                           MediaEngine* mediaEngine) {
+                           const MediaEngine* mediaEngine,
+                           ExpressionEngine* expressionEngine,
+                           AudioEngine* audioEngine) {
     if (!plan.Ok()) {
         LOGE("Execute called on a plan that failed to compile — aborting frame");
         return;
     }
+    
+    // Check if we need to initialize particle system
     for (const auto& pass : plan.passes) {
-        ExecutePass(graph, pass, timelineSeconds, mediaEngine);
+        if (pass.isParticleNode && !particleState_.initialized) {
+            // Find the particle config from the first particle node
+            const Node* node = graph.FindNode(pass.nodeId);
+            if (node) {
+                InitializeParticleSystem(node->particle);
+                break;
+            }
+        }
+    }
+    
+    double deltaTime = timelineSeconds - lastTimelineSeconds_;
+    if (deltaTime <= 0.0) deltaTime = 1.0 / 60.0; // fallback for first frame
+    lastTimelineSeconds_ = timelineSeconds;
+    
+    for (const auto& pass : plan.passes) {
+        ExecutePass(graph, pass, timelineSeconds, mediaEngine, expressionEngine, audioEngine);
     }
     texturePool_.EndFrame();
 }
@@ -314,7 +577,9 @@ ShaderModuleHandle RenderGraph::GetOrCreateShaderModule(const uint32_t* spirv, s
 }
 
 void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, double timelineSeconds,
-                                MediaEngine* mediaEngine) {
+                               const MediaEngine* mediaEngine,
+                               ExpressionEngine* expressionEngine,
+                               AudioEngine* audioEngine) {
     const Node* node = graph.FindNode(pass.nodeId);
     if (!node) return;
 
@@ -387,9 +652,76 @@ void RenderGraph::ExecutePass(const NodeGraph& graph, const CompiledPass& pass, 
             animatedUniforms[name] = track.Evaluate(timelineSeconds);
         }
     }
+    
+    // Evaluate expressions if ExpressionEngine is available
+#ifdef ENGINE_ENABLE_EXPRESSION_ENGINE
+    if (expressionEngine) {
+        ExpressionEngine::ExpressionContext ctx;
+        ctx.time = timelineSeconds;
+        ctx.frameRate = 30.0; // TODO: get from timeline
+        ctx.frame = static_cast<int>(timelineSeconds * ctx.frameRate);
+        
+        for (const auto& [name, expr] : node->expressions) {
+            if (expr.IsValid()) {
+                auto result = expressionEngine->Evaluate(expr.script, ctx);
+                if (result) {
+                    animatedUniforms[name] = *result;
+                }
+            }
+        }
+    }
+#endif
+    
+    // Inject audio reactive uniforms if audio engine is available
+    if (audioEngine) {
+        float audioLevel = 0.0f;
+        if (node->kind == NodeKind::AudioReactive || node->kind == NodeKind::AudioWaveform || node->kind == NodeKind::AudioSpectrum) {
+            audioLevel = audioEngine->GetAudioLevel(node->audio.sourceClipId);
+        }
+        animatedUniforms["audioLevel"] = audioLevel;
+        animatedUniforms["beatPhase"] = audioEngine->GetBeatPhase(node->audio.sourceClipId);
+        animatedUniforms["sensitivity"] = node->audio.sensitivity;
+        animatedUniforms["smoothing"] = node->audio.smoothing;
+        animatedUniforms["frequencyMin"] = node->audio.frequencyMin;
+        animatedUniforms["frequencyMax"] = node->audio.frequencyMax;
+        animatedUniforms["useBeatDetection"] = node->audio.useBeatDetection ? 1.0f : 0.0f;
+        animatedUniforms["beatThreshold"] = node->audio.beatThreshold;
+        animatedUniforms["waveformPoints"] = static_cast<float>(node->audio.waveformPoints);
+        animatedUniforms["spectrumBars"] = static_cast<float>(node->audio.spectrumBars);
+        animatedUniforms["barWidth"] = node->audio.barWidth;
+        animatedUniforms["barGap"] = node->audio.barGap;
+        animatedUniforms["barColorR"] = ((node->audio.barColor >> 16) & 0xFF) / 255.0f;
+        animatedUniforms["barColorG"] = ((node->audio.barColor >> 8) & 0xFF) / 255.0f;
+        animatedUniforms["barColorB"] = (node->audio.barColor & 0xFF) / 255.0f;
+    }
+
     for (const auto& [name, value] : node->uniformFloats) {
         if (animatedUniforms.find(name) == animatedUniforms.end()) {
             animatedUniforms[name] = value;
+        }
+    }
+
+    // Handle particle nodes
+    if (pass.isParticleNode) {
+        if (pass.isParticleCompute && node->particle.useGpuParticles) {
+            // Compute pass for particle simulation
+            double deltaTime = timelineSeconds - lastTimelineSeconds_;
+            if (deltaTime < 0) deltaTime = 1.0 / 60.0; // fallback
+            DispatchParticleCompute(pass, deltaTime, node->particle);
+            // No output texture for compute pass
+            return;
+        } else if (node->kind == NodeKind::ParticleRenderer) {
+            // Render particles
+            GraphicsDevice::ParticleDrawParams drawParams{};
+            drawParams.particleBuffer = particleState_.particleBuffer;
+            drawParams.simParamsBuffer = particleState_.simParamsBuffer;
+            drawParams.indirectBuffer = particleState_.indirectBuffer;
+            drawParams.maxParticles = particleState_.maxParticles;
+            drawParams.pointSizeScale = 1.0f;
+            drawParams.additiveBlending = node->particle.additiveBlending;
+            
+            device_.DrawParticlePass(pipelineHandle, drawParams, outputTexture, animatedUniforms);
+            return;
         }
     }
 
@@ -419,6 +751,137 @@ void TransientTexturePool::Release(TextureHandle handle) {
 
 void TransientTexturePool::EndFrame() {
     for (auto& entry : pool_) entry.idle = true;
+}
+
+// Particle system initialization
+void RenderGraph::InitializeParticleSystem(const ParticleConfig& config) {
+    if (particleState_.initialized) return;
+    
+    particleState_.maxParticles = config.maxParticles;
+    
+    // Create particle storage buffer (storage buffer for compute shader read/write)
+    BufferDesc particleBufferDesc;
+    particleBufferDesc.size = sizeof(vfx::Particle) * particleState_.maxParticles;
+    particleBufferDesc.usage = BufferUsage::Storage;
+    particleBufferDesc.hostVisible = false;
+    particleBufferDesc.debugName = "particle_buffer";
+    
+    auto particleBufferResult = device_.CreateBuffer(particleBufferDesc.size, particleBufferDesc.hostVisible);
+    if (!particleBufferResult) {
+        LOGE("Failed to create particle storage buffer");
+        return;
+    }
+    particleState_.particleBuffer = particleBufferResult.value;
+    
+    // Create simulation params uniform buffer
+    BufferDesc simParamsDesc;
+    simParamsDesc.size = 256; // enough for sim params
+    simParamsDesc.usage = BufferUsage::Uniform;
+    simParamsDesc.hostVisible = true;
+    simParamsDesc.debugName = "particle_sim_params";
+    
+    auto simParamsResult = device_.CreateBuffer(simParamsDesc.size, simParamsDesc.hostVisible);
+    if (!simParamsResult) {
+        LOGE("Failed to create particle sim params buffer");
+        return;
+    }
+    particleState_.simParamsBuffer = simParamsResult.value;
+    
+    // Create compute pipeline for particle simulation
+    auto csHandle = GetOrCreateShaderModule(kParticleSimCompSpirv, kParticleSimCompSpirvWords);
+    if (!csHandle.IsValid()) {
+        LOGE("Failed to create particle compute shader module");
+        return;
+    }
+    
+    auto pipelineResult = device_.CreateComputePipeline(csHandle);
+    if (!pipelineResult) {
+        LOGE("Failed to create particle compute pipeline");
+        return;
+    }
+    particleState_.computePipeline = pipelineResult.value;
+    
+    particleState_.initialized = true;
+    particleState_.frameIndex = 0;
+    particleState_.seed = config.seed ? config.seed : 12345;
+    
+    // Create indirect draw buffer (for alive particle count from compute shader)
+    BufferDesc indirectBufferDesc;
+    indirectBufferDesc.size = sizeof(DrawIndirectCommand);
+    indirectBufferDesc.usage = BufferUsage::Storage | BufferUsage::Indirect;
+    indirectBufferDesc.hostVisible = false;
+    indirectBufferDesc.debugName = "particle_indirect_draw";
+    
+    auto indirectBufferResult = device_.CreateBuffer(indirectBufferDesc.size, indirectBufferDesc.hostVisible);
+    if (indirectBufferResult) {
+        particleState_.indirectBuffer = indirectBufferResult.value;
+    }
+}
+
+void RenderGraph::DispatchParticleCompute(const CompiledPass& pass, double deltaTime, const ParticleConfig& config) {
+    if (!particleState_.initialized || !config.useGpuParticles) return;
+    
+    // Pack host config into GPU sim params
+    ParticleSimParams simParams = PackSimParams(config, deltaTime, particleState_.frameIndex, particleState_.seed);
+    
+    // Update sim params buffer
+    void* mapped = device_.GetBufferMapped(particleState_.simParamsBuffer);
+    if (mapped) {
+        std::memcpy(mapped, &simParams, sizeof(ParticleSimParams));
+    }
+    
+    // Dispatch compute shader
+    uint32_t groupCount = (particleState_.maxParticles + 255) / 256; // 256 threads per workgroup
+    device_.DispatchCompute(particleState_.computePipeline, groupCount, 1, 1);
+    
+    particleState_.frameIndex++;
+}
+
+ParticleSimParams RenderGraph::PackSimParams(const ParticleConfig& config, double deltaTime, uint32_t frameIndex, uint32_t seed) {
+    ParticleSimParams params{};
+    params.resolution[0] = 1920.0f; // TODO: get from swapchain
+    params.resolution[1] = 1080.0f;
+    params.deltaTime = static_cast<float>(deltaTime);
+    params.emitRate = config.emitRate;
+    params.emitRateVariation = config.emitRateVariation;
+    params.emitterShape = static_cast<uint32_t>(config.emitterShape);
+    params.emitPosition[0] = config.emitterPositionX;
+    params.emitPosition[1] = config.emitterPositionY;
+    params.emitRadius = config.emitRadius;
+    params.emitLineStart[0] = config.emitLineStartX;
+    params.emitLineStart[1] = config.emitLineStartY;
+    params.emitLineEnd[0] = config.emitLineEndX;
+    params.emitLineEnd[1] = config.emitLineEndY;
+    params.initialLife = config.initialLife;
+    params.lifeVariation = config.lifeVariation;
+    params.initialSpeed = config.initialSpeed;
+    params.speedVariation = config.speedVariation;
+    params.emitAngle = config.emitAngle;
+    params.angleVariation = config.angleVariation;
+    params.gravity = config.gravity;
+    params.windX = config.windX;
+    params.windY = config.windY;
+    params.turbulence = config.turbulence;
+    params.drag = config.drag;
+    params.deltaTimeInv = (deltaTime > 0.0) ? 1.0f / static_cast<float>(deltaTime) : 60.0f;
+    params.maxParticles = particleState_.maxParticles;
+    params.frameIndex = particleState_.frameIndex;
+    params.seed = seed;
+
+    return params;
+}
+
+void RenderGraph::RenderParticles(const CompiledPass& pass, const ParticleConfig& config, TextureHandle outputTexture,
+                                  const std::vector<TextureHandle>& inputTextures, const std::unordered_map<std::string, float>& uniforms) {
+    if (!particleState_.initialized) return;
+    
+    // Get the particle render pipeline
+    // Bind particle buffer as storage buffer
+    // Draw instanced (one instance per particle)
+    // This would require a custom draw call in VulkanDevice
+    
+    // For now, fall back to regular draw
+    // device_.DrawFullscreenPass(pipelineHandle, inputTextures, outputTexture, animatedUniforms);
 }
 
 } // namespace vfx

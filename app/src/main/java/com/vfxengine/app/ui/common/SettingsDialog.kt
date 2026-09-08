@@ -64,10 +64,12 @@ fun SettingsDialog(
     settings: Settings,
     onSave: (Settings) -> Unit,
     onDismiss: () -> Unit,
-    nativeEngine: NativeEngine? = null
+    nativeEngine: NativeEngine? = null,
+    onSaveProjectAs: (() -> Unit)? = null
 ) {
     var localSettings by remember { mutableStateOf(settings) }
     var showAdvanced by remember { mutableStateOf(false) }
+    var showProjectMenu by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -96,12 +98,43 @@ fun SettingsDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = "Settings", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    
+                    // Project menu button
+                    androidx.compose.material3.TextButton(
+                        onClick = { showProjectMenu = !showProjectMenu },
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(id = android.R.drawable.ic_menu_save),
+                                contentDescription = "Project",
+                                tint = Color.Cyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            androidx.compose.foundation.layout.Box(modifier = Modifier.width(4.dp))
+                            Text(text = "Project", color = Color.Cyan, fontSize = 14.sp)
+                        }
+                    }
+                    
                     IconButton(onClick = onDismiss) {
                         Icon(painter = painterResource(id = android.R.drawable.ic_menu_close_clear_cancel), contentDescription = "Close")
                     }
                 }
 
                 Divider(color = Color.White.copy(alpha = 0.1f))
+
+                // Project menu dropdown
+                if (showProjectMenu) {
+                    ProjectMenuDropdown(
+                        nativeEngine = nativeEngine,
+                        onDismiss = { showProjectMenu = false },
+                        saveProjectAs = onSaveProjectAs
+                    )
+                    Divider(color = Color.White.copy(alpha = 0.1f))
+                }
 
                 // Content
                 androidx.compose.foundation.lazy.LazyColumn(
@@ -365,5 +398,136 @@ fun SettingsInfoRow(label: String, value: String) {
     ) {
         Text(text = label, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
         Text(text = value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+/**
+ * Project Menu Dropdown - New, Open, Save, Save As
+ */
+@Composable
+fun ProjectMenuDropdown(
+    nativeEngine: NativeEngine?,
+    onDismiss: () -> Unit,
+    saveProjectAs: (() -> Unit)? = null
+) {
+    val hasProject = nativeEngine?.hasProject() ?: false
+    val projectName = nativeEngine?.getProjectName() ?: ""
+    val isModified = nativeEngine?.isProjectModified() ?: false
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(Color(0xFF252525))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+        ) {
+            // Project info
+            if (hasProject) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(text = projectName, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        if (isModified) {
+                            Text(text = "● Unsaved changes", color = Color.Yellow, fontSize = 11.sp)
+                        }
+                    }
+                }
+                Divider(color = Color.White.copy(alpha = 0.1f))
+            }
+            
+            // Menu items
+            ProjectMenuItem(
+                label = "New Project",
+                shortcut = "Ctrl+N",
+                iconRes = android.R.drawable.ic_menu_add,
+                enabled = true,
+                onClick = {
+                    // TODO: Show new project dialog
+                    onDismiss()
+                }
+            )
+            
+            ProjectMenuItem(
+                label = "Open Project...",
+                shortcut = "Ctrl+O",
+                iconRes = android.R.drawable.ic_menu_upload,
+                enabled = true,
+                onClick = {
+                    // TODO: Show file picker
+                    onDismiss()
+                }
+            )
+            
+            ProjectMenuItem(
+                label = "Save Project",
+                shortcut = "Ctrl+S",
+                iconRes = android.R.drawable.ic_menu_save,
+                enabled = hasProject && isModified,
+                onClick = {
+                    nativeEngine?.saveProject(null)
+                    onDismiss()
+                }
+            )
+            
+            ProjectMenuItem(
+                label = "Save Project As...",
+                shortcut = "Ctrl+Shift+S",
+                iconRes = android.R.drawable.ic_menu_save,
+                enabled = hasProject,
+                onClick = {
+                    saveProjectAs?.invoke()
+                    onDismiss()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun ProjectMenuItem(
+    label: String,
+    shortcut: String,
+    iconRes: Int,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    androidx.compose.material3.TextButton(
+        onClick = if (enabled) onClick else null,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .padding(horizontal = 8.dp),
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            containerColor = if (enabled) Color.Transparent else Color.Transparent,
+            contentColor = if (enabled) Color.White else Color.White.copy(alpha = 0.4f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = label,
+                    tint = if (enabled) Color.Cyan else Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(text = label, color = if (enabled) Color.White else Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
+            }
+            Text(text = shortcut, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+        }
     }
 }

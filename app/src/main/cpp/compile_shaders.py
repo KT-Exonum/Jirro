@@ -52,10 +52,11 @@ def find_glslang_validator(explicit_path=None):
 
 
 def compile_shader(glslang, input_path, output_path):
+    suffix = input_path.suffix
+    stage_flag = "-V"  # -V for all stages (Vulkan semantics)
     cmd = [
         glslang,
-        "-V",                  # Vulkan mode -> SPIR-V
-        "--source-entrypoint", "main",
+        stage_flag,
         "-o", str(output_path),
         str(input_path),
     ]
@@ -122,18 +123,20 @@ def main():
         sys.exit(1)
 
     # Discover shaders
-    shaders = sorted(shader_dir.glob("*.vert")) + sorted(shader_dir.glob("*.frag"))
+    shaders = (sorted(shader_dir.glob("*.vert")) + 
+               sorted(shader_dir.glob("*.frag")) + 
+               sorted(shader_dir.glob("*.comp")))
     if not shaders:
-        print(f"WARNING: no .vert/.frag files found in {shader_dir}", file=sys.stderr)
+        print(f"WARNING: no .vert/.frag/.comp files found in {shader_dir}", file=sys.stderr)
 
     # Compile to temp .spv files and collect definitions
     generated_arrays = []
 
     for shader_path in shaders:
         stem = shader_path.stem  # e.g. "blend_normal"
-        suffix = shader_path.suffix  # ".vert" or ".frag"
+        suffix = shader_path.suffix  # ".vert", ".frag", or ".comp"
         spv_path = shader_path.with_suffix(".spv")
-        var_suffix = "Vert" if suffix == ".vert" else "Frag"
+        var_suffix = "Vert" if suffix == ".vert" else ("Frag" if suffix == ".frag" else "Comp")
         var_name = f"k{to_camel_case(stem)}{var_suffix}"
         words_var = f"k{to_camel_case(stem)}{var_suffix}Words"
 
@@ -155,7 +158,7 @@ def main():
         for arr in generated_arrays:
             f.write(arr + "\n\n")
 
-    print(f"\nGenerated: {output_path} ({len(declarations)} shaders)")
+    print(f"\nGenerated: {output_path} ({len(generated_arrays)} shaders)")
 
 
 if __name__ == "__main__":

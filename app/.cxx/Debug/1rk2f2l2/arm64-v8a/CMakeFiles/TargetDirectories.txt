@@ -1,0 +1,3 @@
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/.cxx/Debug/1rk2f2l2/arm64-v8a/CMakeFiles/vfxengine.dir
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/.cxx/Debug/1rk2f2l2/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/.cxx/Debug/1rk2f2l2/arm64-v8a/CMakeFiles/rebuild_cache.dir

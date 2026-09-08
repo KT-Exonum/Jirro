@@ -25,15 +25,31 @@ struct ANativeWindow; // from android/native_window.h, fwd-declared to avoid
 
 namespace vfx {
 
+struct BufferDesc {
+    size_t size = 0;
+    BufferUsage usage = BufferUsage::Storage;
+    bool hostVisible = false;
+    std::string debugName;
+};
+
+struct DrawIndirectCommand {
+    uint32_t vertexCount;
+    uint32_t instanceCount;
+    uint32_t firstVertex;
+    uint32_t firstInstance;
+};
+
 struct DeviceCapabilities {
     bool supportsVulkan = false;
     uint32_t vulkanApiVersion = 0;
     bool supportsYcbcrConversion = false;   // VK_KHR_sampler_ycbcr_conversion
     bool supportsHardwareBufferImport = false; // VK_ANDROID_external_memory_android_hardware_buffer
     uint32_t maxTextureDimension = 4096;
-    // Used by Section 16 "graceful degradation": if false, the render graph
-    // should clamp working resolution below native 4K.
     bool sustainedPerformanceMode = false;
+    bool supportsComputeShaders = false;
+    bool supportsGeometryShaders = false;
+    bool supportsTessellation = false;
+    uint64_t dedicatedVideoMemory = 0;
 };
 
 struct FrameStats { // Section 16/6: profiling hooks, populated per frame
@@ -61,6 +77,11 @@ public:
     virtual void ReleaseTexture(TextureHandle handle) = 0; // returns to pool, does not necessarily free
     virtual Result<BufferHandle> CreateBuffer(size_t sizeBytes, bool hostVisible) = 0;
     virtual void ReleaseBuffer(BufferHandle handle) = 0;
+    virtual void FillBuffer(BufferHandle handle, uint32_t data) = 0;
+
+    // Access underlying resources (for advanced use like text rendering)
+    virtual void* GetBufferMapped(BufferHandle handle) = 0;
+    virtual void* GetTextureMapped(TextureHandle handle) = 0;
 
     // Compiled shader upload. `spirv` for VulkanDevice, ignored (or cross
     // compiled) by OpenGLDevice — see OpenGLDevice.h for that seam.
@@ -73,6 +94,12 @@ public:
         ShaderModuleHandle vertexShader,
         ShaderModuleHandle fragmentShader,
         TextureUsage targetUsage) = 0;
+
+    // Compute pipeline support for GPU particle simulation and other GPGPU work
+    virtual Result<PipelineHandle> CreateComputePipeline(ShaderModuleHandle computeShader) = 0;
+
+    // Dispatch compute shader (workgroup count)
+    virtual void DispatchCompute(PipelineHandle pipeline, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) = 0;
 
     // Frame bracket. BeginFrame acquires the swapchain image (or, for an
     // off-screen export pass — Section 6 export pipeline — a headless
@@ -87,6 +114,23 @@ public:
     virtual void DrawFullscreenPass(
         PipelineHandle pipeline,
         std::span<const TextureHandle> inputs,
+        TextureHandle output,
+        const std::unordered_map<std::string, float>& uniformValues = {}) = 0;
+
+    // Particle system: render from compute shader's storage buffer
+    struct ParticleDrawParams {
+        BufferHandle particleBuffer;      // storage buffer with Particle[]
+        BufferHandle simParamsBuffer;     // uniform buffer with sim params
+        BufferHandle indirectBuffer;      // buffer with VkDrawIndirectCommand for alive particle count
+        uint32_t maxParticles;
+        float pointSizeScale = 1.0f;
+        bool additiveBlending = true;
+        TextureHandle texture = {};       // optional sprite sheet
+        float feather = 0.0f;
+    };
+    virtual void DrawParticlePass(
+        PipelineHandle pipeline,
+        const ParticleDrawParams& params,
         TextureHandle output,
         const std::unordered_map<std::string, float>& uniformValues = {}) = 0;
 

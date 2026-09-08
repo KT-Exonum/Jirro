@@ -1,0 +1,104 @@
+#version 450
+
+// Shape tessellation compute shader
+// Tessellates Bezier paths into triangle strips on GPU
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform Uniforms {
+    mat4 uProjection;
+    mat4 uView;
+    float uTime;
+    float uResolution[2];
+    int uFrameIndex;
+} ubo;
+
+// Path segment buffer (input)
+layout(set = 1, binding = 0) readonly buffer PathSegments {
+    struct PathSegment {
+        int cmd;      // 0=MoveTo, 1=LineTo, 2=QuadTo, 3=CubicTo, 4=Close
+        vec2 p0, p1, p2;  // control points
+        int layerId;
+        int pathId;
+    } segments[];
+} pathSegs;
+
+// Output vertex buffer
+layout(set = 1, binding = 1, std430) buffer Vertices {
+    struct Vertex {
+        vec2 pos;
+        vec2 uv;
+        vec4 color;
+        int layerId;
+        int pathId;
+    } vertices[];
+} vertexBuf;
+
+// Output index buffer
+layout(set = 1, binding = 2, std430) buffer Indices {
+    uint indices[];
+} indexBuf;
+
+// Uniforms for tessellation
+layout(set = 2, binding = 0) uniform TessUniforms {
+    float tolerance;
+    int maxVertices;
+    int maxIndices;
+    int segmentCount;
+    int layerCount;
+} tess;
+
+vec2 evalCubic(vec2 p0, vec2 p1, vec2 p2, vec2 p3, float t) {
+    float u = 1.0 - t;
+    float uu = u * u;
+    float uuu = uu * u;
+    float tt = t * t;
+    float ttt = tt * t;
+    return uuu * p0 + 3.0 * uu * t * p1 + 3.0 * u * tt * p2 + ttt * p3;
+}
+
+vec2 evalQuad(vec2 p0, vec2 p1, vec2 p2, float t) {
+    float u = 1.0 - t;
+    return u * u * p0 + 2.0 * u * t * p1 + t * t * p2;
+}
+
+float curveLength(vec2 p0, vec2 p1, vec2 p2) {
+    // Approximate quadratic length
+    vec2 d1 = p1 - p0;
+    vec2 d2 = p2 - p1;
+    return length(d1) + length(d2);
+}
+
+float curveLength(vec2 p0, vec2 p1, vec2 p2, vec2 p3) {
+    // Approximate cubic length
+    return length(p1 - p0) + length(p2 - p1) + length(p3 - p2);
+}
+
+void main() {
+    uint segIdx = gl_GlobalInvocationID.x;
+    if (segIdx >= tess.segmentCount) return;
+    
+    auto seg = pathSegs.segments[segIdx];
+    if (seg.cmd == 4) return; // Close - handled separately
+    
+    int steps = 2;
+    if (seg.cmd == 2) { // Quad
+        steps = max(2, int(ceil(curveLength(seg.p0, seg.p1, seg.p2) / tess.tolerance)));
+    } else if (seg.cmd == 3) { // Cubic
+        steps = max(4, int(ceil(curveLength(seg.p0, seg.p1, seg.p2, seg.p2) / tess.tolerance)));
+    }
+    
+    // Each thread handles one segment, outputs vertices to shared memory
+    // For simplicity, we just emit the endpoint
+    // Full implementation would use parallel prefix sum for vertex offsets
+    
+    // Placeholder: emit endpoint
+    if (gl_LocalInvocationIndex == 0) {
+        uint vIdx = atomicAdd(vertexBuf.vertices.length(), 1);
+        if (vIdx < tess.maxVertices) {
+            vertexBuf.vertices[vIdx] = Vertex{
+                seg.p2, vec2(0), vec4(1), seg.layerId, seg.pathId
+            };
+        }
+    }
+}

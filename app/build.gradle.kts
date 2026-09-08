@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -9,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.vfxengine.app"
-        minSdk = 28   // AHardwareBuffer + VK_KHR_sampler_ycbcr_conversion baseline
+        minSdk = 29   // VK_KHR_dynamic_rendering + AHardwareBuffer baseline
         targetSdk = 35
         versionCode = 1
         versionName = "0.2.0-phase2"
@@ -20,7 +21,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags += "-std=c++23"
+                cppFlags += "-std=c++20"
                 arguments += listOf(
                     "-DANDROID_STL=c++_shared",
                     "-DENGINE_DEV_SHADER_HOTLOAD=OFF"

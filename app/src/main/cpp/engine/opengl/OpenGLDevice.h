@@ -35,15 +35,26 @@ public:
     void ReleaseTexture(TextureHandle handle) override;
     Result<BufferHandle> CreateBuffer(size_t sizeBytes, bool hostVisible) override;
     void ReleaseBuffer(BufferHandle handle) override;
+    void FillBuffer(BufferHandle handle, uint32_t data) override;
     Result<ShaderModuleHandle> CreateShaderModule(std::span<const uint32_t> spirv) override;
     Result<PipelineHandle> GetOrCreatePipeline(ShaderModuleHandle vs, ShaderModuleHandle fs,
                                                 TextureUsage targetUsage) override;
+    Result<PipelineHandle> CreateComputePipeline(ShaderModuleHandle computeShader) override;
+    void DispatchCompute(PipelineHandle pipeline, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) override;
+
+    void* GetBufferMapped(BufferHandle handle) override;
+    void* GetTextureMapped(TextureHandle handle) override;
 
     bool BeginFrame() override;
     void EndFrame() override;
     void DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
                              TextureHandle output,
                              const std::unordered_map<std::string, float>& uniformValues = {}) override;
+    void DrawParticlePass(
+        PipelineHandle pipeline,
+        const ParticleDrawParams& params,
+        TextureHandle output,
+        const std::unordered_map<std::string, float>& uniformValues = {}) override;
     void Submit() override;
 
     Result<TextureHandle> ImportHardwareBuffer(HardwareBufferHandle buffer, uint32_t width,

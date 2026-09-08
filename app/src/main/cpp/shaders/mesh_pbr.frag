@@ -190,7 +190,7 @@ void main() {
         
         float distance = length(uniforms.lightPositions[i] - vWorldPos);
         float attenuation = 1.0 / (distance * distance + 0.001);
-        attenuation *= smoothstep(uniforms.lightRadii[i], 0.0, distance);
+        attenuation *= 1.0 - smoothstep(0.0, uniforms.lightRadii[i], distance);
         
         vec3 radiance = uniforms.lightColors[i] * uniforms.lightIntensities[i] * attenuation;
         

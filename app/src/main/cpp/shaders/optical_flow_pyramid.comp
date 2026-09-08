@@ -1,0 +1,223 @@
+#version 450
+
+// Optical Flow Pyramid Compute Shader
+// Builds Gaussian pyramid and computes optical flow at multiple scales
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D uFrame0;  // Previous frame
+layout(set = 0, binding = 1) uniform sampler2D uFrame1;  // Current frame
+
+// Pyramid levels: 0 = full res, 1 = half, 2 = quarter, etc.
+layout(set = 1, binding = 0, rgba32f) uniform image2D uPyramid0Out;  // Level 0 (luminance)
+layout(set = 1, binding = 1, rgba32f) uniform image2D uPyramid1Out;  // Level 1
+layout(set = 1, binding = 2, rgba32f) uniform image2D uPyramid2Out;  // Level 2
+layout(set = 1, binding = 3, rgba32f) uniform image2D uPyramid3Out;  // Level 3
+
+layout(set = 2, binding = 0, rgba32f) uniform image2D uFlowOut;      // Output flow (x, y, confidence, 0)
+
+layout(push_constant) uniform PushConstants {
+    float uTime;
+    float uResolution[2];
+    int uPyramidLevels;
+    float uScale;
+    int uIterations;
+    float uSmoothness;
+    int uPass;  // 0 = build pyramid, 1 = compute flow
+} pc;
+
+float luminance(vec4 c) {
+    return dot(c.rgb, vec3(0.299, 0.587, 0.114));
+}
+
+// Build pyramid level by downsampling
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    
+    if (pc.uPass == 0) {
+        // Build Gaussian pyramid
+        ivec2 dims0 = imageSize(uPyramid0Out);
+        ivec2 dims1 = imageSize(uPyramid1Out);
+        ivec2 dims2 = imageSize(uPyramid2Out);
+        ivec2 dims3 = imageSize(uPyramid3Out);
+        
+        // Level 0: full resolution luminance
+        if (pixel.x < dims0.x && pixel.y < dims0.y) {
+            vec2 uv = (vec2(pixel) + 0.5) / vec2(dims0);
+            float l = luminance(texture(uFrame0, uv));
+            imageStore(uPyramid0Out, pixel, vec4(l, 0, 0, 0));
+        }
+        
+        // Level 1: half resolution
+        if (pixel.x < dims1.x && pixel.y < dims1.y) {
+            vec2 uv = (vec2(pixel) + 0.5) / vec2(dims1);
+            vec2 uv0 = uv * 2.0 - 0.5 / vec2(dims0);
+            float l = 0.25 * (
+                luminance(texture(uFrame0, uv0)) +
+                luminance(texture(uFrame0, uv0 + vec2(1.0/dims0.x, 0))) +
+                luminance(texture(uFrame0, uv0 + vec2(0, 1.0/dims0.y))) +
+                luminance(texture(uFrame0, uv0 + vec2(1.0/dims0.x, 1.0/dims0.y)))
+            );
+            imageStore(uPyramid1Out, pixel, vec4(l, 0, 0, 0));
+        }
+        
+        // Level 2: quarter resolution
+        if (pixel.x < dims2.x && pixel.y < dims2.y) {
+            vec2 uv = (vec2(pixel) + 0.5) / vec2(dims2);
+            vec2 uv1 = uv * 2.0 - 0.5 / vec2(dims1);
+            float l = 0.25 * (
+                texture(uPyramid1Out, uv1).r +
+                texture(uPyramid1Out, uv1 + vec2(1.0/dims1.x, 0)).r +
+                texture(uPyramid1Out, uv1 + vec2(0, 1.0/dims1.y)).r +
+                texture(uPyramid1Out, uv1 + vec2(1.0/dims1.x, 1.0/dims1.y)).r
+            );
+            imageStore(uPyramid2Out, pixel, vec4(l, 0, 0, 0));
+        }
+        
+        // Level 3: eighth resolution
+        if (pixel.x < dims3.x && pixel.y < dims3.y) {
+            vec2 uv = (vec2(pixel) + 0.5) / vec2(dims3);
+            vec2 uv2 = uv * 2.0 - 0.5 / vec2(dims2);
+            float l = 0.25 * (
+                texture(uPyramid2Out, uv2).r +
+                texture(uPyramid2Out, uv2 + vec2(1.0/dims2.x, 0)).r +
+                texture(uPyramid2Out, uv2 + vec2(0, 1.0/dims2.y)).r +
+                texture(uPyramid2Out, uv2 + vec2(1.0/dims2.x, 1.0/dims2.y)).r
+            );
+            imageStore(uPyramid3Out, pixel, vec4(l, 0, 0, 0));
+        }
+    } else if (pc.uPass == 1) {
+        // Compute optical flow at each pyramid level (coarse to fine)
+        // Using Lucas-Kanade with iterative refinement
+        
+        ivec2 dims = imageSize(uFlowOut);
+        if (pixel.x >= dims.x || pixel.y >= dims.y) return;
+        
+        vec2 uv = (vec2(pixel) + 0.5) / vec2(dims);
+        ivec2 dims0 = imageSize(uPyramid0Out);
+        
+        // Start from coarsest level
+        vec2 flow = vec2(0.0);
+        float bestConfidence = 0.0;
+        
+        // Coarse to fine
+        for (int level = pc.uPyramidLevels - 1; level >= 0; --level) {
+            ivec2 dimsL;
+            layout(rgba32f) uniform image2D* pyramids[4] = { uPyramid0Out, uPyramid1Out, uPyramid2Out, uPyramid3Out };
+            // Can't index uniform array in GLSL - use if/else
+            
+            // Scale UV to this level
+            float scale = pow(2.0, float(level));
+            ivec2 dimsL_scaled = dims / int(scale);
+            if (dimsL_scaled.x < 1) dimsL_scaled.x = 1;
+            if (dimsL_scaled.y < 1) dimsL_scaled.y = 1;
+            
+            vec2 uvL = uv * scale;
+            if (uvL.x >= 1.0) uvL.x = 0.999;
+            if (uvL.y >= 1.0) uvL.y = 0.999;
+            
+            // Sample pyramid level
+            float I0, I1;
+            if (level == 0) {
+                I0 = texture(uPyramid0Out, uvL).r;
+                I1 = luminance(texture(uFrame1, uvL));
+            } else if (level == 1) {
+                I0 = texture(uPyramid1Out, uvL).r;
+                I1 = luminance(texture(uFrame1, uvL));
+            } else if (level == 2) {
+                I0 = texture(uPyramid2Out, uvL).r;
+                I1 = luminance(texture(uFrame1, uvL));
+            } else {
+                I0 = texture(uPyramid3Out, uvL).r;
+                I1 = luminance(texture(uFrame1, uvL));
+            }
+            
+            // Lucas-Kanade at this level
+            vec2 texelSize = 1.0 / vec2(dimsL_scaled);
+            vec2 grad = vec2(
+                texture(uPyramid0Out, uvL + vec2(texelSize.x, 0)).r - texture(uPyramid0Out, uvL - vec2(texelSize.x, 0)).r,
+                texture(uPyramid0Out, uvL + vec2(0, texelSize.y)).r - texture(uPyramid0Out, uvL - vec2(0, texelSize.y)).r
+            ) * 0.5;
+            
+            float It = I1 - I0;
+            
+            // Structure tensor
+            float Ixx = grad.x * grad.x;
+            float Ixy = grad.x * grad.y;
+            float Iyy = grad.y * grad.y;
+            float Ixt = grad.x * It;
+            float Iyt = grad.y * It;
+            
+            float det = Ixx * Iyy - Ixy * Ixy;
+            float trace = Ixx + Iyy;
+            
+            vec2 levelFlow = vec2(0);
+            float confidence = 0.0;
+            
+            if (det > 0.0001) {
+                levelFlow.x = (Iyy * Ixt - Ixy * Iyt) / det;
+                levelFlow.y = (Ixx * Iyt - Ixy * Ixt) / det;
+                confidence = 1.0 - exp(-det * 1000.0);
+            }
+            
+            // Warp and upscale flow for next level
+            flow = flow * 2.0 + levelFlow;
+        }
+        
+        // Iterative refinement at full resolution
+        vec2 flowRefined = flow;
+        for (int iter = 0; iter < pc.uIterations; ++iter) {
+            vec2 uvWarped = uv + flowRefined / vec2(dims);
+            uvWarped = clamp(uvWarped, vec2(0), vec2(1));
+            
+            float I0 = texture(uPyramid0Out, uv).r;
+            float I1 = luminance(texture(uFrame1, uvWarped));
+            
+            vec2 texelSize = 1.0 / vec2(dims);
+            vec2 grad = vec2(
+                texture(uPyramid0Out, uv + vec2(texelSize.x, 0)).r - texture(uPyramid0Out, uv - vec2(texelSize.x, 0)).r,
+                texture(uPyramid0Out, uv + vec2(0, texelSize.y)).r - texture(uPyramid0Out, uv - vec2(0, texelSize.y)).r
+            ) * 0.5;
+            
+            float It = I1 - I0;
+            
+            float Ixx = grad.x * grad.x;
+            float Ixy = grad.x * grad.y;
+            float Iyy = grad.y * grad.y;
+            float Ixt = grad.x * It;
+            float Iyt = grad.y * It;
+            
+            float det = Ixx * Iyy - Ixy * Ixy;
+            if (det > 0.0001) {
+                vec2 delta = vec2(
+                    (Iyy * Ixt - Ixy * Iyt) / det,
+                    (Ixx * Iyt - Ixy * Ixt) / det
+                );
+                flowRefined += delta;
+            }
+        }
+        
+        // Compute confidence from residual
+        vec2 uvWarped = uv + flowRefined / vec2(dims);
+        uvWarped = clamp(uvWarped, vec2(0), vec2(1));
+        float residual = abs(texture(uPyramid0Out, uv).r - luminance(texture(uFrame1, uvWarped)));
+        float confidence = 1.0 - clamp(residual * 10.0, 0.0, 1.0);
+        
+        // Smooth flow
+        if (pc.uSmoothness > 0.0) {
+            vec2 avgFlow = flowRefined;
+            int count = 1;
+            for (int dx = -1; dx <= 1; ++dx) {
+                for (int dy = -1; dy <= 1; ++dy) {
+                    if (dx == 0 && dy == 0) continue;
+                    ivec2 np = pixel + ivec2(dx, dy);
+                    if (np.x >= 0 && np.x < dims.x && np.y >= 0 && np.y < dims.y) {
+                        // Would read neighbor flow - simplified
+                    }
+                }
+            }
+        }
+        
+        imageStore(uFlowOut, pixel, vec4(flowRefined, confidence, 0.0));
+    }
+}

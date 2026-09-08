@@ -35,10 +35,10 @@ namespace {
 // explicit TODO rather than silently shipping something that isn't real
 // SPIR-V bytecode.
 // TODO(phase1): populate from `xxd -i triangle.vert.spv`.
-using generated_shader_bytecode::kTriangleVert;
-using generated_shader_bytecode::kTriangleVertWords;
-using generated_shader_bytecode::kTriangleFrag;
-using generated_shader_bytecode::kTriangleFragWords;
+using vfx::generated_shader_bytecode::kTriangleVert;
+using vfx::generated_shader_bytecode::kTriangleVertWords;
+using vfx::generated_shader_bytecode::kTriangleFrag;
+using vfx::generated_shader_bytecode::kTriangleFragWords;
 constexpr const uint32_t* kTriangleVertSpirv = kTriangleVert;
 constexpr size_t kTriangleVertSpirvWords = kTriangleVertWords;
 constexpr const uint32_t* kTriangleFragSpirv = kTriangleFrag;
@@ -52,6 +52,8 @@ bool HasExtension(const std::vector<VkExtensionProperties>& available, const cha
 }
 
 } // namespace
+
+namespace vfx {
 
 VulkanDevice::~VulkanDevice() { Shutdown(); }
 
@@ -482,12 +484,49 @@ bool VulkanDevice::CreateDescriptorPoolAndLayouts() {
         return false;
     }
 
-    // Pipeline layout with all 3 descriptor sets
+    // Pipeline layout with all 3 descriptor sets + push constants for motion effects
     VkDescriptorSetLayout layouts[3] = {uniformSetLayout_, paramSetLayout_, textureSetLayout2_};
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = 112; // 28 floats * 4 bytes = 112 bytes (motion transform PushConstants)
+
     VkPipelineLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     layoutInfo.setLayoutCount = 3;
     layoutInfo.pSetLayouts = layouts;
+    layoutInfo.pushConstantRangeCount = 1;
+    layoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(device_, &layoutInfo, nullptr, &graphPipelineLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Compute pipeline layout: uses storage buffer for particles + uniform buffer for sim params
+    VkDescriptorSetLayoutBinding storageBinding{};
+    storageBinding.binding = 0;
+    storageBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    storageBinding.descriptorCount = 1;
+    storageBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutBinding simParamsBinding{};
+    simParamsBinding.binding = 1;
+    simParamsBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    simParamsBinding.descriptorCount = 1;
+    simParamsBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutBinding computeBindings[2] = {storageBinding, simParamsBinding};
+    VkDescriptorSetLayoutCreateInfo computeLayoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    computeLayoutInfo.bindingCount = 2;
+    computeLayoutInfo.pBindings = computeBindings;
+    if (vkCreateDescriptorSetLayout(device_, &computeLayoutInfo, nullptr, &computeDescriptorSetLayout_) != VK_SUCCESS) {
+        return false;
+    }
+
+    // Compute pipeline layout
+    VkDescriptorSetLayout computeLayouts[1] = {computeDescriptorSetLayout_};
+    VkPipelineLayoutCreateInfo computeLayoutInfo2{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    computeLayoutInfo2.setLayoutCount = 1;
+    computeLayoutInfo2.pSetLayouts = computeLayouts;
+    if (vkCreatePipelineLayout(device_, &computeLayoutInfo2, nullptr, &computePipelineLayout_) != VK_SUCCESS) {
         return false;
     }
 
@@ -874,6 +913,23 @@ Result<BufferHandle> VulkanDevice::CreateBuffer(size_t sizeBytes, bool hostVisib
 
 void VulkanDevice::ReleaseBuffer(BufferHandle handle) { buffers_.Release(handle); }
 
+void VulkanDevice::FillBuffer(BufferHandle handle, uint32_t data) {
+    VkBufferResource* bufRes = buffers_.Get(handle);
+    if (!bufRes) return;
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+    vkCmdFillBuffer(cmd, bufRes->buffer, 0, VK_WHOLE_SIZE, data);
+}
+
+void* VulkanDevice::GetBufferMapped(BufferHandle handle) {
+    VkBufferResource* bufRes = buffers_.Get(handle);
+    return bufRes ? bufRes->mapped : nullptr;
+}
+
+void* VulkanDevice::GetTextureMapped(TextureHandle handle) {
+    VkTextureResource* texRes = textures_.Get(handle);
+    return texRes ? texRes->memory : nullptr;
+}
+
 Result<ShaderModuleHandle> VulkanDevice::CreateShaderModule(std::span<const uint32_t> spirv) {
     VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     info.codeSize = spirv.size_bytes();
@@ -1043,54 +1099,55 @@ Result<PipelineHandle> VulkanDevice::GetOrCreatePipeline(ShaderModuleHandle vs, 
     return Result<PipelineHandle>::Ok(handle);
 }
 
-void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const TextureHandle> inputs,
-                                       TextureHandle output,
-                                       const std::unordered_map<std::string, float>& uniformValues) {
-    // Record into current command buffer
-    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
-
-    // Get pipeline resource
-    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
-    if (!pipelineRes) return;
-
-    // Get output texture
-    VkTextureResource* outputRes = textures_.Get(output);
-    if (!outputRes) return;
-
-    // Get per-frame uniform buffers and descriptor sets
-    FrameUniformBuffers& frameBuffers = frameUniformBuffers_[currentFrame_];
-
-    // Update uniform buffer (Set 0): projection matrix + resolution
-    struct UniformData {
-        float projection[16]; // mat4 column-major
-        float resolution[2];
-        float _pad[2];
-    } uniformData;
-
-    // Orthographic projection for fullscreen triangle (NDC -> UV mapping)
-    // Identity projection since vertex shader outputs NDC directly
-    for (int i = 0; i < 16; ++i) uniformData.projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-    uniformData.resolution[0] = static_cast<float>(outputRes->width);
-    uniformData.resolution[1] = static_cast<float>(outputRes->height);
-
-    VkBufferResource* uniformBufRes = buffers_.Get(frameBuffers.uniformBuffer);
-    if (uniformBufRes && uniformBufRes->mapped) {
-        std::memcpy(uniformBufRes->mapped, &uniformData, sizeof(uniformData));
+Result<PipelineHandle> VulkanDevice::CreateComputePipeline(ShaderModuleHandle cs) {
+    // Cache key: compute shader module handle
+    auto it = computePipelineCache_.find(cs.index);
+    if (it != computePipelineCache_.end()) {
+        return Result<PipelineHandle>::Ok(it->second);
     }
 
-    // Update descriptor set 0 (uniforms) - bind uniform buffer
-    VkDescriptorBufferInfo uniformBufferInfo{};
-    uniformBufferInfo.buffer = uniformBufRes ? uniformBufRes->buffer : VK_NULL_HANDLE;
-    uniformBufferInfo.offset = 0;
-    uniformBufferInfo.range = VK_WHOLE_SIZE;
+    VkShaderModule* csRes = shaderModules_.Get(cs);
+    if (!csRes) {
+        return Result<PipelineHandle>::Fail("Invalid compute shader module handle");
+    }
 
-    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-    uniformWrite.dstSet = frameBuffers.uniformSet;
-    uniformWrite.dstBinding = 0;
-    uniformWrite.descriptorCount = 1;
-    uniformWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniformWrite.pBufferInfo = &uniformBufferInfo;
-    vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
+    VkPipelineShaderStageCreateInfo stageInfo{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageInfo.module = *csRes;
+    stageInfo.pName = "main";
+
+    // Use the compute pipeline layout (created in CreateDescriptorPoolAndLayouts)
+    if (!computePipelineLayout_) {
+        return Result<PipelineHandle>::Fail("Compute pipeline layout not initialized");
+    }
+
+    VkComputePipelineCreateInfo pipelineInfo{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+    pipelineInfo.stage = stageInfo;
+    pipelineInfo.layout = computePipelineLayout_;
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    pipelineInfo.basePipelineIndex = -1;
+
+    VkPipeline pipeline;
+    if (vkCreateComputePipelines(device_, pipelineCache_, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+        return Result<PipelineHandle>::Fail("vkCreateComputePipelines failed");
+    }
+
+    VkPipelineResource resource{pipeline, computePipelineLayout_};
+    PipelineHandle handle = pipelines_.Insert(resource);
+    computePipelineCache_[cs.index] = handle;
+
+    return Result<PipelineHandle>::Ok(handle);
+}
+
+void VulkanDevice::DispatchCompute(PipelineHandle pipeline, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ) {
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+    
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+    
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineRes->pipeline);
+    vkCmdDispatch(cmd, groupCountX, groupCountY, groupCountZ);
+}
 
 namespace {
 
@@ -1129,11 +1186,42 @@ struct alignas(16) ParamBlock {
     float threshold = 0.5f;
     float feather = 0.0f;
     float expand = 0.0f;
-    float choke = 0.0f;
-    float _pad[6] = {0};
-};
+float choke = 0.0f;
 
-static_assert(sizeof(ParamBlock) <= 256, "ParamBlock must fit in per-frame param uniform buffer");
+        // Motion transform (3x3 matrix, column-major: [a b c; d e f; g h i])
+        // Applied as uv' = M * vec3(uv, 1.0)
+        float mTransform[9] = {
+            1.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 1.0f
+        };
+
+        // Motion effect parameters
+        float mFrequency = 1.0f;
+        float mMagnitude = 1.0f;
+        float mAngle = 0.0f;
+        float mPhase = 0.0f;
+        int mWaveType = 0;
+        float mDecay = 0.0f;
+        float mRotation = 0.0f;
+        float mSeed = 0.0f;
+        float mAmount = 1.0f;
+        float mSpeed = 1.0f;
+        float mScale = 1.0f;
+        float mOctaves = 1.0f;
+        float mIntensity = 1.0f;
+        float mBlockSize = 16.0f;
+        float mChromatic = 0.0f;
+        float mNoiseAmount = 0.0f;
+        float mScanlineAmount = 0.0f;
+        float mDistortion = 0.0f;
+        float mColorBleed = 0.0f;
+        float mJitter = 0.0f;
+
+        float _pad[6] = {0};
+    };
+
+static_assert(sizeof(ParamBlock) <= 512, "ParamBlock must fit in per-frame param uniform buffer");
 
 struct ParamWriter {
     ParamBlock block = {};
@@ -1165,6 +1253,27 @@ struct ParamWriter {
         else if (name == "feather") block.feather = value;
         else if (name == "expand") block.expand = value;
         else if (name == "choke") block.choke = value;
+        // Motion transform parameters
+        else if (name == "mFrequency" || name == "m_frequency") block.mFrequency = value;
+        else if (name == "mMagnitude" || name == "m_magnitude") block.mMagnitude = value;
+        else if (name == "mAngle" || name == "m_angle") block.mAngle = value;
+        else if (name == "mPhase" || name == "m_phase") block.mPhase = value;
+        else if (name == "mWaveType" || name == "m_wave_type") block.mWaveType = static_cast<int>(value);
+        else if (name == "mDecay" || name == "m_decay") block.mDecay = value;
+        else if (name == "mRotation" || name == "m_rotation") block.mRotation = value;
+        else if (name == "mSeed" || name == "m_seed") block.mSeed = value;
+        else if (name == "mAmount" || name == "m_amount") block.mAmount = value;
+        else if (name == "mSpeed" || name == "m_speed") block.mSpeed = value;
+        else if (name == "mScale" || name == "m_scale") block.mScale = value;
+        else if (name == "mOctaves" || name == "m_octaves") block.mOctaves = value;
+        else if (name == "mIntensity" || name == "m_intensity") block.mIntensity = value;
+        else if (name == "mBlockSize" || name == "m_block_size") block.mBlockSize = value;
+        else if (name == "mChromatic" || name == "m_chromatic") block.mChromatic = value;
+        else if (name == "mNoiseAmount" || name == "m_noise_amount") block.mNoiseAmount = value;
+        else if (name == "mScanlineAmount" || name == "m_scanline_amount") block.mScanlineAmount = value;
+        else if (name == "mDistortion" || name == "m_distortion") block.mDistortion = value;
+        else if (name == "mColorBleed" || name == "m_color_bleed") block.mColorBleed = value;
+        else if (name == "mJitter" || name == "m_jitter") block.mJitter = value;
     }
 
     void Pack(const std::unordered_map<std::string, float>& values) {
@@ -1226,9 +1335,9 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
     vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
 
     // Update param buffer (Set 1) with structured, named uniform packing
+    ParamWriter writer;
     VkBufferResource* paramBufRes = buffers_.Get(frameBuffers.paramBuffer);
     if (paramBufRes && paramBufRes->mapped) {
-        ParamWriter writer;
         writer.Pack(uniformValues);
         const ParamBlock& params = writer.Data();
         std::memcpy(paramBufRes->mapped, &params, sizeof(params));
@@ -1275,6 +1384,62 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
 
     // Bind pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineRes->pipeline);
+
+    // Push motion transform constants
+    struct MotionPushConstants {
+        float mTransform[9];
+        float mFrequency;
+        float mMagnitude;
+        float mAngle;
+        float mPhase;
+        int mWaveType;
+        float mDecay;
+        float mRotation;
+        float mSeed;
+        float mAmount;
+        float mSpeed;
+        float mScale;
+        float mOctaves;
+        float mIntensity;
+        float mBlockSize;
+        float mChromatic;
+        float mNoiseAmount;
+        float mScanlineAmount;
+        float mDistortion;
+        float mColorBleed;
+        float mJitter;
+    } motionConstants = {};
+
+    // Build transform matrix from ParamBlock
+    // The ParamBlock mTransform is already built in Pack()
+    const auto& params = writer.Data();
+    for (int i = 0; i < 9; ++i) {
+        motionConstants.mTransform[i] = params.mTransform[i];
+    }
+    motionConstants.mFrequency = params.mFrequency;
+    motionConstants.mMagnitude = params.mMagnitude;
+    motionConstants.mAngle = params.mAngle;
+    motionConstants.mPhase = params.mPhase;
+    motionConstants.mWaveType = params.mWaveType;
+    motionConstants.mDecay = params.mDecay;
+    motionConstants.mRotation = params.mRotation;
+    motionConstants.mSeed = params.mSeed;
+    motionConstants.mAmount = params.mAmount;
+    motionConstants.mSpeed = params.mSpeed;
+    motionConstants.mScale = params.mScale;
+    motionConstants.mOctaves = params.mOctaves;
+    motionConstants.mIntensity = params.mIntensity;
+    motionConstants.mBlockSize = params.mBlockSize;
+    motionConstants.mChromatic = params.mChromatic;
+    motionConstants.mNoiseAmount = params.mNoiseAmount;
+    motionConstants.mScanlineAmount = params.mScanlineAmount;
+    motionConstants.mDistortion = params.mDistortion;
+    motionConstants.mColorBleed = params.mColorBleed;
+    motionConstants.mJitter = params.mJitter;
+
+    vkCmdPushConstants(cmd, graphPipelineLayout_, 
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, sizeof(motionConstants), &motionConstants);
 
     // Bind descriptor sets (Set 0, 1, 2)
     VkDescriptorSet sets[3] = {
@@ -1334,10 +1499,174 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                         0, 0, nullptr, 0, nullptr, 1, &barrier);
+                          0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
+void VulkanDevice::DrawParticlePass(
+    PipelineHandle pipeline,
+    const ParticleDrawParams& params,
+    TextureHandle output,
+    const std::unordered_map<std::string, float>& uniformValues) {
+    VkCommandBuffer cmd = commandBuffers_[currentFrame_];
+ 
+    VkPipelineResource* pipelineRes = pipelines_.Get(pipeline);
+    if (!pipelineRes) return;
+ 
+    VkTextureResource* outputRes = textures_.Get(output);
+    if (!outputRes) return;
+ 
+    VkBufferResource* particleBufRes = buffers_.Get(params.particleBuffer);
+    if (!particleBufRes) return;
+ 
+    VkBufferResource* simParamsBufRes = buffers_.Get(params.simParamsBuffer);
+    if (!simParamsBufRes) return;
+ 
+    FrameUniformBuffers& frameBuffers = frameUniformBuffers_[currentFrame_];
+ 
+    struct UniformData {
+        float projection[16];
+        float resolution[2];
+        float _pad[2];
+    } uniformData;
+ 
+    for (int i = 0; i < 16; ++i) uniformData.projection[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+    uniformData.resolution[0] = static_cast<float>(outputRes->width);
+    uniformData.resolution[1] = static_cast<float>(outputRes->height);
+ 
+    VkBufferResource* uniformBufRes = buffers_.Get(frameBuffers.uniformBuffer);
+    if (uniformBufRes && uniformBufRes->mapped) {
+        std::memcpy(uniformBufRes->mapped, &uniformData, sizeof(uniformData));
+    }
+ 
+    VkDescriptorBufferInfo uniformBufferInfo{};
+    uniformBufferInfo.buffer = uniformBufRes ? uniformBufRes->buffer : VK_NULL_HANDLE;
+    uniformBufferInfo.offset = 0;
+    uniformBufferInfo.range = VK_WHOLE_SIZE;
+ 
+    VkWriteDescriptorSet uniformWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    uniformWrite.dstSet = frameBuffers.uniformSet;
+    uniformWrite.dstBinding = 0;
+    uniformWrite.descriptorCount = 1;
+    uniformWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uniformWrite.pBufferInfo = &uniformBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &uniformWrite, 0, nullptr);
+ 
+    // Update param buffer with particle render params
+    struct ParticleRenderParams {
+        float resolution[2];
+        float pointSizeScale;
+        int32_t additiveBlending;
+        int32_t pad;
+    } renderParams;
+    renderParams.resolution[0] = static_cast<float>(outputRes->width);
+    renderParams.resolution[1] = static_cast<float>(outputRes->height);
+    renderParams.pointSizeScale = params.pointSizeScale;
+    renderParams.additiveBlending = params.additiveBlending ? 1 : 0;
+ 
+    VkBufferResource* paramBufRes = buffers_.Get(frameBuffers.paramBuffer);
+    if (paramBufRes && paramBufRes->mapped) {
+        std::memcpy(paramBufRes->mapped, &renderParams, sizeof(renderParams));
+    }
+ 
+    VkDescriptorBufferInfo paramBufferInfo{};
+    paramBufferInfo.buffer = paramBufRes ? paramBufRes->buffer : VK_NULL_HANDLE;
+    paramBufferInfo.offset = 0;
+    paramBufferInfo.range = VK_WHOLE_SIZE;
+ 
+    VkWriteDescriptorSet paramWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    paramWrite.dstSet = frameBuffers.paramSet;
+    paramWrite.dstBinding = 0;
+    paramWrite.descriptorCount = 1;
+    paramWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    paramWrite.pBufferInfo = &paramBufferInfo;
+    vkUpdateDescriptorSets(device_, 1, &paramWrite, 0, nullptr);
+  
+    // Bind pipeline
+    if (!pipelineRes) return;
+  
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineRes->pipeline);
+ 
+    // Bind descriptor sets (Set 0, 1, 2) - reuse existing frame sets for now
+    VkDescriptorSet sets[3] = {
+        frameBuffers.uniformSet,
+        frameBuffers.paramSet,
+        frameBuffers.textureSet
+    };
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphPipelineLayout_,
+                            0, 3, sets, 0, nullptr);
+ 
+// Bind particle storage buffer as vertex buffer (for instanced rendering)
+    VkDeviceSize offsets[1] = {0};
+    VkBuffer particleBuffer = particleBufRes ? particleBufRes->buffer : VK_NULL_HANDLE;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &particleBuffer, offsets);
 
+    // Bind indirect draw buffer
+    VkBufferResource* indirectBufRes = buffers_.Get(params.indirectBuffer);
+    if (indirectBufRes) {
+        vkCmdBindIndexBuffer(cmd, indirectBufRes->buffer, 0, VK_INDEX_TYPE_UINT32);
+    }
+
+    VkViewport viewport{0, 0, static_cast<float>(outputRes->width),
+                         static_cast<float>(outputRes->height), 0.0f, 1.0f};
+    VkRect2D scissor{{0, 0}, {outputRes->width, outputRes->height}};
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier.image = outputRes->image;
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    colorAttachment.imageView = outputRes->view;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
+    renderingInfo.renderArea = {{0, 0}, {outputRes->width, outputRes->height}};
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(cmd, &renderingInfo);
+
+    // Draw instanced indirectly - count comes from compute shader
+    if (params.indirectBuffer.IsValid()) {
+        VkBufferResource* indirectBufRes = buffers_.Get(params.indirectBuffer);
+        if (indirectBufRes) {
+            vkCmdDrawIndirect(cmd, indirectBufRes->buffer, 0, 1, sizeof(VkDrawIndirectCommand));
+        } else {
+            vkCmdDraw(cmd, 3, params.maxParticles, 0, 0);
+        }
+    } else {
+        vkCmdDraw(cmd, 3, params.maxParticles, 0, 0);
+    }
+ 
+    lastFrameStats_.drawCalls++;
+ 
+    vkCmdEndRendering(cmd);
+ 
+    VkImageMemoryBarrier barrier2{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    barrier2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier2.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    barrier2.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier2.image = outputRes->image;
+    barrier2.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &barrier2);
+}
+ 
+ 
 VkSamplerYcbcrConversion VulkanDevice::GetOrCreateYcbcrConversion(
     const VkExternalFormatANDROID& externalFormat,
     const VkAndroidHardwareBufferFormatPropertiesANDROID& formatProps) {
