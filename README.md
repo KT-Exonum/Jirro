@@ -66,12 +66,29 @@ for Shader/Blend/Composite/Output needs pipeline + descriptor-set plumbing
 that's best developed once there's a real fragment shader to bind (Section
 3), which is Phase 3's job per the spec's phase breakdown.
 
+## Current Status / Known Issues
+
+The project builds most of the native C++ layer and now generates real SPIR-V
+shaders at configure time via `compile_shaders.py` + the installed Vulkan SDK
+(`glslangValidator`). The remaining blockers before a clean `assembleDebug` are:
+
+- **Kotlin syntax errors** in `FusionTab.kt`, `EditorState.kt`, and
+  `GestureShortcuts.kt` (Java interop / operator syntax).
+- **C++ shader linkage**: `shaders_embedded.h` must be regenerated whenever a
+  `.vert`/`.frag`/`.comp` source changes; CMake runs `compile_shaders.py`
+  automatically if `glslangValidator` is found on PATH or in `VULKAN_SDK`.
+- **Disabled optional subsystems**: QuickJS (`ExpressionEngine`), HarfBuzz, and
+  FreeType are compiled out via CMake flags because their dependencies are not
+  present in the default NDK toolchain.
+- **Runtime stubs**: media import in JNI, thumbnail generation, export mux path,
+  Shape2D boolean ops, and several UI actions are placeholder implementations.
+
 ## Build
 
 Requires Android Studio (Koala+), NDK 26+, CMake 3.22+, a device/emulator with
 Vulkan 1.1 support for Phase 1 validation, and a device with hardware AVC/HEVC
 decode support for Phase 2 validation (AHardwareBuffer + VK_KHR_sampler_ycbcr_conversion
-require API 28+, matching `minSdk`).
+require API 29+, matching `minSdk`).
 
 ```
 ./gradlew :app:assembleDebug

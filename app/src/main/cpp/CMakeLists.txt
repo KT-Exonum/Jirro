@@ -13,16 +13,21 @@ option(ENGINE_ENABLE_EXPRESSION_ENGINE "Enable expression engine with QuickJS" O
 # ---------------------------------------------------------------------------
 find_package(Python3 COMPONENTS Interpreter QUIET)
 
-# Locate glslangValidator: first from ANDROID_NDK_HOME, then PATH.
+# Locate glslangValidator: first from ANDROID_NDK_HOME, then VULKAN_SDK, then PATH.
 set(NDK_GLSLANG_VALIDATOR "")
 if(DEFINED ENV{ANDROID_NDK_HOME})
-    set(NDK_GLSLANG_VALIDATOR
-        "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/glslangValidator")
+    if(WIN32)
+        set(_NDK_PREBUILT "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64")
+    else()
+        set(_NDK_PREBUILT "$ENV{ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64")
+    endif()
+    set(NDK_GLSLANG_VALIDATOR "${_NDK_PREBUILT}/bin/glslangValidator")
 endif()
 
 find_program(GLSLANG_VALIDATOR
     NAMES glslangValidator
     PATHS ${NDK_GLSLANG_VALIDATOR}
+          "$ENV{VULKAN_SDK}/Bin"
     PATH_SUFFIXES bin
     DOC "Path to glslangValidator for offline SPIR-V compilation"
 )

@@ -30,11 +30,18 @@ def find_glslang_validator(explicit_path=None):
 
     ndk = os.environ.get("ANDROID_NDK_HOME")
     if ndk:
-        candidate = os.path.join(
-            ndk,
-            "toolchains", "llvm", "prebuilt",
-            "linux-x86_64", "bin", "glslangValidator",
-        )
+        if sys.platform == "win32":
+            candidate = os.path.join(
+                ndk,
+                "toolchains", "llvm", "prebuilt",
+                "windows-x86_64", "bin", "glslangValidator",
+            )
+        else:
+            candidate = os.path.join(
+                ndk,
+                "toolchains", "llvm", "prebuilt",
+                "linux-x86_64", "bin", "glslangValidator",
+            )
         if os.path.isfile(candidate):
             return candidate
 
@@ -75,7 +82,7 @@ def xxd_style_header(spv_path, var_name, words_var):
         chunk = data[i:i+4]
         if len(chunk) == 4:
             val = int.from_bytes(chunk, byteorder="little")
-            words.append(f"    0x{val:08x}u")
+            words.append(f"    0x{val:08x}u,")
         else:
             # Pad last word
             chunk = chunk.ljust(4, b"\x00")
