@@ -214,6 +214,10 @@ private:
     uint32_t currentFrame_ = 0;
     uint32_t currentImageIndex_ = 0;
 
+    // Dynamically loaded Vulkan 1.3 / VK_KHR_dynamic_rendering commands.
+    PFN_vkCmdBeginRendering vkCmdBeginRendering_ = nullptr;
+    PFN_vkCmdEndRendering vkCmdEndRendering_ = nullptr;
+
     // Bring-up pipeline (Phase 1 triangle). Real graph pipelines live in
     // pipelinePool_ once Phase 3 ports blend-mode fragment shaders here.
     VkPipelineLayout bringUpLayout_ = VK_NULL_HANDLE;

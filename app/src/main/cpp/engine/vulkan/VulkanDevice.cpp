@@ -88,6 +88,9 @@ bool VulkanDevice::Initialize(ANativeWindow* window) {
     VkPipelineCacheCreateInfo cacheInfo{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
     vkCreatePipelineCache(device_, &cacheInfo, nullptr, &pipelineCache_);
 
+    vkCmdBeginRendering_ = (PFN_vkCmdBeginRendering)vkGetDeviceProcAddr(device_, "vkCmdBeginRendering");
+    vkCmdEndRendering_ = (PFN_vkCmdEndRendering)vkGetDeviceProcAddr(device_, "vkCmdEndRendering");
+
     LOGI("VulkanDevice initialized: %ux%u, format=%d", swapchainExtent_.width,
          swapchainExtent_.height, swapchainFormat_);
     return true;
@@ -1483,14 +1486,15 @@ void VulkanDevice::DrawFullscreenPass(PipelineHandle pipeline, std::span<const T
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachment;
 
-    vkCmdBeginRendering(cmd, &renderingInfo);
+    if (!vkCmdBeginRendering_) return;
+    vkCmdBeginRendering_(cmd, &renderingInfo);
 
     // Draw fullscreen triangle (3 vertices)
     vkCmdDraw(cmd, 3, 1, 0, 0);
 
     lastFrameStats_.drawCalls++;
 
-    vkCmdEndRendering(cmd);
+    if (vkCmdEndRendering_) vkCmdEndRendering_(cmd);
 
     // Transition output to shader read optimal for next pass
     barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
@@ -1636,7 +1640,8 @@ void VulkanDevice::DrawParticlePass(
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachments = &colorAttachment;
 
-    vkCmdBeginRendering(cmd, &renderingInfo);
+    if (!vkCmdBeginRendering_) return;
+    vkCmdBeginRendering_(cmd, &renderingInfo);
 
     // Draw instanced indirectly - count comes from compute shader
     if (params.indirectBuffer.IsValid()) {
@@ -1651,9 +1656,9 @@ void VulkanDevice::DrawParticlePass(
     }
  
     lastFrameStats_.drawCalls++;
- 
-    vkCmdEndRendering(cmd);
- 
+  
+    if (vkCmdEndRendering_) vkCmdEndRendering_(cmd);
+  
     VkImageMemoryBarrier barrier2{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
     barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     barrier2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
