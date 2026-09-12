@@ -1,26 +1,32 @@
 package com.vfxengine.app.ui.tab
 
 import android.content.Intent
-import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyVerticalGrid
-import androidx.compose.foundation.lazy.gridCells
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.Chip
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.FilledTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,10 +37,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.px
 import com.vfxengine.app.ui.common.EditorState
+import kotlin.math.roundToInt
 
 /**
  * Media Tab - Simple Media Library Screen
@@ -46,7 +53,7 @@ import com.vfxengine.app.ui.common.EditorState
 @Composable
 fun MediaTab(
     state: EditorState,
-    pickMedia: (Intent) -> Unit
+    onImport: () -> Unit
 ) {
     var searchText by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(FilterType.All) }
@@ -57,7 +64,7 @@ fun MediaTab(
         MediaTopBar(
             searchText = searchText,
             onSearchChange = { searchText = it },
-            onAddClick = { pickMedia(Intent(Intent.ACTION_PICK, MediaStore.Media.EXTERNAL_CONTENT_URI)) }
+            onAddClick = { onImport() }
         )
 
         // Filter chips
@@ -79,8 +86,9 @@ fun MediaTab(
             AssetDetailsPanel(
                 media = selectedMedia!!,
                 onClose = { selectedMedia = null },
-                onPreview = { /* Preview */ },
-                onAdd = { /* Add to timeline */ }
+                onPreview = { },
+                onAdd = { },
+                onAddToTimeline = { }
             )
         }
     }
@@ -114,7 +122,7 @@ fun MediaTopBar(
                 .weight(1f)
                 .height(40.dp)
         ) {
-            FilledTextField(
+            TextField(
                 value = searchText,
                 onValueChange = onSearchChange,
                 modifier = Modifier
@@ -122,11 +130,12 @@ fun MediaTopBar(
                     .padding(horizontal = 12.dp),
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
-                colors = TextFieldDefaults.filledTextFieldColors(
-                    containerColor = Color(0xFF1E1E1E),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
                     focusedContainerColor = Color(0xFF2D2D2D),
-                    textColor = Color.White,
-                    placeholderColor = Color.White.copy(alpha = 0.4f)
+                    unfocusedContainerColor = Color(0xFF1E1E1E),
+                    cursorColor = Color.Cyan
                 ),
                 placeholder = { Text(text = "Search media", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp) },
                 leadingIcon = {
@@ -166,25 +175,24 @@ fun FilterChipsRow(
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
         FilterType.values().forEach { filter ->
-            Chip(
+            FilterChip(
+                selected = filter == selectedFilter,
                 onClick = { onFilterChange(filter) },
                 modifier = Modifier.height(32.dp),
-                colors = androidx.compose.material3.ChipDefaults.colors(
-                    containerColor = if (filter == selectedFilter) Color.Cyan.copy(alpha = 0.2f) else Color(0xFF1E1E1E),
+                label = { Text(text = filter.label, fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = Color(0xFF1E1E1E),
+                    labelColor = Color.White,
                     selectedContainerColor = Color.Cyan.copy(alpha = 0.2f),
-                    labelColor = if (filter == selectedFilter) Color.Cyan else Color.White
-                ),
-                selected = filter == selectedFilter,
-                onSelectedChange = { onFilterChange(filter) }
-            ) {
-                Text(text = filter.label, fontSize = 12.sp)
-            }
+                    selectedLabelColor = Color.Cyan
+                )
+            )
         }
     }
 }
 
 @Composable
-fun MediaGrid(
+fun ColumnScope.MediaGrid(
     state: EditorState,
     filter: FilterType,
     selectedMedia: EditorState.MediaFile?,
@@ -224,7 +232,7 @@ fun MediaGrid(
             }
         } else {
             LazyVerticalGrid(
-                cells = gridCells.Fixed(2),
+                columns = GridCells.Fixed(2),
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
@@ -267,15 +275,7 @@ fun MediaGridItem(
                     .background(Color(0xFF121212))
             ) {
                 // Thumbnail image (if available)
-                if (media.thumbnailPath != null && media.thumbnailPath.isNotEmpty()) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.foundation.painterResource(id = 0), // Placeholder - would use AsyncImage in real impl
-                        contentDescription = "Thumbnail",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                } else {
-                    // Icon based on media type
+                // Icon based on media type
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -286,15 +286,14 @@ fun MediaGridItem(
                                 isVideo -> android.R.drawable.ic_media_play
                                 isAudio -> android.R.drawable.ic_media_play
                                 isImage -> android.R.drawable.ic_menu_gallery
-                                else -> android.R.drawable.ic_menu_upload
+                                else -> android.R.drawable.ic_menu_add
                             }),
                             contentDescription = "Media type",
                             tint = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size(48.dp)
                         )
                     }
-                }
-                
+
                 // Selected overlay
                 if (isSelected) {
                     Box(
@@ -313,7 +312,7 @@ fun MediaGridItem(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
-                    overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${media.width}×${media.height} · ${formatDuration(media.duration)}",
@@ -375,25 +374,24 @@ fun AssetDetailsPanel(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
             ) {
                 // Preview button
-                androidx.compose.material3.OutlinedButton(
+                OutlinedButton(
                     onClick = onPreview,
                     modifier = Modifier.weight(1f).height(44.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.Cyan,
-                        borderColor = Color.Cyan.copy(alpha = 0.5f)
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.Cyan
                     )
                 ) {
                     Text(text = "Preview", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
 
                 // Add button
-                androidx.compose.material3.Button(
+                Button(
                     onClick = { 
                         onAdd()
                         onAddToTimeline(media)
                     },
                     modifier = Modifier.weight(1f).height(44.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.Cyan)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Cyan)
                 ) {
                     Text(text = "+ Add", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }

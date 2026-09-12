@@ -5,6 +5,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,6 +56,7 @@ private const val PLAYHEAD_COLOR = 0xFFFF3B3B
 private const val SELECTED_GLOW = 0xFF00E5FF
 
 private enum class DragMode { None, MoveKeyframe, MoveInTangent, MoveOutTangent, AddKeyframe }
+private enum class KeyframeEditorTab { Curve, DopeSheet, Procedural, EasingPresets, RoamingCurves }
 
 @Composable
 fun KeyframeEditor(state: EditorState) {
@@ -63,9 +67,7 @@ fun KeyframeEditor(state: EditorState) {
     var valueReadout by remember { mutableStateOf<String?>(null) }
     var copiedKeyframe by remember { mutableStateOf<EditorState.Keyframe?>(null) }
     var autoKey by remember { mutableStateOf(false) }
-    var activeTab by remember { mutableStateOf(EditorTab.Curve) }
-
-    enum class EditorTab { Curve, DopeSheet, Procedural, EasingPresets, RoamingCurves }
+    var activeTab by remember { mutableStateOf(KeyframeEditorTab.Curve) }
 
     Box(
         modifier = Modifier
@@ -127,7 +129,7 @@ fun KeyframeEditor(state: EditorState) {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     when (activeTab) {
-                        EditorTab.Curve -> {
+                        KeyframeEditorTab.Curve -> {
                             GraphArea(
                                 state = state,
                                 target = target,
@@ -146,7 +148,7 @@ fun KeyframeEditor(state: EditorState) {
                                         .background(Color(0xFF1E1E1E).copy(alpha = 0.9f))
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Text(text = readout, color = Color.Cyan, fontSize = 11.sp, fontWeight = FontWeight.Mono)
+                                    Text(text = readout, color = Color.Cyan, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
 
@@ -167,7 +169,7 @@ fun KeyframeEditor(state: EditorState) {
                                 )
                             }
                         }
-                        EditorTab.DopeSheet -> {
+                        KeyframeEditorTab.DopeSheet -> {
                             DopeSheetView(
                                 state = state,
                                 target = target,
@@ -176,7 +178,7 @@ fun KeyframeEditor(state: EditorState) {
                                 snapEnabled = snapEnabled
                             )
                         }
-                        EditorTab.Procedural -> {
+                        KeyframeEditorTab.Procedural -> {
                             ProceduralControls(
                                 procedural = target.track.procedural,
                                 onChange = { newProc ->
@@ -184,14 +186,14 @@ fun KeyframeEditor(state: EditorState) {
                                 }
                             )
                         }
-                        EditorTab.EasingPresets -> {
+                        KeyframeEditorTab.EasingPresets -> {
                             EasingPresetsPanel(
                                 state = state,
                                 target = target,
                                 selectedIndex = selectedIndex,
                                 onApplyPreset = { preset ->
                                     // Apply easing preset to selected keyframes
-                                    val indices = if (selectedIndex != null) listOf(selectedIndex) else target.track.keyframes.indices
+                                    val indices = selectedIndex?.let { listOf(it) } ?: target.track.keyframes.indices.toList()
                                     indices.forEach { idx ->
                                         if (idx in target.track.keyframes.indices) {
                                             val oldKf = target.track.keyframes[idx].copy()
@@ -207,13 +209,13 @@ fun KeyframeEditor(state: EditorState) {
                                 }
                             )
                         }
-                        EditorTab.RoamingCurves -> {
+                        KeyframeEditorTab.RoamingCurves -> {
                             RoamingCurvesPanel(
                                 state = state,
                                 target = target,
                                 onApplyCurve = { curveData ->
                                     // Apply roaming curve
-                                    val indices = if (selectedIndex != null) listOf(selectedIndex) else target.track.keyframes.indices
+                                    val indices = selectedIndex?.let { listOf(it) } ?: target.track.keyframes.indices.toList()
                                     indices.forEach { idx ->
                                         if (idx in target.track.keyframes.indices) {
                                             val oldKf = target.track.keyframes[idx].copy()
@@ -282,7 +284,7 @@ private fun KeyframeToolbar(
         }
 
         ToolbarIconButton(
-            icon = android.R.drawable.ic_input_add,
+            iconRes = android.R.drawable.ic_input_add,
             contentDescription = "Add keyframe",
             tint = if (autoKey) Color(0xFF00E5FF) else Color.White.copy(alpha = 0.8f)
         ) { onAddAtPlayhead() }
@@ -292,12 +294,12 @@ private fun KeyframeToolbar(
         ToolbarIconButton(android.R.drawable.ic_delete, "Delete") { onDelete() }
 
         ToolbarToggleButton(
-            icon = android.R.drawable.ic_menu_manage,
+            iconRes = android.R.drawable.ic_menu_manage,
             label = "Snap",
             checked = snapEnabled
         ) { onSnapToggle(it) }
         ToolbarToggleButton(
-            icon = android.R.drawable.ic_media_play,
+            iconRes = android.R.drawable.ic_media_play,
             label = "Auto",
             checked = autoKey
         ) { onAutoKeyToggle(it) }
@@ -552,7 +554,7 @@ private fun DrawScope.drawGrid(
     val timeScale = w / duration
 
     for (frame in 0..totalFrames) {
-        val x = frame * timeScale / fps
+        val x = (frame * timeScale / fps).toFloat()
         if (x > w) break
         val isMajor = frame % fps == 0
         val isMid = frame % (fps / 2) == 0 && !isMajor
@@ -653,7 +655,7 @@ private fun DrawScope.drawTangentHandles(
 
         val inY = graphTop + (1f - ((kf.value + kf.inTangent + valueRange) / (valueRange * 2))) * graphHeight
         val outY = graphTop + (1f - ((kf.value + kf.outTangent + valueRange) / (valueRange * 2))) * graphHeight
-        val handleTimeOffset = (duration * 0.05f).coerceAtLeast(0.1f)
+        val handleTimeOffset = (duration * 0.05).coerceAtLeast(0.1).toFloat()
         val inX = (x - handleTimeOffset).coerceIn(0f, w)
         val outX = (x + handleTimeOffset).coerceIn(0f, w)
 
@@ -707,14 +709,14 @@ private fun PlayheadOverlay(
                 text = formatTimecode(state.currentTimeSeconds),
                 color = Color(PLAYHEAD_COLOR),
                 fontSize = 10.sp,
-                fontWeight = FontWeight.Mono
+                fontFamily = FontFamily.Monospace
             )
         }
     }
 }
 
 @Composable
-private fun InterpMenu(
+private fun BoxScope.InterpMenu(
     current: EditorState.InterpolationType,
     onSelect: (EditorState.InterpolationType) -> Unit,
     onDismiss: () -> Unit
@@ -749,8 +751,8 @@ private fun InterpMenu(
 
 @Composable
 private fun TabBar(
-    activeTab: KeyframeEditor.EditorTab,
-    onTabClick: (KeyframeEditor.EditorTab) -> Unit,
+    activeTab: KeyframeEditorTab,
+    onTabClick: (KeyframeEditorTab) -> Unit,
     procedural: EditorState.ProceduralConfig
 ) {
     Row(
@@ -760,19 +762,19 @@ private fun TabBar(
             .padding(horizontal = 8.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
     ) {
-        EditorTab.values().forEach { tab ->
+        KeyframeEditorTab.values().forEach { tab ->
             val isActive = activeTab == tab
             val label = when (tab) {
-                EditorTab.Curve -> "Curve"
-                EditorTab.DopeSheet -> "Dope Sheet"
-                EditorTab.Procedural -> "Procedural"
-                EditorTab.EasingPresets -> "Easing"
-                EditorTab.RoamingCurves -> "Curves"
+                KeyframeEditorTab.Curve -> "Curve"
+                KeyframeEditorTab.DopeSheet -> "Dope Sheet"
+                KeyframeEditorTab.Procedural -> "Procedural"
+                KeyframeEditorTab.EasingPresets -> "Easing"
+                KeyframeEditorTab.RoamingCurves -> "Curves"
             }
             val showIndicator = when (tab) {
-                EditorTab.Procedural -> procedural.enabled
-                EditorTab.EasingPresets -> true
-                EditorTab.RoamingCurves -> true
+                KeyframeEditorTab.Procedural -> procedural.enabled
+                KeyframeEditorTab.EasingPresets -> true
+                KeyframeEditorTab.RoamingCurves -> true
                 else -> false
             }
             androidx.compose.material3.TextButton(
@@ -819,17 +821,23 @@ private fun ProceduralControls(
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
     ) {
         // Master toggle
-        androidx.compose.material3.Switch(
-            checked = newProc.value.enabled,
-            onCheckedChange = { 
-                newProc.value = newProc.value.copy(enabled = it)
-                onChange(newProc.value)
-            },
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            thumbContentColor = Color.Black,
-            trackColor = { Color(0xFF00E5FF) }
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = "Enable Procedural", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            androidx.compose.material3.Switch(
+                checked = newProc.value.enabled,
+                onCheckedChange = {
+                    newProc.value = newProc.value.copy(enabled = it)
+                    onChange(newProc.value)
+                },
+                colors = androidx.compose.material3.SwitchDefaults.colors(
+                    checkedThumbColor = Color.Black,
+                    checkedTrackColor = Color(0xFF00E5FF)
+                )
+            )
         }
 
         androidx.compose.material3.Divider(color = Color.White.copy(alpha = 0.1f))
@@ -962,7 +970,7 @@ private fun ProceduralSlider(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
         ) {
             Text(text = label, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-            Text(text = format(currentValue), color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Mono)
+            Text(text = format(currentValue), color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Medium)
         }
         androidx.compose.material3.Slider(
             modifier = Modifier.fillMaxWidth(),
@@ -982,7 +990,7 @@ private fun ProceduralSlider(
 }
 
 @Composable
-private fun PresetProcButton(
+private fun androidx.compose.foundation.layout.RowScope.PresetProcButton(
     label: String,
     freq: Float,
     amp: Float,
@@ -1028,4 +1036,98 @@ private fun formatTimecode(seconds: Double): String {
     val secs = (totalFrames / 30) % 60
     val frames = totalFrames % 30
     return String.format("%02d:%02d:%02d:%02d", hours, minutes, secs, frames)
+}
+
+private data class EasingPreset(
+    val name: String,
+    val interpolation: EditorState.InterpolationType,
+    val inTangent: Float = 0f,
+    val outTangent: Float = 0f
+)
+
+@Composable
+private fun DopeSheetView(
+    state: EditorState,
+    target: EditorState.KeyframeTarget,
+    selectedIndex: Int?,
+    onSelectIndex: (Int) -> Unit,
+    snapEnabled: Boolean
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text(
+            text = "Dope sheet · ${target.uniformName} · ${target.track.keyframes.size} keys",
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 12.sp
+        )
+        target.track.keyframes.forEachIndexed { index, kf ->
+            val selected = index == selectedIndex
+            androidx.compose.material3.TextButton(onClick = { onSelectIndex(index) }) {
+                Text(
+                    text = "t=${String.format("%.2f", kf.time)}  v=${String.format("%.3f", kf.value)}  ${kf.interpolation.name}",
+                    color = if (selected) Color.Cyan else Color.White,
+                    fontSize = 12.sp
+                )
+            }
+        }
+        if (target.track.keyframes.isEmpty()) {
+            Text(text = "No keyframes", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+        }
+        Text(
+            text = if (snapEnabled) "Snap on · ${String.format("%.2f", state.currentTimeSeconds)}s" else "Snap off",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun EasingPresetsPanel(
+    state: EditorState,
+    target: EditorState.KeyframeTarget,
+    selectedIndex: Int?,
+    onApplyPreset: (EasingPreset) -> Unit
+) {
+    val presets = listOf(
+        EasingPreset("Linear", EditorState.InterpolationType.Linear),
+        EasingPreset("Step", EditorState.InterpolationType.Step),
+        EasingPreset("Ease In", EditorState.InterpolationType.Bezier, inTangent = 0.8f, outTangent = 0.2f),
+        EasingPreset("Ease Out", EditorState.InterpolationType.Bezier, inTangent = 0.2f, outTangent = 0.8f),
+        EasingPreset("Ease In-Out", EditorState.InterpolationType.Bezier, inTangent = 0.5f, outTangent = 0.5f)
+    )
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text(text = "Easing presets", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        if (selectedIndex == null) {
+            Text(text = "Select a keyframe, or apply to all.", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+        }
+        presets.forEach { preset ->
+            androidx.compose.material3.TextButton(onClick = { onApplyPreset(preset) }) {
+                Text(text = preset.name, color = Color.Cyan, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoamingCurvesPanel(
+    state: EditorState,
+    target: EditorState.KeyframeTarget,
+    onApplyCurve: (List<Float>) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text(text = "Roaming curves", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(
+            text = "Applies a simple ease shape to selected keys on ${target.uniformName}.",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp
+        )
+        androidx.compose.material3.TextButton(onClick = { onApplyCurve(listOf(0f, 0.25f, 0.75f, 1f)) }) {
+            Text(text = "Apply S-curve", color = Color.Cyan, fontSize = 13.sp)
+        }
+        Text(
+            text = "Time ${String.format("%.2f", state.currentTimeSeconds)}s",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 11.sp
+        )
+    }
 }

@@ -1,0 +1,2 @@
+ninja: Entering directory `C:\Users\jwats\eclipse-workspace\Jirro\Jirro\app\.cxx\Debug\1rk2f2l2\x86_64'
+ninja: no work to do.

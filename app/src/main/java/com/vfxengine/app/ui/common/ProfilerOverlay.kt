@@ -4,11 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,8 +51,8 @@ fun ProfilerOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(),
-            elevation = 4.dp,
-            colors = androidx.compose.material3.CardDefaults.cardColors(
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(
                 containerColor = Color(0xCC000000)
             )
         ) {
@@ -72,7 +76,7 @@ fun ProfilerOverlay(
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly
                 ) {
                     StatBox("GPU", "${stats.value.gpuTotalMs} ms", Color.Cyan)
-                    StatBox("CPU", "${stats.value.cpuTotalMs} ms", Color.Orange)
+                    StatBox("CPU", "${stats.value.cpuTotalMs} ms", Color(0xFFFFA726))
                     StatBox("Draw Calls", "${stats.value.drawCalls}", Color.Green)
                     StatBox("FPS", String.format("%.1f", stats.value.fps), Color.White)
                     StatBox("Thermal", thermalStatusText(stats.value.thermalStatus), thermalStatusColor(stats.value.thermalStatus))
@@ -83,7 +87,7 @@ fun ProfilerOverlay(
 }
 
 @Composable
-fun StatBox(label: String, value: String, color: Color) {
+fun RowScope.StatBox(label: String, value: String, color: Color) {
     Column(
         modifier = Modifier
             .weight(1f)
@@ -127,7 +131,7 @@ fun thermalStatusColor(status: Int): Color {
     return when (status) {
         0 -> Color.Green
         1 -> Color.Yellow
-        2 -> Color.Orange
+        2 -> Color(0xFFFFA726)
         3 -> Color.Red
         4 -> Color.Magenta
         else -> Color.White

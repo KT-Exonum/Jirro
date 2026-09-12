@@ -7,30 +7,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Measurable
-import androidx.compose.ui.layout.MeasureResult
-import androidx.compose.ui.layout.Placeable
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.px
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import com.vfxengine.app.ui.common.EditorState
@@ -60,7 +52,7 @@ fun TimelineRuler(state: EditorState, rulerHeight: Float = 30f) {
             else -> 10.0
         }
 
-        var markerTime = (visibleStart / markerInterval).ceil() * markerInterval
+        var markerTime = kotlin.math.ceil(visibleStart / markerInterval) * markerInterval
         while (markerTime <= visibleEnd && markerTime <= state.durationSeconds) {
             val x = markerTime * state.timeScale + state.timeOffset
             if (x >= 0 && x <= 800) {
@@ -69,7 +61,7 @@ fun TimelineRuler(state: EditorState, rulerHeight: Float = 30f) {
                         .width(1.dp)
                         .fillMaxHeight()
                         .background(Color.White.copy(alpha = 0.3f))
-                        .graphicsLayer { translationX = x.px }
+                        .graphicsLayer { translationX = x.toFloat() }
                 )
                 // Time label
                 Text(
@@ -78,7 +70,7 @@ fun TimelineRuler(state: EditorState, rulerHeight: Float = 30f) {
                     fontSize = 9.sp,
                     modifier = Modifier
                         .padding(top = 2.dp, start = 2.dp)
-                        .graphicsLayer { translationX = (x + 2).px }
+                        .graphicsLayer { translationX = (x + 2).toFloat() }
                 )
             }
             markerTime += markerInterval
@@ -136,12 +128,12 @@ fun TimelineTrack(
                 
                 Box(
                     modifier = Modifier
-                        .width(clipWidth.px)
+                        .width(clipWidth.toFloat().dp)
                         .height((trackHeight - 8).dp)
                         .background(Color(clip.color))
                         .graphicsLayer {
-                            translationX = clipStartX.px
-                            translationY = 4.px
+                            translationX = clipStartX.toFloat()
+                            translationY = 4f
                         }
                         .pointerInput(clip) {
                             detectDragGestures(
@@ -177,7 +169,7 @@ fun PlayheadOverlay(state: EditorState, trackHeight: Float, layerCount: Int) {
             .width(2.dp)
             .height((trackHeight * layerCount + 30).dp)
             .background(Color.Red)
-            .graphicsLayer { translationX = playheadX.px }
+            .graphicsLayer { translationX = playheadX.toFloat() }
     )
     
     // Time display at top
@@ -188,7 +180,7 @@ fun PlayheadOverlay(state: EditorState, trackHeight: Float, layerCount: Int) {
         fontWeight = FontWeight.Bold,
         modifier = Modifier
             .padding(top = 4.dp, start = 4.dp)
-            .graphicsLayer { translationX = (playheadX + 4).px }
+            .graphicsLayer { translationX = (playheadX + 4).toFloat() }
     )
 }
 

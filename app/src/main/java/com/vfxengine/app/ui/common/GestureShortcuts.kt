@@ -41,8 +41,8 @@ fun Modifier.nodeEditorGestures(
         onDoubleTap = { offset ->
             onAddNodeRequested(offset)
         }
-    }
-)
+    )
+}
 
 fun Modifier.timelineGestures(
     state: EditorState,

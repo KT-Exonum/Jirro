@@ -1,5 +1,6 @@
 package com.vfxengine.app.ui.nodeeditor
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,17 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.Measurable
-import androidx.compose.ui.layout.MeasureResult
-import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.px
 import androidx.compose.ui.unit.sp
 import com.vfxengine.app.ui.common.EditorState
 
@@ -58,13 +54,13 @@ fun Port(
     Box(
         modifier = Modifier
             .size(12.dp)
-            .background(if (isConnected) node.type.color else Color.Gray)
+            .background(if (isConnected) Color(node.type.color) else Color.Gray)
             .graphicsLayer {
-                if (isOutput) translationX = (nodeWidth(node) - 12).px else translationX = 0.px
+                translationX = if (isOutput) nodeWidth(node) - 12f else 0f
             }
             .pointerInput(Unit) {
                 detectDragGestures(
-                    onDragStart = { onDragStart(EditorState.DragState.Connecting(node.id, port.name, 0f, 0f)) },
+                    onDragStart = { onDragStart(EditorState.DragState.Connecting(node.id, port.name, 0f, 0f, isOutput)) },
                     onDrag = { change, dragAmount ->
                         // Update connection preview
                     },
@@ -89,7 +85,7 @@ fun NodeView(
 ) {
     val isSelected = state.selectedNodeId == node.id
     val maxPorts = maxOf(node.inputs.size, node.outputs.size)
-    val nodeHeight = max(80f, maxPorts * 36f + 40f)
+    val nodeHeight = maxOf(80f, maxPorts * 36f + 40f)
 
     Box(
         modifier = Modifier
@@ -97,8 +93,8 @@ fun NodeView(
             .height(nodeHeight.dp)
             .background(if (isSelected) Color(0xFF3D3D3D) else Color(0xFF2D2D2D))
             .graphicsLayer {
-                translationX = node.x.px
-                translationY = node.y.px
+                translationX = node.x
+                translationY = node.y
             }
             .pointerInput(node) {
                 detectTapGestures(onTap = { onNodeClick(node.id) })
@@ -184,7 +180,7 @@ fun ConnectionLine(
                 drawPath(
                     path = path,
                     color = Color.White.copy(alpha = 0.6f),
-                    style = androidx.compose.ui.graphics.Stroke(width = 2f)
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
                 )
             }
         }
@@ -220,8 +216,8 @@ fun NodeEditor(state: EditorState) {
             .graphicsLayer {
                 scaleX = state.nodeZoom
                 scaleY = state.nodeZoom
-                translationX = state.nodePanX.px
-                translationY = state.nodePanY.px
+                translationX = state.nodePanX
+                translationY = state.nodePanY
             }
     ) {
         // Draw connections first (behind nodes)
@@ -254,11 +250,12 @@ fun NodeEditor(state: EditorState) {
                             drawPath(
                                 path = path,
                                 color = Color.White.copy(alpha = 0.4f),
-                                style = androidx.compose.ui.graphics.Stroke(width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
                             )
                         }
                     }
                 }
+                else -> {}
             }
         }
     }

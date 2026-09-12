@@ -1,0 +1,20 @@
+# ninja log v5
+4	18217	8106928233759921	C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/cpp/shaders_embedded.h	6a0978a5471719e2
+18270	23633	8106928287621883	CMakeFiles/vfxengine.dir/engine/opengl/OpenGLDevice.cpp.o	8ab1ced97cdf5dee
+18339	23664	8106928287921987	CMakeFiles/vfxengine.dir/engine/audio/AudioOutput.cpp.o	28d92a0705da9081
+18358	24438	8106928295768953	CMakeFiles/vfxengine.dir/engine/3d/Material.cpp.o	bfcd8475f8bac932
+18349	24564	8106928297060573	CMakeFiles/vfxengine.dir/engine/3d/Light.cpp.o	6d56de2481b8850d
+24439	29703	8106928348118684	CMakeFiles/vfxengine.dir/engine/3d/Shadow.cpp.o	12548c5b8acc193d
+18298	29716	8106928348118684	CMakeFiles/vfxengine.dir/engine/core/Profiler.cpp.o	9bb716bb75b2a626
+18232	29805	8106928348971640	CMakeFiles/vfxengine.dir/engine/core/RuntimeShaderCompiler.cpp.o	e93ffe0c9abe70fa
+18280	31228	8106928363315274	CMakeFiles/vfxengine.dir/engine/media/MediaEngine.cpp.o	2ecfd9f5b44bd297
+18218	31517	8106928366385675	CMakeFiles/vfxengine.dir/engine/vulkan/VulkanDevice.cpp.o	7e1f1c3d3a16f97f
+18328	31624	8106928367423860	CMakeFiles/vfxengine.dir/engine/audio/AudioEngine.cpp.o	5bb5b74e17954f86
+18318	32545	8106928376298314	CMakeFiles/vfxengine.dir/engine/export/ExportPipeline.cpp.o	63663e79d9607f51
+23665	33423	8106928385443527	CMakeFiles/vfxengine.dir/engine/3d/glTFLoader.cpp.o	700b66de2f502320
+23648	33640	8106928387729081	CMakeFiles/vfxengine.dir/engine/asset/AssetManager.cpp.o	b5684d29a118fcb
+18289	35151	8106928402443767	CMakeFiles/vfxengine.dir/engine/graph/RenderGraph.cpp.o	a2cac2d18b1b3f5d
+18307	36180	8106928413024560	CMakeFiles/vfxengine.dir/engine/export/ProjectSerializer.cpp.o	cec99bbd4a98a5ba
+18246	39095	8106928442061570	CMakeFiles/vfxengine.dir/Engine.cpp.o	a08fa08b0e1c001e
+18253	39441	8106928445509519	CMakeFiles/vfxengine.dir/jni/jni_bridge.cpp.o	58aad8d0eb291651
+39441	39713	8106928448328703	C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/build/intermediates/cxx/Debug/1rk2f2l2/obj/x86_64/libvfxengine.so	a7fe40bec8287dd2

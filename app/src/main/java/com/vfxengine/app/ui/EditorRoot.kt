@@ -1,8 +1,6 @@
 package com.vfxengine.app.ui
 
-import android.content.Intent
 import android.net.Uri
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
@@ -21,12 +19,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.FilledTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +38,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.viewinterop.AndroidView
 import com.vfxengine.app.ui.common.EditorState
 import com.vfxengine.app.ui.common.ProfilerOverlay
@@ -59,9 +60,9 @@ import org.json.JSONObject
 @Composable
 fun EditorRoot(
     engine: com.vfxengine.app.NativeEngine,
-    pickMedia: (Intent) -> Unit,
-    pickProject: (Intent) -> Unit,
-    saveProjectAs: (Intent) -> Unit
+    pickMedia: (Uri) -> Unit,
+    pickProject: (Uri) -> Unit,
+    saveProjectAs: (Uri) -> Unit
 ) {
     val state = remember { EditorState(engine) }
     val settings = remember { mutableStateOf(Settings()) }
@@ -86,12 +87,9 @@ fun EditorRoot(
     
     // Save As callback - triggers file picker
     val onSaveProjectAs = remember { { 
-        saveProjectAs(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            type = "application/json"
-            putExtra(Intent.EXTRA_TITLE, "${engine.getProjectName()}.vfxproj")
-        })
+        saveProjectAs(Uri.parse("project.vfxproj"))
     } }
-    
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color(0xFF0F0F0F)
@@ -100,7 +98,7 @@ fun EditorRoot(
             Column(modifier = Modifier.fillMaxSize()) {
                 // Tab content
                 when (currentTab) {
-                    EditorTab.Media -> MediaTab(state, pickMedia)
+                    EditorTab.Media -> MediaTab(state, { pickMedia(android.net.Uri.EMPTY) })
                     EditorTab.Timeline -> EditTab(state, onTabSwitch)
                     EditorTab.Effects -> FusionTab(state)
                     EditorTab.Export -> DeliverTab(state, engine)
@@ -113,10 +111,7 @@ fun EditorRoot(
                     engine = engine,
                     onNewProject = { showNewProjectDialog = true },
                     onOpenProject = { 
-                        pickProject(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            type = "application/json"
-                            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json"))
-                        })
+                        pickProject(android.net.Uri.EMPTY)
                     },
                     onRecentProjectClick = { path ->
                         engine.openProject(path)
@@ -329,8 +324,7 @@ fun WelcomeScreen(
                     onClick = onOpenProject,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.Cyan,
-                        borderColor = Color.Cyan.copy(alpha = 0.5f)
+                        contentColor = Color.Cyan
                     )
                 ) {
                     Row(
@@ -402,7 +396,7 @@ fun RecentProjectCard(
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
             ) {
                 Text(text = project.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                Text(text = project.path, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.TextOverflow.Ellipsis)
+                Text(text = project.path, color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(text = "Last opened: ${project.lastOpened}", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp)
             }
             Icon(
@@ -450,17 +444,18 @@ fun NewProjectDialog(
                 ) {
                     Text(text = "New Project", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     
-                    FilledTextField(
+                    TextField(
                         value = projectName,
                         onValueChange = onNameChange,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 16.sp),
-                        colors = TextFieldDefaults.filledTextFieldColors(
-                            containerColor = Color(0xFF121212),
+                        colors = TextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
                             focusedContainerColor = Color(0xFF2D2D2D),
-                            textColor = Color.White,
-                            placeholderColor = Color.White.copy(alpha = 0.4f)
+                            unfocusedContainerColor = Color(0xFF121212),
+                            cursorColor = Color.Cyan
                         ),
                         placeholder = { Text(text = "Project Name", color = Color.White.copy(alpha = 0.4f), fontSize = 16.sp) },
                         leadingIcon = {

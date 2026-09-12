@@ -9,14 +9,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.draw.rotate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.FilledTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -116,12 +119,12 @@ enum class ExportPreset(val label: String, val resolution: String, val frameRate
 }
 
 enum class ExportFormat(val label: String, val icon: Int, val color: Int, val description: String) {
-    MP4("MP4", android.R.drawable.ic_media_play, 0xFF2196F3, "H.264/HEVC • Universal"),
-    MOV("ProRes", android.R.drawable.ic_menu_gallery, 0xFF9C27B0, "ProRes 422/4444 • Pro"),
-    WEBM("WebM", android.R.drawable.ic_menu_manage, 0xFF00BCD4, "VP9/AV1 • Web"),
-    GIF("GIF", android.R.drawable.ic_menu_slideshow, 0xFFE91E63, "Animated • 256 colors"),
-    PNG_SEQ("PNG Seq", android.R.drawable.ic_menu_gallery, 0xFF4CAF50, "Lossless • VFX"),
-    EXR_SEQ("EXR Seq", android.R.drawable.ic_menu_gallery, 0xFF8BC34A, "HDR • 16/32-bit float"),
+    MP4("MP4", android.R.drawable.ic_media_play, 0xFF2196F3.toInt(), "H.264/HEVC • Universal"),
+    MOV("ProRes", android.R.drawable.ic_menu_gallery, 0xFF9C27B0.toInt(), "ProRes 422/4444 • Pro"),
+    WEBM("WebM", android.R.drawable.ic_menu_manage, 0xFF00BCD4.toInt(), "VP9/AV1 • Web"),
+    GIF("GIF", android.R.drawable.ic_menu_slideshow, 0xFFE91E63.toInt(), "Animated • 256 colors"),
+    PNG_SEQ("PNG Seq", android.R.drawable.ic_menu_gallery, 0xFF4CAF50.toInt(), "Lossless • VFX"),
+    EXR_SEQ("EXR Seq", android.R.drawable.ic_menu_gallery, 0xFF8BC34A.toInt(), "HDR • 16/32-bit float"),
 }
 
 enum class ProResProfile(val label: String, val description: String) {
@@ -227,17 +230,18 @@ fun FileNameInput(
 
             androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
 
-            FilledTextField(
+            TextField(
                 value = fileName,
                 onValueChange = onFileNameChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
-                colors = TextFieldDefaults.filledTextFieldColors(
-                    containerColor = Color(0xFF1E1E1E),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
                     focusedContainerColor = Color(0xFF2D2D2D),
-                    textColor = Color.White,
-                    placeholderColor = Color.White.copy(alpha = 0.4f)
+                    unfocusedContainerColor = Color(0xFF1E1E1E),
+                    cursorColor = Color.Cyan
                 )
             )
         }
@@ -280,7 +284,7 @@ fun FormatSelector(
                             .height(60.dp)
                             .padding(4.dp),
                         colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-                            containerColor = if (selectedFormat == fmt) fmt.color.copy(alpha = 0.2f) else Color.Transparent
+                            containerColor = if (selectedFormat == fmt) Color(fmt.color).copy(alpha = 0.2f) else Color.Transparent
                         )
                     ) {
                         Column(
@@ -382,6 +386,7 @@ fun FormatSelector(
                         Text(text = "${bitrateMbps} Mbps", color = Color.Cyan, fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     }
                 }
+                else -> {}
             }
         }
     }
@@ -443,7 +448,7 @@ fun SummaryGrid(
 }
 
 @Composable
-fun SummaryItem(label: String, value: String) {
+fun RowScope.SummaryItem(label: String, value: String) {
     Box(
         modifier = Modifier
             .weight(1f)
@@ -500,7 +505,7 @@ fun AdvancedSettings(
 
             // Advanced options (collapsible)
             if (showAdvanced) {
-                Divider(color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
                 Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
                     AdvancedOption("Codec", "H.264 (Main Profile)")
                     AdvancedOption("Bitrate Mode", "VBR")
@@ -511,7 +516,7 @@ fun AdvancedSettings(
                     AdvancedOption("Audio Codec", "AAC-LC")
                     AdvancedOption("Audio Bitrate", "256 kbps")
                 }
-                Divider(color = Color.White.copy(alpha = 0.1f))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
             }
         }
     }

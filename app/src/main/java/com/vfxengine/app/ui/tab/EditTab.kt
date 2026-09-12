@@ -1,16 +1,21 @@
 package com.vfxengine.app.ui.tab
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -30,6 +35,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextOverflow
+import com.vfxengine.app.ui.EditorTab
 import com.vfxengine.app.ui.common.EditorState
 
 /**
@@ -43,7 +55,7 @@ import com.vfxengine.app.ui.common.EditorState
 @Composable
 fun EditTab(
     state: EditorState,
-    onTabSwitch: (EditorRoot.EditorTab) -> Unit
+    onTabSwitch: (EditorTab) -> Unit
 ) {
     var selectedClipId by remember { mutableStateOf<String?>(null) }
     var showTransitionPanel by remember { mutableStateOf(false) }
@@ -123,7 +135,7 @@ fun EditTab(
             hasEffects = hasEffects,
             hasProxy = hasProxy,
             useProxy = useProxy,
-            onNodeEditorClick = { onTabSwitch(EditorRoot.EditorTab.Effects) },
+            onNodeEditorClick = { onTabSwitch(EditorTab.Effects) },
             onProxyToggle = { if (selectedClip != null) state.toggleProxy(selectedClip.id) },
             onProxyGenerate = { if (selectedClip != null) state.generateProxy(selectedClip.id) }
         )
@@ -244,7 +256,7 @@ fun PlaybackControlsRow(state: EditorState) {
 }
 
 @Composable
-fun TimelineTracks(
+fun ColumnScope.TimelineTracks(
     state: EditorState,
     selectedClipId: String?,
     onClipClick: (String, Boolean) -> Unit,
@@ -412,11 +424,11 @@ fun TrackRow(
                 clips.forEach { clip ->
                     ClipView(
                         clip = clip,
-                        onClick = { onClick(clip.id, false) },
-                        onLongClick = { onLongClick(clip.id) },
+                        onClick = { onClipClick(clip.id, false) },
+                        onLongClick = { onClipLongClick(clip.id) },
                         onRippleDelete = { onRippleDelete(clip.id) },
                         multiSelectedIds = multiSelectedIds,
-                        extendSelection = { extend, clipId -> onClick(clipId, extend) }
+                        extendSelection = { extend, clipId -> onClipClick(clipId, extend) }
                     )
                 }
             }
@@ -478,7 +490,7 @@ fun ClipView(
                     fontSize = 12.sp,
                     fontWeight = if (clip.isSelected || isMultiSelected) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1,
-                    overflow = androidx.compose.ui.text.TextOverflow.Ellipsis
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
 
                 // Multi-select indicator
@@ -531,7 +543,7 @@ fun QuickActionToolbar(
     selectedClipId: String?,
     onTransitionClick: (String, String) -> Unit
 ) {
-    val selectedClip = selectedClipId?.let { state.clips.value.firstOrNull { it.id == it } }
+    val selectedClip = selectedClipId?.let { id -> state.clips.value.firstOrNull { it.id == id } }
     val hasProxy = selectedClip?.proxyGenerated ?: false
     val useProxy = selectedClip?.useProxy ?: false
     val canCopyPaste = selectedClipId != null && state.hasClipboardData()
@@ -552,8 +564,8 @@ fun QuickActionToolbar(
                 selectedClipId?.let { state.splitClip(it, state.currentTimeSeconds) }
             }
             ActionButton("Trim", android.R.drawable.ic_media_pause) {
-                selectedClipId?.let { 
-                    val clip = state.clips.value.firstOrNull { it.id == it }
+                selectedClipId?.let { id ->
+                    val clip = state.clips.value.firstOrNull { it.id == id }
                     clip?.let { state.trimClip(it.id, it.sourceIn, it.sourceOut) }
                 }
             }
@@ -562,12 +574,12 @@ fun QuickActionToolbar(
             }
             
             // Copy button
-            ActionButton("Copy", android.R.drawable.ic_menu_copy) {
+            ActionButton("Copy", android.R.drawable.ic_menu_share) {
                 selectedClipId?.let { state.copyClipToClipboard(it) }
             }
             
             // Paste button - enabled when clipboard has data and clip selected
-            ActionButton("Paste", android.R.drawable.ic_menu_paste, enabled = canCopyPaste) {
+            ActionButton("Paste", android.R.drawable.ic_input_add, enabled = canCopyPaste) {
                 selectedClipId?.let { state.pasteClipboardToClip(it) }
             }
             
@@ -612,9 +624,9 @@ fun QuickActionToolbar(
 }
 
 @Composable
-fun ActionButton(label: String, iconRes: Int, enabled: Boolean = true, onClick: () -> Unit = {}) {
+fun RowScope.ActionButton(label: String, iconRes: Int, enabled: Boolean = true, onClick: () -> Unit = {}) {
     androidx.compose.material3.TextButton(
-        onClick = if (enabled) onClick else null,
+        onClick = onClick, enabled = enabled,
         modifier = Modifier
             .weight(1f)
             .height(40.dp)
@@ -823,7 +835,6 @@ fun TransitionPanel(
                             .height(60.dp),
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                             containerColor = if (selectedType == type) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent,
-                            borderColor = if (selectedType == type) Color.Cyan else Color.White.copy(alpha = 0.3f),
                             contentColor = if (selectedType == type) Color.Cyan else Color.White
                         )
                     ) {
@@ -871,7 +882,6 @@ fun TransitionPanel(
                             .height(40.dp),
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                             containerColor = if (alignment == align) Color.Cyan.copy(alpha = 0.2f) else Color.Transparent,
-                            borderColor = if (alignment == align) Color.Cyan else Color.White.copy(alpha = 0.3f),
                             contentColor = if (alignment == align) Color.Cyan else Color.White
                         )
                     ) {
@@ -929,7 +939,7 @@ fun TransitionPanel(
                 androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
                 
                 // Default transition checkbox
-                androidx.compose.material3.Row(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -954,12 +964,12 @@ fun TransitionPanel(
                 Text(text = "Duration: ${String.format("%.1f", duration)}s", color = Color.White, fontSize = 13.sp)
             }
             
-            androidx.compose.material3.Slider(
-                modifier = Modifier.fillMaxWidth(),
-                value = (duration - 0.1) / (5.0 - 0.1),
-                onValueChange = { ratio ->
-                    duration = 0.1 + ratio * (5.0 - 0.1)
-                },
+                androidx.compose.material3.Slider(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = ((duration - 0.1) / (5.0 - 0.1)).toFloat(),
+                    onValueChange = { ratio ->
+                        duration = 0.1 + ratio * (5.0 - 0.1)
+                    },
                 colors = androidx.compose.material3.SliderDefaults.colors(
                     thumbColor = Color.Cyan,
                     activeTrackColor = Color.Cyan,
@@ -1020,7 +1030,7 @@ fun TransitionPreview(
                     TransitionAlignment.EndAtCut -> width
                 }
                 val clipBWidth = width - clipAWidth
-                val overlapWidth = duration / 5.0 * width // Scale for visual
+                val overlapWidth = (duration / 5.0 * width).toFloat() // Scale for visual
                 
                 // Clip A (from)
                 drawRect(
@@ -1071,7 +1081,7 @@ fun TransitionPreview(
                 drawPath(
                     path = path,
                     color = Color.Cyan,
-                    style = androidx.compose.ui.graphics.Stroke(width = 2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    style = Stroke(width = 2f, cap = StrokeCap.Round)
                 )
                 
                 // Cut line
@@ -1095,7 +1105,7 @@ enum class TransitionAlignment(val label: String) {
 }
 
 @Composable
-fun ClipInfoCard(state: EditorState, clipId: String, isFrom: Boolean) {
+fun RowScope.ClipInfoCard(state: EditorState, clipId: String, isFrom: Boolean) {
     val clip = state.clips.value.firstOrNull { it.id == clipId }
     val name = clip?.id ?: "Unknown"
     val typeIcon = when (clip?.type) {
@@ -1129,7 +1139,7 @@ fun ClipInfoCard(state: EditorState, clipId: String, isFrom: Boolean) {
                     modifier = Modifier.size(16.dp)
                 )
                 androidx.compose.foundation.layout.Box(modifier = Modifier.width(4.dp))
-                Text(text = name, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.TextOverflow.Ellipsis)
+                Text(text = name, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
     }

@@ -128,6 +128,10 @@ class NativeEngine {
         if (handle != 0L) nativeReloadShaders(handle)
     }
 
+    fun compileShadersIfNeeded() {
+        if (handle != 0L) nativeCompileShadersIfNeeded(handle)
+    }
+
     // Phase 7+: Node graph commands
     fun addNode(kind: Int, x: Float, y: Float, name: String, groupId: String = "") {
         if (handle != 0L) nativeAddNode(handle, kind, x, y, name, groupId)
@@ -232,36 +236,6 @@ class NativeEngine {
         if (handle != 0L) return nativeGetMediaMetadata(handle, uri)
         return null
     }
-
-    // Export
-    fun exportVideo(outputPath: String, width: Int, height: Int, frameRate: Double, startTime: Double, endTime: Double, bitrateMbps: Int, codec: String) {
-        if (handle != 0L) nativeExport(handle, outputPath, width, height, frameRate, startTime, endTime, bitrateMbps, codec)
-    }
-
-    // Audio output control
-    fun startAudioOutput() {
-        if (handle != 0L) nativeStartAudioOutput(handle)
-    }
-
-    fun stopAudioOutput() {
-        if (handle != 0L) nativeStopAudioOutput(handle)
-    }
-
-    // Profiling
-    fun getProfileStats(): String {
-        if (handle != 0L) return nativeGetProfileStats(handle)
-        return "{}"
-    }
-
-    // Shader compilation
-    fun compileShadersIfNeeded() {
-        if (handle != 0L) nativeCompileShadersIfNeeded(handle)
-    }
-
-    fun reloadShaders() {
-        if (handle != 0L) nativeReloadShaders(handle)
-    }
-
     // Crash Recovery
     fun enableCrashRecovery(enabled: Boolean, intervalSeconds: Int = 30) {
         if (handle != 0L) nativeEnableCrashRecovery(handle, enabled, intervalSeconds)
@@ -305,6 +279,7 @@ class NativeEngine {
     // Phase 6: Dev shader hot-reload
     private external fun nativeSetAssetManager(handle: Long, assetManager: AssetManager)
     private external fun nativeReloadShaders(handle: Long)
+    private external fun nativeCompileShadersIfNeeded(handle: Long)
 
     // Phase 7+ externals
     private external fun nativeAddNode(handle: Long, kind: Int, x: Float, y: Float, name: String, groupId: String)

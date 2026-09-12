@@ -4,17 +4,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
-import androidx.compose.material3.FilledTextField
+import androidx.compose.material3.TextField
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
@@ -84,7 +89,7 @@ fun SettingsDialog(
                 .width(500.dp)
                 .height(600.dp)
                 .background(Color(0xFF1E1E1E)),
-            elevation = 8.dp
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Header
@@ -137,9 +142,10 @@ fun SettingsDialog(
                 }
 
                 // Content
-                androidx.compose.foundation.lazy.LazyColumn(
+                Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp),
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
                 ) {
@@ -149,7 +155,7 @@ fun SettingsDialog(
                             label = "Default Frame Rate",
                             description = "Timeline frame rate for new projects"
                         ) {
-                            FilledTextField(
+                            TextField(
                                 value = localSettings.defaultFrameRate.toString(),
                                 onValueChange = { localSettings.defaultFrameRate = it.toDoubleOrNull() ?: 30.0 },
                                 modifier = Modifier.width(80.dp),
@@ -201,7 +207,7 @@ fun SettingsDialog(
                             Switch(
                                 checked = localSettings.useVulkan,
                                 onCheckedChange = { localSettings.useVulkan = it },
-                                colors = androidx.compose.material3.SwitchDefaults.colors(thumbColor = Color.Cyan)
+                                colors = androidx.compose.material3.SwitchDefaults.colors(checkedThumbColor = Color.Cyan, checkedTrackColor = Color.Cyan.copy(alpha = 0.5f))
                             )
                         }
 
@@ -238,7 +244,7 @@ fun SettingsDialog(
                             Switch(
                                 checked = localSettings.enableHdr,
                                 onCheckedChange = { localSettings.enableHdr = it },
-                                colors = androidx.compose.material3.SwitchDefaults.colors(thumbColor = Color.Cyan)
+                                colors = androidx.compose.material3.SwitchDefaults.colors(checkedThumbColor = Color.Cyan, checkedTrackColor = Color.Cyan.copy(alpha = 0.5f))
                             )
                         }
 
@@ -249,7 +255,7 @@ fun SettingsDialog(
                             Switch(
                                 checked = localSettings.enableThermalThrottling,
                                 onCheckedChange = { localSettings.enableThermalThrottling = it },
-                                colors = androidx.compose.material3.SwitchDefaults.colors(thumbColor = Color.Cyan)
+                                colors = androidx.compose.material3.SwitchDefaults.colors(checkedThumbColor = Color.Cyan, checkedTrackColor = Color.Cyan.copy(alpha = 0.5f))
                             )
                         }
                     }
@@ -345,7 +351,7 @@ fun SettingsSection(
             if (isCollapsible) {
                 IconButton(onClick = { expanded = !expanded; onExpandChange?.invoke(expanded) }) {
                     Icon(
-                        painter = painterResource(id = if (expanded) android.R.drawable.ic_menu_remove else android.R.drawable.ic_menu_add),
+                        painter = painterResource(id = if (expanded) android.R.drawable.ic_menu_close_clear_cancel else android.R.drawable.ic_menu_add),
                         contentDescription = if (expanded) "Collapse" else "Expand"
                     )
                 }
@@ -356,7 +362,7 @@ fun SettingsSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, bottom = 8.dp),
+                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
             ) {
                 content()
@@ -500,7 +506,8 @@ fun ProjectMenuItem(
     onClick: () -> Unit
 ) {
     androidx.compose.material3.TextButton(
-        onClick = if (enabled) onClick else null,
+        onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)

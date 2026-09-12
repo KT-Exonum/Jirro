@@ -1,11 +1,14 @@
 package com.vfxengine.app.ui.playback
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,7 +51,7 @@ fun PlaybackControls(state: EditorState) {
                 // Jump to start
                 IconButton(onClick = { state.seek(0.0) }) {
                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_media_previous),
+                        painter = painterResource(id = android.R.drawable.ic_media_rew),
                         contentDescription = "Jump to start"
                     )
                 }
@@ -74,7 +77,7 @@ fun PlaybackControls(state: EditorState) {
                     state.seek(0.0)
                 }) {
                     Icon(
-                        painter = painterResource(id = android.R.drawable.ic_media_stop),
+                        painter = painterResource(id = android.R.drawable.ic_media_pause),
                         contentDescription = "Stop"
                     )
                 }
@@ -153,14 +156,14 @@ fun PlaybackControls(state: EditorState) {
                 
                 Slider(
                     modifier = Modifier.width(150.dp),
-                    value = (state.playbackSpeed + 2f) / 4f, // Map -2..2 to 0..1
+                    value = ((state.playbackSpeed + 2.0) / 4.0).toFloat(),
                     onValueChange = { newPos ->
-                        val speed = newPos * 4f - 2f
-                        state.setPlaybackSpeed(speed.coerceIn(-2f, 2f))
+                        val speed = newPos * 4.0 - 2.0
+                        state.setPlaybackSpeed(speed.coerceIn(-2.0, 2.0))
                     },
                     colors = androidx.compose.material3.SliderDefaults.colors(
-                        thumbColor = Color.Orange,
-                        activeTrackColor = Color.Orange,
+                        thumbColor = Color(0xFFFFA726),
+                        activeTrackColor = Color(0xFFFFA726),
                         inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                     )
                 )

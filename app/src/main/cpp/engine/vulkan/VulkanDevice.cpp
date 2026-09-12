@@ -35,14 +35,10 @@ namespace {
 // explicit TODO rather than silently shipping something that isn't real
 // SPIR-V bytecode.
 // TODO(phase1): populate from `xxd -i triangle.vert.spv`.
-using vfx::generated_shader_bytecode::kTriangleVert;
-using vfx::generated_shader_bytecode::kTriangleVertWords;
-using vfx::generated_shader_bytecode::kTriangleFrag;
-using vfx::generated_shader_bytecode::kTriangleFragWords;
-constexpr const uint32_t* kTriangleVertSpirv = kTriangleVert;
-constexpr size_t kTriangleVertSpirvWords = kTriangleVertWords;
-constexpr const uint32_t* kTriangleFragSpirv = kTriangleFrag;
-constexpr size_t kTriangleFragSpirvWords = kTriangleFragWords;
+constexpr const uint32_t* kTriangleVertSpirv = vfx::kTriangleVert;
+constexpr size_t kTriangleVertSpirvWords = vfx::kTriangleVertWords;
+constexpr const uint32_t* kTriangleFragSpirv = vfx::kTriangleFrag;
+constexpr size_t kTriangleFragSpirvWords = vfx::kTriangleFragWords;
 
 bool HasExtension(const std::vector<VkExtensionProperties>& available, const char* name) {
     for (const auto& ext : available) {

@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 #include "engine/audio/AudioEngine.h"
+#include "shaders_embedded.h"
 
 #define LOG_TAG "RenderGraph"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -18,211 +19,18 @@
 
 namespace vfx {
 
-// Forward declare SPIR-V bytecode from VulkanDevice.cpp (generated_shader_bytecode namespace)
-extern const uint32_t* kFullscreenVertSpirv;
-extern size_t kFullscreenVertSpirvWords;
-extern const uint32_t* kBlendNormalFragSpirv;
-extern size_t kBlendNormalFragSpirvWords;
-extern const uint32_t* kBlendMultiplyFragSpirv;
-extern size_t kBlendMultiplyFragSpirvWords;
-extern const uint32_t* kBlendScreenFragSpirv;
-extern size_t kBlendScreenFragSpirvWords;
-extern const uint32_t* kBlendOverlayFragSpirv;
-extern size_t kBlendOverlayFragSpirvWords;
-extern const uint32_t* kBlendAddFragSpirv;
-extern size_t kBlendAddFragSpirvWords;
-extern const uint32_t* kBlendSubtractFragSpirv;
-extern size_t kBlendSubtractFragSpirvWords;
-extern const uint32_t* kColorCorrectionFragSpirv;
-extern size_t kColorCorrectionFragSpirvWords;
-extern const uint32_t* kBlurFragSpirv;
-extern size_t kBlurFragSpirvWords;
-extern const uint32_t* kMaskFragSpirv;
-extern size_t kMaskFragSpirvWords;
-extern const uint32_t* kCompositeFragSpirv;
-extern size_t kCompositeFragSpirvWords;
-extern const uint32_t* kVectorSourceVertSpirv;
-extern size_t kVectorSourceVertSpirvWords;
-extern const uint32_t* kVectorSourceFragSpirv;
-extern size_t kVectorSourceFragSpirvWords;
-extern const uint32_t* kTextSourceVertSpirv;
-extern size_t kTextSourceVertSpirvWords;
-extern const uint32_t* kTextSourceFragSpirv;
-extern size_t kTextSourceFragSpirvWords;
-extern const uint32_t* kStrokeSourceVertSpirv;
-extern size_t kStrokeSourceVertSpirvWords;
-extern const uint32_t* kStrokeSourceFragSpirv;
-extern size_t kStrokeSourceFragSpirvWords;
-extern const uint32_t* kAdjustmentVertSpirv;
-extern size_t kAdjustmentVertSpirvWords;
-extern const uint32_t* kAdjustmentFragSpirv;
-extern size_t kAdjustmentFragSpirvWords;
-extern const uint32_t* kNullLayerVertSpirv;
-extern size_t kNullLayerVertSpirvWords;
-extern const uint32_t* kNullLayerFragSpirv;
-extern size_t kNullLayerFragSpirvWords;
-extern const uint32_t* kOutputVertSpirv;
-extern size_t kOutputVertSpirvWords;
-extern const uint32_t* kOutputFragSpirv;
-extern size_t kOutputFragSpirvWords;
-extern const uint32_t* kMotionBlurVertSpirv;
-extern size_t kMotionBlurVertSpirvWords;
-extern const uint32_t* kMotionBlurFragSpirv;
-extern size_t kMotionBlurFragSpirvWords;
-extern const uint32_t* kDirectionalBlurVertSpirv;
-extern size_t kDirectionalBlurVertSpirvWords;
-extern const uint32_t* kDirectionalBlurFragSpirv;
-extern size_t kDirectionalBlurFragSpirvWords;
-extern const uint32_t* kTimeRemapVertSpirv;
-extern size_t kTimeRemapVertSpirvWords;
-extern const uint32_t* kTimeRemapFragSpirv;
-extern size_t kTimeRemapFragSpirvWords;
-extern const uint32_t* kBezierMaskVertSpirv;
-extern size_t kBezierMaskVertSpirvWords;
-extern const uint32_t* kBezierMaskFragSpirv;
-extern size_t kBezierMaskFragSpirvWords;
-extern const uint32_t* kParticleVertSpirv;
-extern size_t kParticleVertSpirvWords;
-extern const uint32_t* kParticleFragSpirv;
-extern size_t kParticleFragSpirvWords;
-extern const uint32_t* kParticleSimCompSpirv;
-extern size_t kParticleSimCompSpirvWords;
-extern const uint32_t* kShape2DVertSpirv;
-extern size_t kShape2DVertSpirvWords;
-extern const uint32_t* kShape2DFragSpirv;
-extern size_t kShape2DFragSpirvWords;
-extern const uint32_t* kShapeMergeFragSpirv;
-extern size_t kShapeMergeFragSpirvWords;
-extern const uint32_t* kShapeTransformVertSpirv;
-extern size_t kShapeTransformVertSpirvWords;
-extern const uint32_t* kTransform3DVertSpirv;
-extern size_t kTransform3DVertSpirvWords;
-extern const uint32_t* kTransform3DFragSpirv;
-extern size_t kTransform3DFragSpirvWords;
-extern const uint32_t* kCamera3DVertSpirv;
-extern size_t kCamera3DVertSpirvWords;
-extern const uint32_t* kDepthOfFieldFragSpirv;
-extern size_t kDepthOfFieldFragSpirvWords;
-extern const uint32_t* kChromaKeyVertSpirv;
-extern size_t kChromaKeyVertSpirvWords;
-extern const uint32_t* kChromaKeyFragSpirv;
-extern size_t kChromaKeyFragSpirvWords;
-extern const uint32_t* kMeshPBRVertSpirv;
-extern size_t kMeshPBRVertSpirvWords;
-extern const uint32_t* kMeshPBRFragSpirv;
-extern size_t kMeshPBRFragSpirvWords;
-
 // Motion transform vertex shader (shared by all motion effects)
-extern const uint32_t* kMotionTransformVertSpirv;
-extern size_t kMotionTransformVertSpirvWords;
 
 // Motion Effects shaders
-extern const uint32_t* kOscillateFragSpirv;
-extern size_t kOscillateFragSpirvWords;
-extern const uint32_t* kShakeFragSpirv;
-extern size_t kShakeFragSpirvWords;
-extern const uint32_t* kRandomDisplacementFragSpirv;
-extern size_t kRandomDisplacementFragSpirvWords;
-extern const uint32_t* kPulseFragSpirv;
-extern size_t kPulseFragSpirvWords;
-extern const uint32_t* kSwingFragSpirv;
-extern size_t kSwingFragSpirvWords;
-extern const uint32_t* kBounceFragSpirv;
-extern size_t kBounceFragSpirvWords;
-extern const uint32_t* kElasticFragSpirv;
-extern size_t kElasticFragSpirvWords;
-extern const uint32_t* kCameraShakeFragSpirv;
-extern size_t kCameraShakeFragSpirvWords;
-extern const uint32_t* kZoomBlurFragSpirv;
-extern size_t kZoomBlurFragSpirvWords;
-extern const uint32_t* kRadialBlurFragSpirv;
-extern size_t kRadialBlurFragSpirvWords;
-extern const uint32_t* kRippleFragSpirv;
-extern size_t kRippleFragSpirvWords;
-extern const uint32_t* kWaveFragSpirv;
-extern size_t kWaveFragSpirvWords;
-extern const uint32_t* kTwistFragSpirv;
-extern size_t kTwistFragSpirvWords;
-extern const uint32_t* kBulgeFragSpirv;
-extern size_t kBulgeFragSpirvWords;
-extern const uint32_t* kVortexFragSpirv;
-extern size_t kVortexFragSpirvWords;
-extern const uint32_t* kGlitchFragSpirv;
-extern size_t kGlitchFragSpirvWords;
-extern const uint32_t* kVHSFragSpirv;
-extern size_t kVHSFragSpirvWords;
-extern const uint32_t* kScanlinesFragSpirv;
-extern size_t kScanlinesFragSpirvWords;
-extern const uint32_t* kCRTFragSpirv;
-extern size_t kCRTFragSpirvWords;
-extern const uint32_t* kChromaticAberrationFragSpirv;
-extern size_t kChromaticAberrationFragSpirvWords;
-extern const uint32_t* kRGBShiftFragSpirv;
-extern size_t kRGBShiftFragSpirvWords;
-extern const uint32_t* kTimeStretchFragSpirv;
-extern size_t kTimeStretchFragSpirvWords;
-extern const uint32_t* kFrameBlendFragSpirv;
-extern size_t kFrameBlendFragSpirvWords;
-extern const uint32_t* kStopMotionFragSpirv;
-extern size_t kStopMotionFragSpirvWords;
-extern const uint32_t* kPosterizeTimeFragSpirv;
-extern size_t kPosterizeTimeFragSpirvWords;
-extern const uint32_t* kWiggleFragSpirv;
-extern size_t kWiggleFragSpirvWords;
-extern const uint32_t* kJitterFragSpirv;
-extern size_t kJitterFragSpirvWords;
-extern const uint32_t* kDriftFragSpirv;
-extern size_t kDriftFragSpirvWords;
-extern const uint32_t* kOrbitFragSpirv;
-extern size_t kOrbitFragSpirvWords;
-extern const uint32_t* kCameraShakeProFragSpirv;
-extern size_t kCameraShakeProFragSpirvWords;
-extern const uint32_t* kDynamicZoomFragSpirv;
-extern size_t kDynamicZoomFragSpirvWords;
-extern const uint32_t* kFilmDamageFragSpirv;
-extern size_t kFilmDamageFragSpirvWords;
-extern const uint32_t* kFilmGrainFragSpirv;
-extern size_t kFilmGrainFragSpirvWords;
-extern const uint32_t* kVignetteFragSpirv;
-extern size_t kVignetteFragSpirvWords;
-extern const uint32_t* kLetterboxFragSpirv;
-extern size_t kLetterboxFragSpirvWords;
-extern const uint32_t* kBezierWarpFragSpirv;
-extern size_t kBezierWarpFragSpirvWords;
-extern const uint32_t* kMeshWarpFragSpirv;
-extern size_t kMeshWarpFragSpirvWords;
-extern const uint32_t* kPolarCoordinatesFragSpirv;
-extern size_t kPolarCoordinatesFragSpirvWords;
-extern const uint32_t* kDisplacementMapFragSpirv;
-extern size_t kDisplacementMapFragSpirvWords;
 
 // Audio visualization shaders
-extern const uint32_t* kAudioReactiveFragSpirv;
-extern size_t kAudioReactiveFragSpirvWords;
-extern const uint32_t* kAudioWaveformFragSpirv;
-extern size_t kAudioWaveformFragSpirvWords;
-extern const uint32_t* kAudioSpectrumFragSpirv;
-extern size_t kAudioSpectrumFragSpirvWords;
 
 // Frame blend & optical flow
-extern const uint32_t* kFrameBlendFragSpirv;
-extern size_t kFrameBlendFragSpirvWords;
-extern const uint32_t* kOpticalFlowCompSpirv;
-extern size_t kOpticalFlowCompSpirvWords;
 
 // LUT
-extern const uint32_t* kLUTFragSpirv;
-extern size_t kLUTFragSpirvWords;
+// LUT
 
 // Text shaders
-extern const uint32_t* kTextVertSpirv;
-extern size_t kTextVertSpirvWords;
-extern const uint32_t* kTextFragSpirv;
-extern size_t kTextFragSpirvWords;
-extern const uint32_t* kTextAnimatorVertSpirv;
-extern size_t kTextAnimatorVertSpirvWords;
-extern const uint32_t* kTextPathVertSpirv;
-extern size_t kTextPathVertSpirvWords;
 
 // ---------------------------------------------------------------------------
 // Shader registry: replaces the old 200+ line switch(pass.kind) with a
@@ -285,27 +93,25 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(ParticleEmitter, kParticleVertSpirv, kParticleVertSpirvWords, kParticleFragSpirv, kParticleFragSpirvWords);
         V(ParticleForces, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(ParticleRenderer, kParticleVertSpirv, kParticleVertSpirvWords, kParticleFragSpirv, kParticleFragSpirvWords);
-        // Shape2D
-        V(ShapeRectangle, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeEllipse, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapePolygon, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeStar, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapePath, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeRender, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeMerge, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kShapeMergeFragSpirv, kShapeMergeFragSpirvWords);
-        V(ShapeTransform, kShapeTransformVertSpirv, kShapeTransformVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
-        V(ShapeStroke, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeFill, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeRepeater, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
-        V(ShapeBoolean, kShape2DVertSpirv, kShape2DVertSpirvWords, kShape2DFragSpirv, kShape2DFragSpirvWords);
+// Shape2D
+        V(ShapeRectangle, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeEllipse, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapePolygon, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeStar, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapePath, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeRender, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeStroke, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeFill, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeRepeater, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
+        V(ShapeBoolean, kShape2dVertSpirv, kShape2dVertSpirvWords, kShape2dFragSpirv, kShape2dFragSpirvWords);
         // 2.5D
-        V(Transform3D, kTransform3DVertSpirv, kTransform3DVertSpirvWords, kTransform3DFragSpirv, kTransform3DFragSpirvWords);
-        V(Camera3D, kCamera3DVertSpirv, kCamera3DVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
+        V(Transform3D, kTransform3dVertSpirv, kTransform3dVertSpirvWords, kTransform3dFragSpirv, kTransform3dFragSpirvWords);
+        V(Camera3D, kCamera3dVertSpirv, kCamera3dVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         V(DepthOfField, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kDepthOfFieldFragSpirv, kDepthOfFieldFragSpirvWords);
         // Keying
         V(ChromaKey, kChromaKeyVertSpirv, kChromaKeyVertSpirvWords, kChromaKeyFragSpirv, kChromaKeyFragSpirvWords);
         // 3D
-        V(MeshSource, kMeshPBRVertSpirv, kMeshPBRVertSpirvWords, kMeshPBRFragSpirv, kMeshPBRFragSpirvWords);
+        V(MeshSource, kMeshPbrVertSpirv, kMeshPbrVertSpirvWords, kMeshPbrFragSpirv, kMeshPbrFragSpirvWords);
         V(Group, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kBlendNormalFragSpirv, kBlendNormalFragSpirvWords);
         // Motion Effects - Transform Motion
         V(Oscillate, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kOscillateFragSpirv, kOscillateFragSpirvWords);
@@ -329,11 +135,11 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         V(Vortex, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVortexFragSpirv, kVortexFragSpirvWords);
         // Motion Effects - Stylize Motion
         V(Glitch, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kGlitchFragSpirv, kGlitchFragSpirvWords);
-        V(VHS, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVHSFragSpirv, kVHSFragSpirvWords);
+        V(VHS, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kVhsFragSpirv, kVhsFragSpirvWords);
         V(Scanlines, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kScanlinesFragSpirv, kScanlinesFragSpirvWords);
-        V(CRT, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCRTFragSpirv, kCRTFragSpirvWords);
+        V(CRT, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kCrtFragSpirv, kCrtFragSpirvWords);
         V(ChromaticAberration, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kChromaticAberrationFragSpirv, kChromaticAberrationFragSpirvWords);
-        V(RGBShift, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRGBShiftFragSpirv, kRGBShiftFragSpirvWords);
+        V(RGBShift, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kRgbShiftFragSpirv, kRgbShiftFragSpirvWords);
         // Motion Effects - Time Motion
         V(TimeStretch, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kTimeStretchFragSpirv, kTimeStretchFragSpirvWords);
         V(FrameBlend, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kFrameBlendFragSpirv, kFrameBlendFragSpirvWords);
@@ -342,7 +148,7 @@ static const std::unordered_map<NodeKind, ShaderEntry, NodeKindHash>& GetShaderR
         // Optical Flow (compute)
         V(OpticalFlow, kTimeRemapVertSpirv, kTimeRemapVertSpirvWords, kTimeRemapFragSpirv, kTimeRemapFragSpirvWords);
         // LUT
-        V(LUT, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kLUTFragSpirv, kLUTFragSpirvWords);
+        V(LUT, kFullscreenVertSpirv, kFullscreenVertSpirvWords, kLutFragSpirv, kLutFragSpirvWords);
         // Motion Effects - Utility Motion
         V(Wiggle, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kWiggleFragSpirv, kWiggleFragSpirvWords);
         V(Jitter, kMotionTransformVertSpirv, kMotionTransformVertSpirvWords, kJitterFragSpirv, kJitterFragSpirvWords);

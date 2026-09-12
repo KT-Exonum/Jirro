@@ -5,13 +5,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.Divider
-import androidx.compose.material3.FilledTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -141,47 +143,48 @@ fun InspectorPanel(state: EditorState) {
             
             Divider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 16.dp))
             
-            // Audio-specific properties
-            if (selectedNode.type == EditorState.NodeType.AudioReactive ||
-                selectedNode.type == EditorState.NodeType.AudioSpectrum ||
-                selectedNode.type == EditorState.NodeType.AudioWaveform ||
-                selectedNode.type == EditorState.NodeType.BeatDetect) {
+            val audioNode = selectedNode
+            if (audioNode != null && (
+                audioNode.type == EditorState.NodeType.AudioReactive ||
+                audioNode.type == EditorState.NodeType.AudioSpectrum ||
+                audioNode.type == EditorState.NodeType.AudioWaveform ||
+                audioNode.type == EditorState.NodeType.BeatDetect)) {
                 Text(text = "Audio", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 androidx.compose.foundation.layout.Box(modifier = Modifier.height(8.dp))
                 
                 UniformField(
                     label = "Sensitivity",
-                    value = selectedNode.uniforms["sensitivity"] ?: 1.0f,
-                    onValueChange = { state.updateNodeUniform(selectedNode.id, "sensitivity", it) }
+                    value = audioNode.uniforms["sensitivity"] ?: 1.0f,
+                    onValueChange = { state.updateNodeUniform(audioNode.id, "sensitivity", it) }
                 )
                 UniformField(
                     label = "Frequency Min (Hz)",
-                    value = selectedNode.uniforms["frequencyMin"] ?: 20.0f,
-                    onValueChange = { state.updateNodeUniform(selectedNode.id, "frequencyMin", it) }
+                    value = audioNode.uniforms["frequencyMin"] ?: 20.0f,
+                    onValueChange = { state.updateNodeUniform(audioNode.id, "frequencyMin", it) }
                 )
                 UniformField(
                     label = "Frequency Max (Hz)",
-                    value = selectedNode.uniforms["frequencyMax"] ?: 20000.0f,
-                    onValueChange = { state.updateNodeUniform(selectedNode.id, "frequencyMax", it) }
+                    value = audioNode.uniforms["frequencyMax"] ?: 20000.0f,
+                    onValueChange = { state.updateNodeUniform(audioNode.id, "frequencyMax", it) }
                 )
                 UniformField(
                     label = "Beat Threshold",
-                    value = selectedNode.uniforms["beatThreshold"] ?: 0.5f,
-                    onValueChange = { state.updateNodeUniform(selectedNode.id, "beatThreshold", it) }
+                    value = audioNode.uniforms["beatThreshold"] ?: 0.5f,
+                    onValueChange = { state.updateNodeUniform(audioNode.id, "beatThreshold", it) }
                 )
                 
-                if (selectedNode.type == EditorState.NodeType.AudioSpectrum) {
+                if (audioNode.type == EditorState.NodeType.AudioSpectrum) {
                     UniformField(
                         label = "Spectrum Bars",
-                        value = selectedNode.uniforms["spectrumBars"] ?: 64.0f,
-                        onValueChange = { state.updateNodeUniform(selectedNode.id, "spectrumBars", it) }
+                        value = audioNode.uniforms["spectrumBars"] ?: 64.0f,
+                        onValueChange = { state.updateNodeUniform(audioNode.id, "spectrumBars", it) }
                     )
                 }
-                if (selectedNode.type == EditorState.NodeType.AudioWaveform) {
+                if (audioNode.type == EditorState.NodeType.AudioWaveform) {
                     UniformField(
                         label = "Waveform Points",
-                        value = selectedNode.uniforms["waveformPoints"] ?: 512.0f,
-                        onValueChange = { state.updateNodeUniform(selectedNode.id, "waveformPoints", it) }
+                        value = audioNode.uniforms["waveformPoints"] ?: 512.0f,
+                        onValueChange = { state.updateNodeUniform(audioNode.id, "waveformPoints", it) }
                     )
                 }
             }
@@ -199,7 +202,7 @@ fun UniformField(
     
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(text = label, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-        FilledTextField(
+        TextField(
             value = textValue,
             onValueChange = { 
                 textValue = it
@@ -208,11 +211,12 @@ fun UniformField(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 12.sp),
-            colors = androidx.compose.material3.TextFieldDefaults.filledTextFieldColors(
-                containerColor = Color(0xFF2D2D2D),
+            colors = TextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
                 focusedContainerColor = Color(0xFF3D3D3D),
-                textColor = Color.White,
-                placeholderColor = Color.White.copy(alpha = 0.4f)
+                unfocusedContainerColor = Color(0xFF2D2D2D),
+                cursorColor = Color.Cyan
             )
         )
     }

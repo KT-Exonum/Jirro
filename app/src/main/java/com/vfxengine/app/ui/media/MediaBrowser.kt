@@ -3,8 +3,10 @@ package com.vfxengine.app.ui.media
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -49,7 +51,7 @@ fun MediaBrowser(state: EditorState) {
                 .background(Color(0xFF121212))
         ) {
             Text(text = "Media", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f))
+            Box(modifier = Modifier.weight(1f))
             androidx.compose.material3.IconButton(onClick = { state.loadMediaFiles() }) {
                 androidx.compose.material3.Icon(
                     painter = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_popup_sync),
@@ -104,7 +106,7 @@ fun MediaItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
             ) {
-                Text(text = media.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.TextOverflow.Ellipsis)
+                Text(text = media.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
             
             Row(

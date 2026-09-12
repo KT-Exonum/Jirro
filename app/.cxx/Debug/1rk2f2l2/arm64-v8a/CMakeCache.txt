@@ -218,8 +218,8 @@ CMAKE_SYSTEM_NAME:UNINITIALIZED=Android
 //No help, variable specified on the command line.
 CMAKE_SYSTEM_VERSION:UNINITIALIZED=29
 
-//The CMake toolchain file
-CMAKE_TOOLCHAIN_FILE:FILEPATH=C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/build/cmake/android.toolchain.cmake
+//No help, variable specified on the command line.
+CMAKE_TOOLCHAIN_FILE:UNINITIALIZED=C:\Users\jwats\AppData\Local\Android\Sdk\ndk\26.1.10909125\build\cmake\android.toolchain.cmake
 
 //If this value is on, makefiles will be generated without the
 // .SILENT directive, and all commands will be echoed to the console
@@ -237,7 +237,7 @@ ENGINE_ENABLE_EXPRESSION_ENGINE:BOOL=OFF
 ENGINE_ENABLE_TEXT_RENDERING:BOOL=OFF
 
 //Path to glslangValidator for offline SPIR-V compilation
-GLSLANG_VALIDATOR:FILEPATH=GLSLANG_VALIDATOR-NOTFOUND
+GLSLANG_VALIDATOR:FILEPATH=C:/VulkanSDK/1.4.357.0/Bin/glslangValidator.exe
 
 //Path to a library.
 aaudio-lib:FILEPATH=C:/Users/jwats/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/aarch64-linux-android/29/libaaudio.so

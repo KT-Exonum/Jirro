@@ -1,0 +1,204 @@
+﻿.\gradlew.bat : e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/S
+ettingsDialog.kt:150:21 @Composable invocations can only happen from the context of a @Composable function
+At C:\Users\jwats\AppData\Local\Temp\ps-script-cad218d7-0e3d-4705-9f88-e8be78c61d00.ps1:110 char:1
++ .\gradlew.bat :app:compileDebugKotlin --quiet 2>&1 | Out-File -Encodi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///C:/U...osable function:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:196:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:199:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:260:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:263:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:293:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:297:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/common/SettingsDialog.kt
+:362:22 None of the following candidates is applicable:
+fun Modifier.padding(paddingValues: PaddingValues): Modifier
+fun Modifier.padding(all: Dp): Modifier
+fun Modifier.padding(horizontal: Dp = ..., vertical: Dp = ...): Modifier
+fun Modifier.padding(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): Modifier
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:148:120 Unresolved reference 'Mono'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:170:29 Unresolved reference 'DopeSheetView'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:174:67 Unresolved reference 'it'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:187:29 Unresolved reference 'EasingPresetsPanel'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:191:51 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:196:80 Argument type mismatch: actual type is 'kotlin.Int?', but 'kotlin.Int' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:197:80 Argument type mismatch: actual type is 'kotlin.Int?', but 'kotlin.Int' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:197:113 Unresolved reference 'interpolation'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:198:56 Unresolved reference 'interpolation'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:199:74 Unresolved reference 'inTangent'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:200:75 Unresolved reference 'outTangent'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:202:68 Argument type mismatch: actual type is 'kotlin.Int?', but 'kotlin.Int' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:210:29 Unresolved reference 'RoamingCurvesPanel'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:213:50 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:218:80 Argument type mismatch: actual type is 'kotlin.Int?', but 'kotlin.Int' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:219:80 Argument type mismatch: actual type is 'kotlin.Int?', but 'kotlin.Int' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:221:68 Argument type mismatch: actual type is 'kotlin.Int?', but 'kotlin.Int' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:284:13 No parameter with name 'icon' found.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:286:13 No value passed for parameter 'iconRes'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:294:13 No parameter with name 'icon' found.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:296:13 No value passed for parameter 'iconRes'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:299:13 No parameter with name 'icon' found.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:301:13 No value passed for parameter 'iconRes'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:565:21 Cannot access 'constructor(packedValue: Long): Offset': it is internal in 
+'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:566:19 Cannot access 'constructor(packedValue: Long): Offset': it is internal in 
+'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:655:65 Argument type mismatch: actual type is 'kotlin.Float', but 'kotlin.Double' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:656:51 Argument type mismatch: actual type is 'kotlin.Float', but 'kotlin.Double' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:656:55 Argument type mismatch: actual type is 'kotlin.Float', but 'kotlin.Double' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:657:52 Argument type mismatch: actual type is 'kotlin.Float', but 'kotlin.Double' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:657:56 Argument type mismatch: actual type is 'kotlin.Float', but 'kotlin.Double' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:662:19 Cannot access 'constructor(packedValue: Long): Offset': it is internal in 
+'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:668:19 Cannot access 'constructor(packedValue: Long): Offset': it is internal in 
+'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:672:70 Cannot access 'constructor(packedValue: Long): Offset': it is internal in 
+'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:673:70 Cannot access 'constructor(packedValue: Long): Offset': it is internal in 
+'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:692:18 Unresolved reference 'fillMaxHeight'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:709:41 Unresolved reference 'Mono'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:724:14 Unresolved reference 'align'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:828:13 No parameter with name 'thumbContentColor' found.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:829:13 No parameter with name 'trackColor' found.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:830:11 Argument type mismatch: actual type is 'kotlin.Function0<kotlin.Unit>', but 
+'androidx.compose.foundation.interaction.MutableInteractionSource?' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:831:13 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/keyframe/KeyframeEditor.
+kt:964:116 Unresolved reference 'Mono'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/media/MediaBrowser.kt:67
+:37 Unresolved reference 'fillMaxSize'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/media/MediaBrowser.kt:74
+:37 Unresolved reference 'fillMaxSize'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/nodeeditor/NodeEditor.kt
+:57:14 None of the following candidates is applicable:
+fun Modifier.background(brush: Brush, shape: Shape = ..., alpha: Float = ...): Modifier
+fun Modifier.background(color: Color, shape: Shape = ...): Modifier
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/nodeeditor/NodeEditor.kt
+:237:13 'when' expression must be exhaustive. Add the 'is MarqueeSelect', 'is MovingNode', 'is MovingNodes', 'is 
+Panning' branches or an 'else' branch.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/playback/PlaybackControl
+s.kt:40:14 Unresolved reference 'background'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:425:37 
+Unresolved reference 'onClick'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:426:41 
+Unresolved reference 'onLongClick'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:429:63 
+Unresolved reference 'onClick'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:544:78 
+Operator '==' cannot be applied to 'kotlin.String' and 'com.vfxengine.app.ui.common.EditorState.Clip'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:566:64 
+Operator '==' cannot be applied to 'kotlin.String' and 'com.vfxengine.app.ui.common.EditorState.Clip'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:764:14 
+Unresolved reference 'border'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:764:21 
+Unresolved reference 'BorderStroke'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:834:76 
+None of the following candidates is applicable:
+fun outlinedButtonColors(): ButtonColors
+fun outlinedButtonColors(containerColor: Color = ..., contentColor: Color = ..., disabledContainerColor: Color = ..., 
+disabledContentColor: Color = ...): ButtonColors
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:882:76 
+None of the following candidates is applicable:
+fun outlinedButtonColors(): ButtonColors
+fun outlinedButtonColors(containerColor: Color = ..., contentColor: Color = ..., disabledContainerColor: Color = ..., 
+disabledContentColor: Color = ...): ButtonColors
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:942:44 
+Unresolved reference 'Row'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:947:21 
+@Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:948:48 
+@Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:951:78 
+@Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:969:25 
+Argument type mismatch: actual type is 'kotlin.Double', but 'kotlin.Float' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:1070:45 
+Argument type mismatch: actual type is 'kotlin.Double', but 'kotlin.Float' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:1070:68 
+Argument type mismatch: actual type is 'kotlin.Double', but 'kotlin.Float' was expected.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:1076:31 
+Cannot access 'constructor(packedValue: Long): Offset': it is internal in 'androidx/compose/ui/geometry/Offset'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:1077:28 
+Cannot access 'constructor(packedValue: Long): Size': it is internal in 'androidx/compose/ui/geometry/Size'.
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/EditTab.kt:1119:14 
+Unresolved reference 'weight'.
+e: 
+file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/FusionTab.kt:1641:53 
+Argument type mismatch: actual type is 'kotlin.Float', but 'kotlin.Double' was expected.
+e: 
+file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/FusionTab.kt:1708:86 
+Argument type mismatch: actual type is 'kotlin.String', but 'kotlin.Float' was expected.
+e: 
+file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/FusionTab.kt:2287:45 
+None of the following candidates is applicable:
+fun outlinedButtonColors(): ButtonColors
+fun outlinedButtonColors(containerColor: Color = ..., contentColor: Color = ..., disabledContainerColor: Color = ..., 
+disabledContentColor: Color = ...): ButtonColors
+e: file:///C:/Users/jwats/eclipse-workspace/Jirro/Jirro/app/src/main/java/com/vfxengine/app/ui/tab/MediaTab.kt:326:1 
+Syntax error: Expecting a top level declaration.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing 
+org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s

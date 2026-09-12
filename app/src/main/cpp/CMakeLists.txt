@@ -56,9 +56,10 @@ if(Python3_Interpreter_FOUND AND GLSLANG_VALIDATOR)
     )
     message(STATUS "Shader compilation enabled: ${GLSLANG_VALIDATOR}")
 else()
-    message(STATUS "Shader compilation disabled (glslangValidator not found; shaders will be stubs)")
-    # Create an empty placeholder header so the include still resolves.
-    file(WRITE ${SHADER_EMBEDDED_HEADER} "// Shader compilation disabled: no glslangValidator found.\n")
+    message(STATUS "Shader compilation disabled (glslangValidator not found; using existing header if present)")
+    if(NOT EXISTS ${SHADER_EMBEDDED_HEADER})
+        file(WRITE ${SHADER_EMBEDDED_HEADER} "// Shader compilation disabled: no glslangValidator found.\n")
+    endif()
 endif()
 
 # ---------------------------------------------------------------------------
@@ -70,6 +71,7 @@ add_library(vfxengine SHARED
     Engine.cpp
     engine/core/RuntimeShaderCompiler.cpp
     engine/vulkan/VulkanDevice.cpp
+    engine/opengl/OpenGLDevice.cpp
     engine/graph/RenderGraph.cpp
     engine/media/MediaEngine.cpp
     engine/core/Profiler.cpp

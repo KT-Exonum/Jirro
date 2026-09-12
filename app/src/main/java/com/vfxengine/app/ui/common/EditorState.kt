@@ -1,9 +1,9 @@
 package com.vfxengine.app.ui.common
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import kotlin.math.abs
 import kotlin.math.max
 
 /**
@@ -12,18 +12,18 @@ import kotlin.math.max
  * The native engine is driven by JNI commands posted from this state.
  */
 class EditorState(
-    private val nativeEngine: com.vfxengine.app.NativeEngine
+    internal val nativeEngine: com.vfxengine.app.NativeEngine
 ) {
     // Timeline
-    var currentTimeSeconds by remember { mutableStateOf(0.0) }
-    var durationSeconds by remember { mutableStateOf(10.0) }
-    var isPlaying by remember { mutableStateOf(false) }
-    var playbackSpeed by remember { mutableStateOf(1.0) }
-    var isScrubbing by remember { mutableStateOf(false) }
+    var currentTimeSeconds by mutableStateOf(0.0)
+    var durationSeconds by mutableStateOf(10.0)
+    var isPlaying by mutableStateOf(false)
+    var playbackSpeed by mutableStateOf(1.0)
+    var isScrubbing by mutableStateOf(false)
 
     // Timeline zoom/pan
-    var timeScale by remember { mutableStateOf(50.0) } // pixels per second
-    var timeOffset by remember { mutableStateOf(0.0) }
+    var timeScale by mutableStateOf(50.0) // pixels per second
+    var timeOffset by mutableStateOf(0.0)
 
     // Node graph
     data class Node(
@@ -52,7 +52,7 @@ class EditorState(
         // StrokeSource
         var strokePoints: MutableList<Float> = mutableListOf(),
         var strokeWidth: Float = 2.0f,
-        var strokeColor: Int = 0xFFFFFFFF,
+        var strokeColor: Int = 0xFFFFFFFF.toInt(),
         // Onion skinning (Output node)
         var onionSkinEnabled: Boolean = false,
         var onionSkinFramesBefore: Int = 2,
@@ -203,8 +203,6 @@ class EditorState(
         CameraShake("Camera Shake", 0xFF673AB7.toInt(), 96),
         ZoomBlur("Zoom Blur", 0xFF673AB7.toInt(), 97),
         RadialBlur("Radial Blur", 0xFF673AB7.toInt(), 98),
-        MotionBlur("Motion Blur", 0xFF673AB7.toInt(), 99),
-        DirectionalBlur("Directional Blur", 0xFF673AB7.toInt(), 100),
         // Distortion Motion
         Ripple("Ripple", 0xFF9C27B0.toInt(), 101),
         Wave("Wave", 0xFF9C27B0.toInt(), 102),
@@ -213,7 +211,6 @@ class EditorState(
         Vortex("Vortex", 0xFF9C27B0.toInt(), 105),
         // Stylize Motion
         Glitch("Glitch", 0xFFFF9800.toInt(), 106),
-        VHS("VHS", 0xFFFF9800.toInt(), 107),
         Scanlines("Scanlines", 0xFFFF9800.toInt(), 108),
         CRT("CRT", 0xFFFF9800.toInt(), 109),
         ChromaticAberration("Chromatic Aberration", 0xFFFF9800.toInt(), 110),
@@ -263,15 +260,15 @@ class EditorState(
         var isCollapsed: Boolean = true,
     )
 
-    val nodes = remember { mutableStateOf(mutableMapOf<String, Node>()) }
-    val connections = remember { mutableStateOf(mutableListOf<Connection>()) }
-    val groups = remember { mutableStateOf(mutableMapOf<String, NodeGroup>()) }
-    var selectedNodeId by remember { mutableStateOf<String?>(null) }
-    var selectedNodeIds by remember { mutableStateOf(mutableSetOf<String>()) }
-    var selectedGroupIds by remember { mutableStateOf(mutableSetOf<String>()) }
+    val nodes = mutableStateOf(mutableMapOf<String, Node>())
+    val connections = mutableStateOf(mutableListOf<Connection>())
+    val groups = mutableStateOf(mutableMapOf<String, NodeGroup>())
+    var selectedNodeId by mutableStateOf<String?>(null)
+    var selectedNodeIds by mutableStateOf(mutableSetOf<String>())
+    var selectedGroupIds by mutableStateOf(mutableSetOf<String>())
 
     // Drag state for node editor
-    var dragState by remember { mutableStateOf<DragState?>(null) }
+    var dragState by mutableStateOf<DragState?>(null)
 
     sealed class DragState {
         data class MovingNode(val nodeId: String, val startX: Float, val startY: Float) : DragState()
@@ -282,9 +279,9 @@ class EditorState(
     }
 
     // Node editor pan/zoom
-    var nodePanX by remember { mutableStateOf(0f) }
-    var nodePanY by remember { mutableStateOf(0f) }
-    var nodeZoom by remember { mutableStateOf(1f) }
+    var nodePanX by mutableStateOf(0f)
+    var nodePanY by mutableStateOf(0f)
+    var nodeZoom by mutableStateOf(1f)
 
     // Clips on timeline
     enum class ClipType { Video, Audio, Image, Vector, Text, Stroke }
@@ -296,22 +293,30 @@ class EditorState(
         var timelineStart: Double = 0.0,
         var sourceIn: Double = 0.0,
         var sourceOut: Double = 0.0,
-        var speed: Double = 1.0,
+            var speed: Double = 1.0,
         var layer: Int = 0,
         var enabled: Boolean = true,
         var locked: Boolean = false,
-        val color: Int = 0xFF2196F3,
+        val color: Int = 0xFF2196F3.toInt(),
+        val name: String = id,
         // Proxy support
         var proxyPath: String = "",
         var useProxy: Boolean = false,
         var proxyResolution: String = "540p",
         var proxyGenerated: Boolean = false
-    )
+    ) {
+        val duration: Double
+            get() {
+                val span = sourceOut - sourceIn
+                val spd = abs(speed)
+                return if (spd < 1e-9) span else span / spd
+            }
+    }
 
-    val clips = remember { mutableStateOf(mutableListOf<Clip>()) }
+    val clips = mutableStateOf(mutableListOf<Clip>())
     
     // Multi-select support
-    val selectedClipIds = remember { mutableStateOf(mutableSetOf<String>()) }
+    val selectedClipIds = mutableStateOf(mutableSetOf<String>())
     
     // Audio clip data
     data class AudioClip(
@@ -323,10 +328,10 @@ class EditorState(
         var solo: Boolean = false,
     )
 
-    val audioClips = remember { mutableStateOf(mutableMapOf<String, AudioClip>()) }
+    val audioClips = mutableStateOf(mutableMapOf<String, AudioClip>())
 
     // Keyframe editor
-    var keyframeEditorTarget by remember { mutableStateOf<KeyframeTarget?>(null) }
+    var keyframeEditorTarget by mutableStateOf<KeyframeTarget?>(null)
 
     data class KeyframeTarget(
         val nodeId: String,
@@ -335,8 +340,8 @@ class EditorState(
     )
 
     // Media browser
-    var mediaFiles by remember { mutableStateOf<List<MediaFile>>(emptyList()) }
-    var selectedMediaFile by remember { mutableStateOf<MediaFile?>(null) }
+    var mediaFiles by mutableStateOf<List<MediaFile>>(emptyList())
+    var selectedMediaFile by mutableStateOf<MediaFile?>(null)
 
     data class MediaFile(
         val path: String,
@@ -395,8 +400,7 @@ class EditorState(
                 }
             }
 
-            // Apply procedural on top
-            if (procedural.enabled) {
+            return if (procedural.enabled) {
                 baseValue + evaluateProcedural(time, procedural)
             } else {
                 baseValue
@@ -435,8 +439,8 @@ class EditorState(
             val i = kotlin.math.floor(x).toLong()
             val f = x - i.toDouble()
             val u = f * f * (3.0 - 2.0 * f) // smoothstep
-            val a = hash11(i + config.seed.toLong())
-            val b = hash11(i + 1 + config.seed.toLong())
+            val a = hash11(i + procedural.seed.toLong())
+            val b = hash11(i + 1 + procedural.seed.toLong())
             return a + (b - a) * u
         }
 
@@ -499,8 +503,8 @@ class EditorState(
         data class MultiAction(val actions: List<HistoryAction>) : HistoryAction()
     }
 
-    val history = remember { mutableStateOf(mutableListOf<HistoryAction>()) }
-    var historyIndex by remember { mutableStateOf(0) }
+    val history = mutableStateOf(mutableListOf<HistoryAction>())
+    var historyIndex by mutableStateOf(0)
     val maxHistorySize = 100
 
     fun recordAction(action: HistoryAction) {
@@ -524,6 +528,7 @@ class EditorState(
         historyIndex--
         val action = history.value[historyIndex]
         revertAction(action)
+        nativeEngine.undo()
     }
 
     fun redo() {
@@ -531,6 +536,7 @@ class EditorState(
         val action = history.value[historyIndex]
         applyAction(action)
         historyIndex++
+        nativeEngine.redo()
     }
 
     private fun applyAction(action: HistoryAction) {
@@ -905,8 +911,7 @@ class EditorState(
                 node.outputs.add(Port("output", Port.PortType.Output))
             }
             // Motion Effects - Camera Motion
-            NodeType.CameraShake, NodeType.ZoomBlur, NodeType.RadialBlur,
-            NodeType.MotionBlur, NodeType.DirectionalBlur -> {
+            NodeType.CameraShake, NodeType.ZoomBlur, NodeType.RadialBlur -> {
                 node.inputs.add(Port("input", Port.PortType.Input))
                 node.outputs.add(Port("output", Port.PortType.Output))
             }
@@ -916,7 +921,7 @@ class EditorState(
                 node.outputs.add(Port("output", Port.PortType.Output))
             }
             // Motion Effects - Stylize Motion
-            NodeType.Glitch, NodeType.VHS, NodeType.Scanlines, NodeType.CRT,
+            NodeType.Glitch, NodeType.Scanlines, NodeType.CRT,
             NodeType.ChromaticAberration, NodeType.RGBShift -> {
                 node.inputs.add(Port("input", Port.PortType.Input))
                 node.outputs.add(Port("output", Port.PortType.Output))
@@ -1244,7 +1249,7 @@ class EditorState(
         val trackClips = clips.value.filter { it.layer == clip.layer && it.timelineStart > clip.timelineStart }
         for (c in trackClips) {
             updateClip(c.id, "timelineStart", c.timelineStart - clip.duration)
-            nativeEngine.updateClip(c.id, c.timelineStart, c.sourceIn, c.sourceOut, c.speed, c.layer, c.enabled, c.locked, true, false, false, false, false, false)
+            nativeEngine.updateClip(c.id, timelineStart = c.timelineStart)
         }
     }
     
@@ -1308,7 +1313,7 @@ class EditorState(
         if (abs(delta) < 0.001) return
         
         updateClip(clipId, "timelineStart", newPosition)
-        nativeEngine.updateClip(clipId, newPosition, clip.sourceIn, clip.sourceOut, clip.speed, clip.layer, clip.enabled, clip.locked, true, false, false, false, false, false)
+        nativeEngine.updateClip(clipId, timelineStart = newPosition)
         
         // Shift subsequent clips on same track
         val trackClips = clips.value.filter { 
@@ -1318,7 +1323,7 @@ class EditorState(
         for (c in trackClips) {
             val newPos = c.timelineStart + delta
             updateClip(c.id, "timelineStart", newPos)
-            nativeEngine.updateClip(c.id, newPos, c.sourceIn, c.sourceOut, c.speed, c.layer, c.enabled, c.locked, true, false, false, false, false, false)
+            nativeEngine.updateClip(c.id, timelineStart = newPos)
         }
     }
     
@@ -1355,7 +1360,7 @@ class EditorState(
         val clip = clips.value.firstOrNull { it.id == clipId } ?: return
         val node = nodes.value[clip.nodeId] ?: return
 
-        val animated = node.animatedUniforms.mapValues { (k, v) -> k to v.copy() }
+        val animated = node.animatedUniforms.mapValues { it.value.copy() }
         val static = node.uniforms.toMap()
 
         _clipboard.value = ClipboardData(
@@ -1430,7 +1435,7 @@ class EditorState(
 
             // Update native engine with new keyframes
             targetTrack.keyframes.forEach { kf ->
-                nativeEngine.addKeyframe(targetNode.id, uniformName, kf.time, kf.value)
+                nativeEngine.updateUniform(targetNode.id, uniformName, kf.value)
             }
         }
     }
@@ -1450,13 +1455,5 @@ class EditorState(
     fun loadMediaFiles() {
         // TODO: Implement media scanning from device storage
         // For now, add some placeholder
-    }
-
-    fun undo() {
-        nativeEngine.undo()
-    }
-
-    fun redo() {
-        nativeEngine.redo()
     }
 }
